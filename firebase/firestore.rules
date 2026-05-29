@@ -1,0 +1,268 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔐 FUNCIONES AUXILIARES
+    // ═══════════════════════════════════════════════════════════════════
+    
+    // Usuario autenticado
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+    
+    // Es el propietario del documento
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+    
+    // Usuario tiene KYC aprobado
+    function isKYCApproved() {
+      return isAuthenticated() && 
+        get(/databases/$(database)/documents/users/$(request.auth.uid)).data.kycStatus == 'approved';
+    }
+    
+    // Validar que el campo no cambie
+    function fieldUnchanged(field) {
+      return !(field in request.resource.data) || 
+        request.resource.data[field] == resource.data[field];
+    }
+    
+    // Validar timestamp del servidor
+    function isValidTimestamp(field) {
+      return request.resource.data[field] == request.time;
+    }
+    
+    // ═══════════════════════════════════════════════════════════════════
+    // 👤 COLECCIÓN: users
+    // Perfil de usuario y estado KYC
+    // ═══════════════════════════════════════════════════════════════════
+    match /users/{userId} {
+      // Lectura: solo el propio usuario
+      allow read: if isOwner(userId);
+      
+      // Crear: solo el propio usuario al registrarse
+      allow create: if isOwner(userId) && 
+        request.resource.data.keys().hasAll(['email', 'displayName', 'kycStatus']) &&
+        request.resource.data.kycStatus == 'none' &&
+        request.resource.data.email == request.auth.token.email;
+      
+      // Actualizar: el usuario puede actualizar su perfil
+      // PERO no puede cambiar su propio kycStatus a 'approved' (solo admins)
+      allow update: if isOwner(userId) && 
+        // No puede auto-aprobar KYC
+        (request.resource.data.kycStatus in ['none', 'pending'] || 
+         resource.data.kycStatus == request.resource.data.kycStatus) &&
+        // No puede cambiar email
+        fieldUnchanged('email') &&
+        // No puede cambiar createdAt
+        fieldUnchanged('createdAt');
+      
+      // Eliminar: no permitido (soft delete si es necesario)
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 💱 COLECCIÓN: p2p_orders
+    // Ofertas de compra/venta de criptomonedas
+    // ═══════════════════════════════════════════════════════════════════
+    match /p2p_orders/{orderId} {
+      // Lectura: cualquier usuario autenticado puede ver ofertas activas
+      allow read: if isAuthenticated();
+      
+      // Crear: usuario autenticado con KYC aprobado
+      allow create: if isAuthenticated() &&
+        // Debe ser el dueño de la orden
+        request.resource.data.userId == request.auth.uid &&
+        // Campos obligatorios
+        request.resource.data.keys().hasAll([
+          'userId', 'userDisplayName', 'type', 'crypto', 'amount',
+          'pricePerUnit', 'currency', 'minLimit', 'maxLimit',
+          'paymentMethods', 'status'
+        ]) &&
+        // Tipo válido
+        request.resource.data.type in ['buy', 'sell'] &&
+        // Crypto válida
+        request.resource.data.crypto in ['USDT', 'BTC', 'ETH'] &&
+        // Estado inicial debe ser 'active'
+        request.resource.data.status == 'active' &&
+        // Montos positivos
+        request.resource.data.amount > 0 &&
+        request.resource.data.pricePerUnit > 0 &&
+        request.resource.data.minLimit > 0 &&
+        request.resource.data.maxLimit >= request.resource.data.minLimit &&
+        // Métodos de pago válidos
+        request.resource.data.paymentMethods.size() > 0;
+      
+      // Actualizar: solo el dueño puede modificar su orden
+      allow update: if isOwner(resource.data.userId) &&
+        // No puede cambiar el userId
+        fieldUnchanged('userId') &&
+        // No puede cambiar createdAt
+        fieldUnchanged('createdAt') &&
+        // Solo ciertos estados permitidos
+        request.resource.data.status in ['active', 'cancelled', 'completed'];
+      
+      // Eliminar: solo el dueño puede eliminar (o cancelar mejor)
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🤝 COLECCIÓN: p2p_trades
+    // Transacciones/trades entre usuarios
+    // ═══════════════════════════════════════════════════════════════════
+    match /p2p_trades/{tradeId} {
+      // Lectura: participantes del trade
+      allow read: if isAuthenticated() && 
+        (resource.data.buyerId == request.auth.uid || 
+         resource.data.sellerId == request.auth.uid);
+      
+      // Crear: usuario autenticado inicia un trade
+      allow create: if isAuthenticated() &&
+        request.resource.data.keys().hasAll([
+          'orderId', 'buyerId', 'sellerId', 'amount', 'totalPrice',
+          'crypto', 'currency', 'paymentMethod', 'status'
+        ]) &&
+        // El creador debe ser buyer o seller
+        (request.resource.data.buyerId == request.auth.uid ||
+         request.resource.data.sellerId == request.auth.uid) &&
+        // Estado inicial
+        request.resource.data.status == 'pending';
+      
+      // Actualizar: solo participantes pueden actualizar estado
+      allow update: if isAuthenticated() &&
+        (resource.data.buyerId == request.auth.uid ||
+         resource.data.sellerId == request.auth.uid) &&
+        // Estados válidos
+        request.resource.data.status in [
+          'pending', 'paid', 'confirmed', 'completed', 
+          'disputed', 'cancelled'
+        ] &&
+        // No cambiar datos críticos
+        fieldUnchanged('orderId') &&
+        fieldUnchanged('buyerId') &&
+        fieldUnchanged('sellerId') &&
+        fieldUnchanged('amount') &&
+        fieldUnchanged('totalPrice');
+      
+      allow delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 💬 COLECCIÓN: p2p_trades/{tradeId}/messages
+    // Chat del trade
+    // ═══════════════════════════════════════════════════════════════════
+    match /p2p_trades/{tradeId}/messages/{messageId} {
+      // Lectura: participantes del trade padre
+      allow read: if isAuthenticated() &&
+        (get(/databases/$(database)/documents/p2p_trades/$(tradeId)).data.buyerId == request.auth.uid ||
+         get(/databases/$(database)/documents/p2p_trades/$(tradeId)).data.sellerId == request.auth.uid);
+      
+      // Crear: participantes pueden enviar mensajes
+      allow create: if isAuthenticated() &&
+        request.resource.data.senderId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['senderId', 'text', 'createdAt']) &&
+        request.resource.data.text.size() > 0 &&
+        request.resource.data.text.size() <= 1000;
+      
+      allow update, delete: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🛍️ COLECCIÓN: products
+    // Productos del marketplace
+    // ═══════════════════════════════════════════════════════════════════
+    match /products/{productId} {
+      // Lectura: todos los usuarios autenticados
+      allow read: if isAuthenticated();
+      
+      // Crear: usuario autenticado
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll([
+          'userId', 'userDisplayName', 'title', 'description',
+          'price', 'currency', 'category', 'condition', 
+          'images', 'location', 'isActive'
+        ]) &&
+        // Validaciones básicas
+        request.resource.data.title.size() >= 5 &&
+        request.resource.data.title.size() <= 100 &&
+        request.resource.data.description.size() >= 10 &&
+        request.resource.data.description.size() <= 500 &&
+        request.resource.data.price > 0 &&
+        request.resource.data.images.size() >= 1 &&
+        request.resource.data.images.size() <= 5 &&
+        // Categoría válida
+        request.resource.data.category in [
+          'electronica', 'ropa', 'hogar', 'vehiculos', 
+          'servicios', 'alimentos', 'otros'
+        ] &&
+        // Condición válida
+        request.resource.data.condition in [
+          'nuevo', 'como_nuevo', 'usado', 'para_piezas'
+        ] &&
+        // Moneda válida
+        request.resource.data.currency in ['USD', 'CUP'];
+      
+      // Actualizar: solo el dueño
+      allow update: if isOwner(resource.data.userId) &&
+        fieldUnchanged('userId') &&
+        fieldUnchanged('createdAt');
+      
+      // Eliminar: solo el dueño
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // ❤️ COLECCIÓN: favorites
+    // Productos favoritos de usuarios
+    // ═══════════════════════════════════════════════════════════════════
+    match /favorites/{favoriteId} {
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      allow create: if isAuthenticated() &&
+        request.resource.data.userId == request.auth.uid &&
+        request.resource.data.keys().hasAll(['userId', 'productId']);
+      
+      allow delete: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      allow update: if false;
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🔔 COLECCIÓN: notifications
+    // Notificaciones del usuario
+    // ═══════════════════════════════════════════════════════════════════
+    match /notifications/{notificationId} {
+      allow read: if isAuthenticated() && 
+        resource.data.userId == request.auth.uid;
+      
+      // Solo el sistema crea notificaciones (Cloud Functions)
+      allow create: if false;
+      
+      // Usuario puede marcar como leída
+      allow update: if isOwner(resource.data.userId) &&
+        request.resource.data.diff(resource.data).affectedKeys().hasOnly(['read', 'readAt']);
+      
+      allow delete: if isOwner(resource.data.userId);
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 📊 COLECCIÓN: app_config (solo lectura)
+    // Configuración global de la app
+    // ═══════════════════════════════════════════════════════════════════
+    match /app_config/{configId} {
+      allow read: if isAuthenticated();
+      allow write: if false; // Solo admins via console/functions
+    }
+
+    // ═══════════════════════════════════════════════════════════════════
+    // 🚫 Denegar acceso a todo lo demás
+    // ═══════════════════════════════════════════════════════════════════
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
