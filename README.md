@@ -37,6 +37,10 @@
 | ⚙️ Settings | ✅ Completo | Perfil, preferencias, logout |
 | 🔔 Notificaciones | ✅ Completo | Centro de notificaciones |
 
+link CubaX 
+
+https://cupcoin-b2b4f.firebaseapp.com/
+
 ### Datos Mock Incluidos
 - Precios de CoinGecko simulados (BTC, ETH, USDT, USDC)
 - Órdenes P2P de ejemplo
