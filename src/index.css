@@ -1,0 +1,99 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-brand-50: #fdf8ed;
+  --color-brand-100: #f9edcc;
+  --color-brand-200: #f3d994;
+  --color-brand-300: #ecc15c;
+  --color-brand-400: #e6ab34;
+  --color-brand-500: #d4911c;
+  --color-brand-600: #b87216;
+  --color-brand-700: #975415;
+  --color-brand-800: #7c4318;
+  --color-brand-900: #67381a;
+  --color-brand-950: #3c1c0a;
+  --color-navy-50: #eef4ff;
+  --color-navy-100: #dae6ff;
+  --color-navy-200: #bdd4ff;
+  --color-navy-300: #90b8ff;
+  --color-navy-400: #5c90ff;
+  --color-navy-500: #3666fc;
+  --color-navy-600: #2045f1;
+  --color-navy-700: #1832de;
+  --color-navy-800: #1a2ab4;
+  --color-navy-900: #1b298e;
+  --color-navy-950: #0c1335;
+}
+
+@layer base {
+  * {
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    font-family: var(--font-sans);
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  .dark {
+    color-scheme: dark;
+  }
+}
+
+@layer utilities {
+  .scrollbar-hide {
+    -ms-overflow-style: none;
+    scrollbar-width: none;
+  }
+  .scrollbar-hide::-webkit-scrollbar {
+    display: none;
+  }
+
+  .glass {
+    backdrop-filter: blur(16px) saturate(180%);
+    -webkit-backdrop-filter: blur(16px) saturate(180%);
+  }
+
+  .animate-slide-up {
+    animation: slideUp 0.3s ease-out;
+  }
+
+  .animate-fade-in {
+    animation: fadeIn 0.4s ease-out;
+  }
+
+  .animate-pulse-glow {
+    animation: pulseGlow 2s ease-in-out infinite;
+  }
+}
+
+@keyframes slideUp {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes pulseGlow {
+  0%, 100% {
+    box-shadow: 0 0 5px rgba(228, 171, 52, 0.3);
+  }
+  50% {
+    box-shadow: 0 0 20px rgba(228, 171, 52, 0.6);
+  }
+}
