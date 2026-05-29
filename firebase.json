@@ -1,6 +1,5 @@
 {
   "hosting": {
-    "site": "cupcoin-b2b4f",
     "public": "dist",
     "ignore": [
       "firebase.json",
@@ -15,11 +14,20 @@
     ],
     "headers": [
       {
-        "source": "**/*.@(js|css|ico|png|jpg|jpeg|svg|webp|json|woff|woff2)",
+        "source": "**/*.@(js|css|html)",
         "headers": [
           {
             "key": "Cache-Control",
-            "value": "max-age=31536000, immutable"
+            "value": "max-age=31536000"
+          }
+        ]
+      },
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "X-Frame-Options",
+            "value": "SAMEORIGIN"
           }
         ]
       }
