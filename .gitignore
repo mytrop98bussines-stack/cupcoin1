@@ -1,0 +1,103 @@
+# ========================
+# Dependencies
+# ========================
+node_modules/
+
+# ========================
+# Build output
+# ========================
+dist/
+dist-ssr/
+build/
+
+# ========================
+# Environment variables - MUY IMPORTANTE
+# ========================
+.env
+.env.local
+.env.development
+.env.development.local
+.env.test
+.env.test.local
+.env.production
+.env.production.local
+
+# ========================
+# Firebase
+# ========================
+.firebase/
+firebase-debug.log
+firestore-debug.log
+ui-debug.log
+database-debug.log
+storage-debug.log
+hosting-debug.log
+functions-debug.log
+firebase-export-*
+.firebaserc.backup
+serviceAccountKey.json
+
+# ========================
+# Vite
+# ========================
+vite.config.ts.timestamp-*
+*.local
+
+# ========================
+# TypeScript
+# ========================
+*.tsbuildinfo
+
+# ========================
+# Logs
+# ========================
+logs/
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# ========================
+# OS
+# ========================
+
+# macOS
+.DS_Store
+.AppleDouble
+._*
+.Spotlight-V100
+.Trashes
+
+# Windows
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# Linux
+*~
+
+# ========================
+# Editors & IDEs
+# ========================
+
+# VSCode
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+
+# IntelliJ / WebStorm
+.idea/
+*.iml
+
+# ========================
+# Testing
+# ========================
+coverage/
+
+# ========================
+# Cache
+# ========================
+.cache/
+.eslintcache
+*.cache
