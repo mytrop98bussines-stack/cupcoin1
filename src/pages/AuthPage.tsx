@@ -1,9 +1,21 @@
 import { useState, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { MOCK_USER, MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
+import { MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Mail, Lock, User, Eye, EyeOff, ArrowLeft } from "lucide-react";
+
+// Importaciones reales de Firebase basadas en tu estructura de carpetas
+import { auth, db } from "@/lib/firebase/config";
+import { 
+  signInWithEmailAndPassword, 
+  createUserWithEmailAndPassword, 
+  updateProfile,
+  signInWithPopup,
+  GoogleAuthProvider
+} from "firebase/auth";
+import { doc, getDoc, setDoc } from "firebase/firestore";
+import type { User as AppUser } from "@/types";
 
 export function AuthPage() {
   const { currentView, navigate, login, setBalances, setNotifications } = useAppStore();
@@ -29,35 +41,136 @@ export function AuthPage() {
     return Object.keys(newErrors).length === 0;
   }, [email, password, name, isLogin]);
 
+  // Manejador para Email/Contraseña (Login y Registro Real)
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
       if (!validate()) return;
 
       setLoading(true);
-      await new Promise((r) => setTimeout(r, 1200));
+      setErrors({});
 
-      const user = {
-        ...MOCK_USER,
-        email,
-        displayName: isLogin ? MOCK_USER.displayName : name,
-      };
-      setBalances(MOCK_BALANCES);
-      setNotifications(MOCK_NOTIFICATIONS);
-      login(user);
-      setLoading(false);
+      try {
+        let loggedUser: AppUser;
+
+        if (isLogin) {
+          // 1. Login Real en Firebase Auth
+          const userCredential = await signInWithEmailAndPassword(auth, email, password);
+          const fUser = userCredential.user;
+
+          // 2. Buscar datos extendidos en Firestore
+          const userDoc = await getDoc(doc(db, "users", fUser.uid));
+          
+          if (userDoc.exists()) {
+            loggedUser = userDoc.data() as AppUser;
+          } else {
+            // Si por algún motivo no existe el doc, creamos uno de emergencia
+            loggedUser = {
+              uid: fUser.uid,
+              email: fUser.email || "",
+              displayName: fUser.displayName || "Usuario",
+              photoURL: fUser.photoURL || null,
+              kycStatus: "unverified",
+              createdAt: Date.now(),
+              totalTrades: 0,
+              rating: 5.0,
+              walletAddress: null,
+            };
+          }
+        } else {
+          // 1. Registro Real en Firebase Auth
+          const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+          const fUser = userCredential.user;
+
+          // 2. Actualizar el perfil nativo de Firebase
+          await updateProfile(fUser, { displayName: name });
+
+          // 3. Crear el documento extendido con tu estructura en Firestore
+          loggedUser = {
+            uid: fUser.uid,
+            email: email,
+            displayName: name,
+            photoURL: null,
+            kycStatus: "unverified",
+            createdAt: Date.now(),
+            totalTrades: 0,
+            rating: 5.0,
+            walletAddress: null,
+          };
+
+          await setDoc(doc(db, "users", fUser.uid), loggedUser);
+        }
+
+        // Cargar mocks temporales restantes y pasar el usuario real a Zustand
+        setBalances(MOCK_BALANCES);
+        setNotifications(MOCK_NOTIFICATIONS);
+        login(loggedUser);
+        navigate("landing"); // O la ruta interna a la que vayas al iniciar sesión
+
+      } catch (error: any) {
+        console.error("Error de autenticación:", error);
+        const newErrors: Record<string, string> = {};
+        
+        if (error.code === "auth/user-not-found" || error.code === "auth/wrong-password" || error.code === "auth/invalid-credential") {
+          newErrors.email = "Credenciales incorrectas";
+        } else if (error.code === "auth/email-already-in-use") {
+          newErrors.email = "El correo ya está registrado";
+        } else {
+          newErrors.email = "Error en el servidor. Inténtalo de nuevo.";
+        }
+        setErrors(newErrors);
+      } finally {
+        setLoading(false);
+      }
     },
-    [email, password, name, isLogin, validate, login, setBalances, setNotifications]
+    [email, password, name, isLogin, validate, login, setBalances, setNotifications, navigate]
   );
 
+  // Manejador para Login con Google Real
   const handleGoogleLogin = useCallback(async () => {
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
-    setBalances(MOCK_BALANCES);
-    setNotifications(MOCK_NOTIFICATIONS);
-    login(MOCK_USER);
-    setLoading(false);
-  }, [login, setBalances, setNotifications]);
+    setErrors({});
+    const provider = new GoogleAuthProvider();
+
+    try {
+      const result = await signInWithPopup(auth, provider);
+      const fUser = result.user;
+
+      // Verificar si el usuario ya tiene su perfil extendido en Firestore
+      const userDocRef = doc(db, "users", fUser.uid);
+      const userDoc = await getDoc(userDocRef);
+      let loggedUser: AppUser;
+
+      if (userDoc.exists()) {
+        loggedUser = userDoc.data() as AppUser;
+      } else {
+        // Si entra por primera vez con Google, le inicializamos el perfil extendido
+        loggedUser = {
+          uid: fUser.uid,
+          email: fUser.email || "",
+          displayName: fUser.displayName || "Usuario de Google",
+          photoURL: fUser.photoURL || null,
+          kycStatus: "unverified",
+          createdAt: Date.now(),
+          totalTrades: 0,
+          rating: 5.0,
+          walletAddress: null,
+        };
+        await setDoc(userDocRef, loggedUser);
+      }
+
+      setBalances(MOCK_BALANCES);
+      setNotifications(MOCK_NOTIFICATIONS);
+      login(loggedUser);
+      navigate("landing");
+
+    } catch (error: any) {
+      console.error("Error con Google Auth:", error);
+      setErrors({ email: "Error al conectar con Google" });
+    } finally {
+      setLoading(false);
+    }
+  }, [login, setBalances, setNotifications, navigate]);
 
   return (
     <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col">
@@ -114,7 +227,7 @@ export function AuthPage() {
               fill="#EA4335"
             />
           </svg>
-          Continuar con Google
+          <span className="ml-2">Continuar con Google</span>
         </Button>
 
         {/* Divider */}
@@ -174,6 +287,10 @@ export function AuthPage() {
             }
           />
 
+          {errors.email && !isLogin && (
+            <p className="text-xs text-red-500 font-medium">{errors.email}</p>
+          )}
+
           {isLogin && (
             <div className="text-right">
               <button
@@ -209,4 +326,5 @@ export function AuthPage() {
       </div>
     </div>
   );
-}
+          }
+                
