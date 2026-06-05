@@ -1,4 +1,4 @@
-import { auth, db } from "@/lib/firebase"; // Asegúrate de que esta ruta apunte a tu config del Paso 2
+import { auth, db } from "@/lib/firebase.ts"; // Asegúrate de que esta ruta apunte a tu config del Paso 2
 import { doc, onSnapshot } from "firebase/firestore";
 import { onAuthStateChanged } from "firebase/auth";
 
