@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
@@ -16,10 +16,10 @@ import { WalletPage } from "@/pages/WalletPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 
-// Importaciones para sincronizar Firebase en tiempo real
+// Sincronización en tiempo real con Firebase Auth y Firestore
 import { auth, db } from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { doc, getDoc } from "firebase/firestore";
 import { MOCK_USER, MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
 import type { User as AppUser } from "@/types";
 
@@ -93,9 +93,10 @@ function AppContent() {
 }
 
 export default function App() {
-  const { theme, login, logout, navigate, setBalances, setNotifications } = useAppStore();
+  const { theme, login, logout, currentView, isAuthenticated, navigate, setBalances, setNotifications } = useAppStore();
+  const [authLoading, setAuthLoading] = useState(true);
 
-  // 1. Efecto para controlar el modo oscuro (Tu lógica original)
+  // 1. Efecto para controlar el modo oscuro
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -105,20 +106,19 @@ export default function App() {
     }
   }, [theme]);
 
-  // 2. NUEVO: Guardián Global de Firebase Auth conectado a Zustand
+  // 2. Guardián Central de Firebase Auth vinculado a Zustand
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
-      if (firebaseUser) {
-        // Si hay una sesión activa, escuchamos Firestore en tiempo real
-        const userDocRef = doc(db, "users", firebaseUser.uid);
-        
-        onSnapshot(userDocRef, (docSnap) => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      try {
+        if (firebaseUser) {
+          const userDocRef = doc(db, "users", firebaseUser.uid);
+          const docSnap = await getDoc(userDocRef);
+          
           let loggedUser: AppUser;
           
           if (docSnap.exists()) {
             loggedUser = docSnap.data() as AppUser;
           } else {
-            // Estructura de emergencia si es un registro limpio
             loggedUser = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || "",
@@ -129,29 +129,51 @@ export default function App() {
               totalTrades: 0,
               rating: 5.0,
               walletAddress: null,
-            };
-          }
+          };
+        }
 
-          // Rellenamos el objeto en mock por compatibilidad estática
+          // Rellenamos el objeto estático en mock.ts para compatibilidad legacy
           Object.assign(MOCK_USER, loggedUser);
 
-          // Actualizamos Zustand de golpe con los datos reales
+          // Inyectamos estados al Store y ejecutamos la acción login de Zustand
           setBalances(MOCK_BALANCES);
           setNotifications(MOCK_NOTIFICATIONS);
           login(loggedUser);
-          
-          // Rompemos el bucle y nos vamos directo al interior de la dApp
-          navigate("dashboard");
-        });
-      } else {
-        // Si no hay sesión, limpiamos el objeto estático y cerramos en el Store
-        Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
-        logout();
+        } else {
+          // Si no hay sesión activa en Firebase, forzamos cierre seguro en el Store
+          Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+          logout();
+        }
+      } catch (error) {
+        console.error("Error controlando sesión de Firebase:", error);
+      } finally {
+        setAuthLoading(false);
       }
     });
 
     return () => unsubscribe();
-  }, [login, logout, navigate, setBalances, setNotifications]);
+  }, [login, logout, setBalances, setNotifications]);
+
+  // 3. Interceptor de redirección para evitar bloqueos del Home
+  useEffect(() => {
+    if (isAuthenticated && ["landing", "login", "register"].includes(currentView)) {
+      navigate("dashboard");
+    }
+  }, [isAuthenticated, currentView, navigate]);
+
+  // Pantalla de carga mientras se sincroniza Firebase inicialmente
+  if (authLoading) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col items-center justify-center">
+        <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mb-4 animate-bounce shadow-lg shadow-brand-500/20">
+          <span className="text-white font-black text-xl">CX</span>
+        </div>
+        <div className="h-1 w-24 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+          <div className="h-full bg-brand-500 rounded-full animate-pulse w-full"></div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className={`${theme === "dark" ? "dark" : ""}`}>
@@ -160,4 +182,5 @@ export default function App() {
       </div>
     </div>
   );
-}
+                                          }
+    
