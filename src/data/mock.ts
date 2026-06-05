@@ -1,6 +1,5 @@
 import { auth, db } from "@/lib/firebase/config";
 import { doc, onSnapshot } from "firebase/firestore";
-import { onAuthStateChanged } from "firebase/auth";
 
 import type {
   User,
