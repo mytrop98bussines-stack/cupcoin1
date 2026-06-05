@@ -1,3 +1,7 @@
+import { auth, db } from "@/lib/firebase"; // Asegúrate de que esta ruta apunte a tu config del Paso 2
+import { doc, onSnapshot } from "firebase/firestore";
+import { onAuthStateChanged } from "firebase/auth";
+
 import type {
   User,
   CryptoBalance,
@@ -9,17 +13,47 @@ import type {
   Notification,
 } from "@/types";
 
-export const MOCK_USER: User = {
-  uid: "user_001",
-  email: "carlos@cubax.io",
-  displayName: "Carlos M.",
-  photoURL: null,
-  kycStatus: "unverified",
-  createdAt: Date.now() - 30 * 24 * 60 * 60 * 1000,
-  totalTrades: 47,
-  rating: 4.8,
-  walletAddress: null,
-};
+// ==========================================
+// CONEXIÓN REACTIVA CON FIREBASE (AUTH & FIRESTORE)
+// ==========================================
+
+// Inicializamos el objeto vacío que mantendrá la misma referencia en toda la app
+export const MOCK_USER: User = {} as User;
+
+// Escuchamos los cambios de sesión en tiempo real
+onAuthStateChanged(auth, (firebaseUser) => {
+  if (firebaseUser) {
+    const userDocRef = doc(db, "users", firebaseUser.uid);
+    
+    // Escuchamos el documento del usuario en Firestore
+    onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        // Si ya tiene datos en la base de datos, los inyectamos en MOCK_USER
+        Object.assign(MOCK_USER, docSnap.data());
+      } else {
+        // Plantilla base obligatoria para que tus componentes no den undefined
+        Object.assign(MOCK_USER, {
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          displayName: firebaseUser.displayName || "Usuario",
+          photoURL: firebaseUser.photoURL || null,
+          kycStatus: "unverified",
+          createdAt: Date.now(),
+          totalTrades: 0,
+          rating: 5.0,
+          walletAddress: null,
+        });
+      }
+    });
+  } else {
+    // Si no hay sesión activa o se desloguea, limpiamos las propiedades del objeto
+    Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+  }
+});
+
+// ==========================================
+// RESTO DE MOCK DATA INTACTO
+// ==========================================
 
 export const MOCK_BALANCES: CryptoBalance[] = [
   { asset: "BTC", amount: 0.00234, usdValue: 248.76 },
@@ -375,3 +409,4 @@ export const CONDITION_LABELS: Record<string, string> = {
   used: "Usado",
   refurbished: "Reacondicionado",
 };
+  
