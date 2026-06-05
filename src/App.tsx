@@ -16,6 +16,13 @@ import { WalletPage } from "@/pages/WalletPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 
+// Importaciones para sincronizar Firebase en tiempo real
+import { auth, db } from "@/lib/firebase/config";
+import { onAuthStateChanged } from "firebase/auth";
+import { doc, onSnapshot } from "firebase/firestore";
+import { MOCK_USER, MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
+import type { User as AppUser } from "@/types";
+
 function AppContent() {
   const { currentView } = useAppStore();
 
@@ -86,8 +93,9 @@ function AppContent() {
 }
 
 export default function App() {
-  const { theme } = useAppStore();
+  const { theme, login, logout, navigate, setBalances, setNotifications } = useAppStore();
 
+  // 1. Efecto para controlar el modo oscuro (Tu lógica original)
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -96,6 +104,54 @@ export default function App() {
       root.classList.remove("dark");
     }
   }, [theme]);
+
+  // 2. NUEVO: Guardián Global de Firebase Auth conectado a Zustand
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, (firebaseUser) => {
+      if (firebaseUser) {
+        // Si hay una sesión activa, escuchamos Firestore en tiempo real
+        const userDocRef = doc(db, "users", firebaseUser.uid);
+        
+        onSnapshot(userDocRef, (docSnap) => {
+          let loggedUser: AppUser;
+          
+          if (docSnap.exists()) {
+            loggedUser = docSnap.data() as AppUser;
+          } else {
+            // Estructura de emergencia si es un registro limpio
+            loggedUser = {
+              uid: firebaseUser.uid,
+              email: firebaseUser.email || "",
+              displayName: firebaseUser.displayName || "Usuario",
+              photoURL: firebaseUser.photoURL || null,
+              kycStatus: "unverified",
+              createdAt: Date.now(),
+              totalTrades: 0,
+              rating: 5.0,
+              walletAddress: null,
+            };
+          }
+
+          // Rellenamos el objeto en mock por compatibilidad estática
+          Object.assign(MOCK_USER, loggedUser);
+
+          // Actualizamos Zustand de golpe con los datos reales
+          setBalances(MOCK_BALANCES);
+          setNotifications(MOCK_NOTIFICATIONS);
+          login(loggedUser);
+          
+          // Rompemos el bucle y nos vamos directo al interior de la dApp
+          navigate("dashboard");
+        });
+      } else {
+        // Si no hay sesión, limpiamos el objeto estático y cerramos en el Store
+        Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+        logout();
+      }
+    });
+
+    return () => unsubscribe();
+  }, [login, logout, navigate, setBalances, setNotifications]);
 
   return (
     <div className={`${theme === "dark" ? "dark" : ""}`}>
