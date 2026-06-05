@@ -1,5 +1,5 @@
 // src/lib/coingecko/prices.ts
-const COINGECKO_API = 'https://api.coingecko.com/api/v3';
+const COINGECKO_API = 'https://api.coingecko.com/api/CG-zzRk6THcTeXm7N6Tj1gWbDuX';
 
 interface CoinGeckoPrice {
   id: string;
