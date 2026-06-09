@@ -1,10 +1,11 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { db } from "@/lib/firebase/config";
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import {
-  MOCK_PRODUCTS,
   CONDITION_LABELS,
 } from "@/data/mock";
 import {
@@ -14,16 +15,48 @@ import {
   Filter,
   ShoppingBag,
 } from "lucide-react";
-import type { ProductCategory } from "@/types";
+import type { ProductCategory, Product } from "@/types";
 
 export function MarketplacePage() {
-  const { navigate, setSelectedProductId } = useAppStore();
+  const { navigate, setSelectedProductId, products, setProducts } = useAppStore();
   const [searchQuery, setSearchQuery] = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "all">("all");
   const [showFilters, setShowFilters] = useState(false);
+  const [loadingProducts, setLoadingProducts] = useState(true);
 
-  const products = MOCK_PRODUCTS;
+  // ==========================================
+  // ESCUCHADOR EN TIEMPO REAL DESDE FIRESTORE
+  // ==========================================
+  useEffect(() => {
+    setLoadingProducts(true);
 
+    // Consultamos los productos activos ordenados por los más recientes
+    const q = query(
+      collection(db, "marketplace_products"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const liveProducts: Product[] = [];
+      snapshot.forEach((doc) => {
+        liveProducts.push(doc.data() as Product);
+      });
+
+      // Guardamos la lista real en el store global de Zustand
+      setProducts(liveProducts);
+      setLoadingProducts(false);
+    }, (error) => {
+      console.error("Error cargando el marketplace desde Firestore:", error);
+      setLoadingOrders(false);
+    });
+
+    return () => unsubscribe();
+  }, [setProducts]);
+
+  // ==========================================
+  // FILTRADO LOCAL (MANTENIENDO TU LÓGICA)
+  // ==========================================
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (p.status !== "active") return false;
@@ -118,7 +151,12 @@ export function MarketplacePage() {
       </div>
 
       {/* Products Grid */}
-      {filteredProducts.length === 0 ? (
+      {loadingProducts ? (
+        <div className="text-center py-12">
+          <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+          <p className="text-xs text-gray-400">Escaneando ofertas en el Marketplace...</p>
+        </div>
+      ) : filteredProducts.length === 0 ? (
         <Card padding="lg" className="text-center">
           <ShoppingBag className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
           <p className="text-sm text-gray-500 dark:text-gray-400">
@@ -132,7 +170,7 @@ export function MarketplacePage() {
               key={product.id}
               hover
               padding="none"
-              className="overflow-hidden"
+              className="overflow-hidden cursor-pointer"
               onClick={() => handleProductClick(product.id)}
             >
               {/* Image Placeholder */}
@@ -149,6 +187,10 @@ export function MarketplacePage() {
                       ? "🛠"
                       : product.category === "clothing"
                       ? "👕"
+                      : product.category === "home"
+                      ? "🏠"
+                      : product.category === "vehicles"
+                      ? "🚗"
                       : "📦"}
                   </span>
                 </div>
@@ -178,7 +220,7 @@ export function MarketplacePage() {
                   variant={product.condition === "new" ? "success" : "default"}
                   size="sm"
                 >
-                  {CONDITION_LABELS[product.condition]}
+                  {CONDITION_LABELS[product.condition] || product.condition}
                 </Badge>
               </div>
             </Card>
@@ -187,4 +229,4 @@ export function MarketplacePage() {
       )}
     </div>
   );
-}
+          }
