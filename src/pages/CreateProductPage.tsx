@@ -4,6 +4,9 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Card } from "@/components/ui/Card";
+
+import { db } from "@/lib/firebase/config";
+import { collection, doc, setDoc } from "firebase/firestore";
 import { CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/mock";
 import {
   Upload,
@@ -11,10 +14,10 @@ import {
   CheckCircle2,
   Shield,
 } from "lucide-react";
-import type { CryptoAsset, ProductCategory } from "@/types";
+import type { CryptoAsset, ProductCategory, Product } from "@/types";
 
 export function CreateProductPage() {
-  const { navigate, addProduct, user } = useAppStore();
+  const { navigate, user } = useAppStore();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -43,28 +46,38 @@ export function CreateProductPage() {
     if (!title || !description || !price || !location || !user) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
 
-    addProduct({
-      id: `prod_${Date.now()}`,
-      sellerId: user.uid,
-      sellerName: user.displayName,
-      title,
-      description,
-      priceUSD: parseFloat(price),
-      acceptedCryptos,
-      images,
-      category,
-      condition,
-      location,
-      status: "active",
-      createdAt: Date.now(),
-    });
+    try {
+      // Generamos un ID de documento único y automático en la colección de productos
+      const productRef = doc(collection(db, "marketplace_products"));
 
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => navigate("marketplace"), 1500);
-  }, [title, description, price, location, user, acceptedCryptos, images, category, condition, addProduct, navigate]);
+      const newProduct: Product = {
+        id: productRef.id,
+        sellerId: user.uid,
+        sellerName: user.displayName || "Comerciante CubaX",
+        title,
+        description,
+        priceUSD: parseFloat(price),
+        acceptedCryptos,
+        images,
+        category,
+        condition,
+        location,
+        status: "active",
+        createdAt: Date.now(),
+      };
+
+      // Guardamos directamente en la base de datos distribuida de Firestore
+      await setDoc(productRef, newProduct);
+
+      setLoading(false);
+      setSuccess(true);
+      setTimeout(() => navigate("marketplace"), 1500);
+    } catch (error) {
+      console.error("Error al publicar el producto en Firestore:", error);
+      setLoading(false);
+    }
+  }, [title, description, price, location, user, acceptedCryptos, images, category, condition, navigate]);
 
   if (success) {
     return (
@@ -227,4 +240,5 @@ export function CreateProductPage() {
       </Button>
     </div>
   );
-}
+  }
+        
