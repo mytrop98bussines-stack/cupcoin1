@@ -1,11 +1,12 @@
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
+import { db } from "@/lib/firebase/config";
+import { collection, query, where, onSnapshot, orderBy } from "firebase/firestore";
 import {
-  MOCK_ORDERS,
   MOCK_PRICES,
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
@@ -20,21 +21,55 @@ import {
   Filter,
   X,
 } from "lucide-react";
-import type { OrderType, CryptoAsset, PaymentMethod } from "@/types";
+import type { OrderType, CryptoAsset, PaymentMethod, P2POrder } from "@/types";
 
 export function P2PPage() {
-  const { navigate, setSelectedTradeId, setActiveTrade } = useAppStore();
+  const { navigate, setSelectedTradeId, setActiveTrade, orders, setOrders, user } = useAppStore();
   const [activeTab, setActiveTab] = useState<OrderType>("buy");
   const [selectedAsset, setSelectedAsset] = useState<CryptoAsset | "all">("all");
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | "all">("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [showFilters, setShowFilters] = useState(false);
+  const [loadingOrders, setLoadingOrders] = useState(true);
 
-  const orders = MOCK_ORDERS;
   const prices = MOCK_PRICES;
 
+  // ==========================================
+  // ESCUCHADOR EN TIEMPO REAL DESDE FIRESTORE
+  // ==========================================
+  useEffect(() => {
+    setLoadingOrders(true);
+    
+    // Consultamos solo las órdenes activas del mercado ordenadas por la más reciente
+    const q = query(
+      collection(db, "p2p_orders"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const liveOrders: P2POrder[] = [];
+      snapshot.forEach((doc) => {
+        liveOrders.push(doc.data() as P2POrder);
+      });
+      
+      // Actualizamos el estado global en Zustand
+      setOrders(liveOrders);
+      setLoadingOrders(false);
+    }, (error) => {
+      console.error("Error cargando órdenes desde Firestore:", error);
+      setLoadingOrders(false);
+    });
+
+    return () => unsubscribe();
+  }, [setOrders]);
+
+  // ==========================================
+  // FILTRADO AVANZADO (MANTENIENDO TU LÓGICA)
+  // ==========================================
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
+      // Si la dApp está en pestaña "Comprar", busca anuncios de "Venta" (sell), y viceversa
       if (activeTab === "buy" && order.type !== "sell") return false;
       if (activeTab === "sell" && order.type !== "buy") return false;
       if (selectedAsset !== "all" && order.asset !== selectedAsset) return false;
@@ -56,13 +91,17 @@ export function P2PPage() {
     setSelectedTradeId(orderId);
     const order = orders.find((o) => o.id === orderId);
     if (order) {
+      // Vinculamos la sesión real del usuario autenticado si existe en el Store
+      const currentUserId = user?.uid || "user_001";
+      const currentUserName = user?.displayName || "Carlos M.";
+
       setActiveTrade({
         id: `trade_${Date.now()}`,
         orderId: order.id,
-        buyerId: activeTab === "buy" ? "user_001" : order.userId,
-        buyerName: activeTab === "buy" ? "Carlos M." : order.userName,
-        sellerId: activeTab === "buy" ? order.userId : "user_001",
-        sellerName: activeTab === "buy" ? order.userName : "Carlos M.",
+        buyerId: activeTab === "buy" ? currentUserId : order.userId,
+        buyerName: activeTab === "buy" ? currentUserName : order.userName,
+        sellerId: activeTab === "buy" ? order.userId : currentUserId,
+        sellerName: activeTab === "buy" ? order.userName : currentUserName,
         asset: order.asset,
         amount: order.minAmount,
         pricePerUnit: order.pricePerUnit,
@@ -236,7 +275,12 @@ export function P2PPage() {
 
       {/* Order Book */}
       <div className="space-y-2">
-        {filteredOrders.length === 0 ? (
+        {loadingOrders ? (
+          <div className="text-center py-8">
+            <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2"></div>
+            <p className="text-xs text-gray-400">Escaneando órdenes en la red...</p>
+          </div>
+        ) : filteredOrders.length === 0 ? (
           <Card padding="lg" className="text-center">
             <p className="text-gray-500 dark:text-gray-400 text-sm">
               No hay órdenes disponibles con estos filtros.
@@ -303,9 +347,9 @@ export function P2PPage() {
                   {order.paymentMethods.map((method) => (
                     <span
                       key={method}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${PAYMENT_METHOD_COLORS[method]}`}
+                      className={`px-2 py-0.5 rounded-md text-[10px] font-medium border ${PAYMENT_METHOD_COLORS[method] || "bg-gray-100 text-gray-500"}`}
                     >
-                      {PAYMENT_METHOD_LABELS[method]}
+                      {PAYMENT_METHOD_LABELS[method] || method}
                     </span>
                   ))}
                 </div>
@@ -332,4 +376,5 @@ export function P2PPage() {
       </div>
     </div>
   );
-}
+        }
+              
