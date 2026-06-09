@@ -1,9 +1,11 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
+import { db } from "@/lib/firebase/config";
+import { doc, updateDoc } from "firebase/firestore";
 import {
   Shield,
   Upload,
@@ -16,6 +18,12 @@ import {
   MapPin,
 } from "lucide-react";
 
+// ========================================================
+// CONFIGURACIÓN DE TU CUENTA GRATUITA DE CLOUDINARY
+// ========================================================
+const CLOUDINARY_CLOUD_NAME = ""; // Reemplaza con tu Cloud Name de Cloudinary
+const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned"; // Reemplaza con tu Unsigned Upload Preset
+
 export function KYCPage() {
   const { user, setUser } = useAppStore();
 
@@ -23,29 +31,95 @@ export function KYCPage() {
   const [fullName, setFullName] = useState("");
   const [idNumber, setIdNumber] = useState("");
   const [address, setAddress] = useState("");
+  
+  // Guardamos las URLs reales que devuelve Cloudinary
   const [idFront, setIdFront] = useState<string | null>(null);
   const [selfie, setSelfie] = useState<string | null>(null);
+  
   const [loading, setLoading] = useState(false);
+  const [uploadingType, setUploadingType] = useState<"id" | "selfie" | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  const handleFileSelect = useCallback(
-    (type: "id" | "selfie") => {
-      const mockUrl = `https://placehold.co/400x300/1a2ab4/e6ab34?text=${type === "id" ? "ID+Document" : "Selfie"}`;
-      if (type === "id") setIdFront(mockUrl);
-      else setSelfie(mockUrl);
-    },
-    []
-  );
+  // Referencias ocultas para activar los selectores de archivos nativos del móvil
+  const idInputRef = useRef<HTMLInputElement>(null);
+  const selfieInputRef = useRef<HTMLInputElement>(null);
 
+  // ========================================================
+  // SUBIDA DIRECTA A CLOUDINARY SIN COSTO DE STORAGE
+  // ========================================================
+  const handleUploadToCloudinary = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: "id" | "selfie") => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setUploadingType(type);
+
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("cubax_unsigned", CLOUDINARY_UPLOAD_PRESET);
+
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: formData }
+      );
+
+      if (!response.ok) throw new Error("Error en la respuesta del servidor Cloudinary");
+
+      const data = await response.json();
+      const secureUrl = data.secure_url; // Esta es la URL HTTP segura final
+
+      if (type === "id") setIdFront(secureUrl);
+      else setSelfie(secureUrl);
+      
+    } catch (error) {
+      console.error("Fallo al subir a Cloudinary:", error);
+      alert("No se pudo subir la imagen. Revisa tu conexión a internet.");
+    } finally {
+      setUploadingType(null);
+    }
+  }, []);
+
+  // ========================================================
+  // ENVÍO DE DATOS ESTRUCTURADOS A FIRESTORE
+  // ========================================================
   const handleSubmit = useCallback(async () => {
-    if (!fullName || !idNumber || !address || !idFront || !selfie || !user) return;
+    if (!fullName || !idNumber || !address || !idFront || !selfie || !user?.uid) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 2000));
 
-    setUser({ ...user, kycStatus: "pending_verification" });
-    setLoading(false);
-    setSubmitted(true);
+    try {
+      const userRef = doc(db, "users", user.uid);
+
+      // Mapeo exacto basado en la estructura nativa de tu base de datos
+      const kycPayload = {
+        kycStatus: "pending_verification",
+        kycDocuments: {
+          idFront: idFront,  // URL de Cloudinary
+          selfie: selfie     // URL de Cloudinary
+        },
+        // Guardamos los metadatos extendidos dentro del perfil si lo deseas
+        fullName,
+        idNumber,
+        address
+      };
+
+      // Guardamos la actualización en la colección distribuida de Firestore
+      await updateDoc(userRef, kycPayload);
+
+      // Sincronizamos el estado reactivo global de Zustand
+      setUser({
+        ...user,
+        kycStatus: "pending_verification",
+        kycDocuments: { idFront, selfie }
+      });
+
+      setSubmitted(true);
+    } catch (error: any) {
+      console.error("Error guardando verificación en Firestore:", error);
+      alert("Error en Firestore: " + (error.message || error));
+    } finally {
+      setLoading(false);
+    }
   }, [fullName, idNumber, address, idFront, selfie, user, setUser]);
 
   if (!user) return null;
@@ -98,6 +172,22 @@ export function KYCPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
+      {/* Inputs de tipo File ocultos para capturar multimedia en móviles */}
+      <input
+        type="file"
+        accept="image/*"
+        ref={idInputRef}
+        onChange={(e) => handleUploadToCloudinary(e, "id")}
+        className="hidden"
+      />
+      <input
+        type="file"
+        accept="image/*"
+        ref={selfieInputRef}
+        onChange={(e) => handleUploadToCloudinary(e, "selfie")}
+        className="hidden"
+      />
+
       <div className="flex items-center gap-3 mb-2">
         <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
           <Shield className="h-5 w-5 text-brand-500" />
@@ -122,22 +212,10 @@ export function KYCPage() {
               }`}
             />
             <div className="flex items-center gap-1 mt-1.5">
-              <span
-                className={`${
-                  i <= step
-                    ? "text-brand-500"
-                    : "text-gray-400 dark:text-gray-500"
-                }`}
-              >
+              <span className={i <= step ? "text-brand-500" : "text-gray-400 dark:text-gray-500"}>
                 {s.icon}
               </span>
-              <span
-                className={`text-[10px] font-medium ${
-                  i <= step
-                    ? "text-gray-900 dark:text-white"
-                    : "text-gray-400 dark:text-gray-500"
-                }`}
-              >
+              <span className={`text-[10px] font-medium ${i <= step ? "text-gray-900 dark:text-white" : "text-gray-400 dark:text-gray-500"}`}>
                 {s.label}
               </span>
             </div>
@@ -150,9 +228,7 @@ export function KYCPage() {
         <div className="flex items-start gap-2">
           <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-            Tus documentos se suben de forma segura con firma criptográfica
-            (Cloudinary Signed Upload). Las credenciales nunca se exponen al
-            cliente.
+            Las capturas se guardan externamente usando almacenamiento distribuido cifrado. No se consumen cuotas de almacenamiento de base de datos.
           </p>
         </div>
       </Card>
@@ -199,42 +275,33 @@ export function KYCPage() {
             Sube una foto clara del frente de tu documento de identidad (CI).
           </p>
           <button
-            onClick={() => handleFileSelect("id")}
-            className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-8 text-center hover:border-brand-500 transition-colors"
+            onClick={() => idInputRef.current?.click()}
+            disabled={uploadingType !== null}
+            className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-8 text-center hover:border-brand-500 transition-colors bg-white dark:bg-white/5 outline-none"
           >
-            {idFront ? (
+            {uploadingType === "id" ? (
+              <div className="space-y-2 py-4">
+                <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-xs text-gray-400">Subiendo a la red Cloudinary...</p>
+              </div>
+            ) : idFront ? (
               <div className="space-y-2">
-                <img
-                  src={idFront}
-                  alt="ID Front"
-                  className="w-40 h-28 object-cover rounded-lg mx-auto"
-                />
-                <p className="text-xs text-emerald-500 font-medium">
-                  ✓ Documento cargado
-                </p>
+                <img src={idFront} alt="ID Front" className="w-40 h-28 object-cover rounded-lg mx-auto" />
+                <p className="text-xs text-emerald-500 font-medium">✓ Documento subido con éxito</p>
               </div>
             ) : (
               <>
                 <Upload className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Toca para subir tu ID
-                </p>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  JPG o PNG, máximo 5MB
-                </p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toca para abrir cámara o galería</p>
+                <p className="text-[10px] text-gray-400 mt-1">Imágenes en formato JPG o PNG</p>
               </>
             )}
           </button>
           <div className="flex gap-2">
-            <Button size="lg" variant="outline" onClick={() => setStep(0)} className="flex-1">
+            <Button size="lg" variant="outline" onClick={() => setStep(0)} className="flex-1" disabled={uploadingType !== null}>
               Atrás
             </Button>
-            <Button
-              size="lg"
-              onClick={() => setStep(2)}
-              disabled={!idFront}
-              className="flex-1"
-            >
+            <Button size="lg" onClick={() => setStep(2)} disabled={!idFront || uploadingType !== null} className="flex-1">
               Continuar
             </Button>
           </div>
@@ -245,33 +312,28 @@ export function KYCPage() {
       {step === 2 && (
         <div className="space-y-4 animate-slide-up">
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Tómate una selfie sosteniendo tu documento de identidad junto a tu
-            rostro.
+            Tómate una selfie sosteniendo tu documento de identidad junto a tu rostro.
           </p>
           <button
-            onClick={() => handleFileSelect("selfie")}
-            className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-8 text-center hover:border-brand-500 transition-colors"
+            onClick={() => selfieInputRef.current?.click()}
+            disabled={uploadingType !== null}
+            className="w-full border-2 border-dashed border-gray-200 dark:border-white/10 rounded-2xl p-8 text-center hover:border-brand-500 transition-colors bg-white dark:bg-white/5 outline-none"
           >
-            {selfie ? (
+            {uploadingType === "selfie" ? (
+              <div className="space-y-2 py-4">
+                <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
+                <p className="text-xs text-gray-400">Inyectando selfie en la nube...</p>
+              </div>
+            ) : selfie ? (
               <div className="space-y-2">
-                <img
-                  src={selfie}
-                  alt="Selfie"
-                  className="w-32 h-32 object-cover rounded-full mx-auto"
-                />
-                <p className="text-xs text-emerald-500 font-medium">
-                  ✓ Selfie cargada
-                </p>
+                <img src={selfie} alt="Selfie" className="w-32 h-32 object-cover rounded-full mx-auto" />
+                <p className="text-xs text-emerald-500 font-medium">✓ Selfie cargada con éxito</p>
               </div>
             ) : (
               <>
                 <Camera className="h-8 w-8 text-gray-400 mx-auto mb-2" />
-                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">
-                  Toca para tomar selfie
-                </p>
-                <p className="text-[10px] text-gray-400 mt-1">
-                  Asegúrate de buena iluminación
-                </p>
+                <p className="text-sm font-medium text-gray-600 dark:text-gray-400">Toca para capturar selfie</p>
+                <p className="text-[10px] text-gray-400 mt-1">Asegúrate de tener buena iluminación</p>
               </>
             )}
           </button>
@@ -292,21 +354,21 @@ export function KYCPage() {
                   <span className="font-medium text-gray-900 dark:text-white">{idNumber}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Documentos</span>
-                  <span className="font-medium text-emerald-500">✓ 2 archivos</span>
+                  <span className="text-gray-500 dark:text-gray-400">Enlaces Cloudinary</span>
+                  <span className="font-medium text-emerald-500">✓ Listo para escritura</span>
                 </div>
               </div>
             </Card>
           )}
 
           <div className="flex gap-2">
-            <Button size="lg" variant="outline" onClick={() => setStep(1)} className="flex-1">
+            <Button size="lg" variant="outline" onClick={() => setStep(1)} className="flex-1" disabled={uploadingType !== null}>
               Atrás
             </Button>
             <Button
               size="lg"
               onClick={handleSubmit}
-              disabled={!selfie}
+              disabled={!selfie || uploadingType !== null}
               loading={loading}
               className="flex-1"
               icon={<Shield className="h-4 w-4" />}
@@ -323,22 +385,12 @@ export function KYCPage() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              <strong className="text-gray-700 dark:text-gray-300">Sin verificar:</strong>{" "}
-              Límite de 50 USDT por operación. Verifica tu identidad para
-              eliminar restricciones.
-            </p>
-          </div>
-        </Card>
-        <Card padding="sm">
-          <div className="flex items-start gap-2">
-            <Clock className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-gray-500 dark:text-gray-400">
-              <strong className="text-gray-700 dark:text-gray-300">Tiempo:</strong>{" "}
-              La revisión toma entre 24 y 48 horas. Recibirás una notificación.
+              <strong className="text-gray-700 dark:text-gray-300">Sin verificar:</strong> Límite de 50 USDT por operación. Verifica tu identidad para eliminar restricciones.
             </p>
           </div>
         </Card>
       </div>
     </div>
   );
-}
+        }
+              
