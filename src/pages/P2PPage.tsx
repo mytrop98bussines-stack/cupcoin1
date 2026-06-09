@@ -42,7 +42,7 @@ export function P2PPage() {
     
     // Consultamos solo las órdenes activas del mercado ordenadas por la más reciente
     const q = query(
-      collection(db, "p2p_orders"),
+      collection(db, "orders"),
       where("status", "==", "active"),
       orderBy("createdAt", "desc")
     );

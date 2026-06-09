@@ -49,7 +49,7 @@ export function CreateProductPage() {
 
     try {
       // Generamos un ID de documento único y automático en la colección de productos
-      const productRef = doc(collection(db, "marketplace_products"));
+      const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
         id: productRef.id,

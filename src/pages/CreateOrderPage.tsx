@@ -39,7 +39,7 @@ export function CreateOrderPage() {
 
     try {
       // Generamos una referencia nueva en Firestore para obtener un ID único instantáneo
-      const orderRef = doc(collection(db, "p2p_orders"));
+      const orderRef = doc(collection(db, "orders"));
 
       const newOrder: P2POrder = {
         id: orderRef.id,

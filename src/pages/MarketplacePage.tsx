@@ -32,7 +32,7 @@ export function MarketplacePage() {
 
     // Consultamos los productos activos ordenados por los más recientes
     const q = query(
-      collection(db, "marketplace_products"),
+      collection(db, "products"),
       where("status", "==", "active"),
       orderBy("createdAt", "desc")
     );
