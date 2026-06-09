@@ -24,7 +24,8 @@ import { MOCK_USER, MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
 import type { User as AppUser } from "@/types";
 
 function AppContent() {
-  const { currentView } = useAppStore();
+  // Extraemos las variables necesarias para el control de seguridad
+  const { currentView, user, isAuthenticated } = useAppStore();
 
   const viewTitles: Record<string, string> = {
     dashboard: "",
@@ -63,7 +64,21 @@ function AppContent() {
     "notifications",
   ];
 
-  const isAuthenticated = authenticatedViews.includes(currentView);
+  // CONTROL DE SEGURIDAD EXTREMO: Si Zustand está en una vista privada pero el objeto de usuario 
+  // en el Store todavía está vacío (null), congelamos la renderización para evitar que la dApp 
+  // intente leer propiedades inexistentes como user.displayName y rompa la pantalla en blanco.
+  if (authenticatedViews.includes(currentView) && !user) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950">
+        <div className="h-10 w-10 border-4 border-brand-500 border-t-transparent rounded-full animate-spin mb-4"></div>
+        <p className="text-sm text-gray-500 dark:text-gray-400 animate-pulse font-medium">
+          Sincronizando perfil de usuario...
+        </p>
+      </div>
+    );
+  }
+
+  const showBottomNav = authenticatedViews.includes(currentView);
 
   if (currentView === "landing") return <LandingPage />;
   if (currentView === "login" || currentView === "register") return <AuthPage />;
@@ -87,7 +102,7 @@ function AppContent() {
         {currentView === "settings" && <SettingsPage />}
         {currentView === "notifications" && <NotificationsPage />}
       </main>
-      {isAuthenticated && <BottomNav />}
+      {showBottomNav && <BottomNav />}
     </>
   );
 }
@@ -129,10 +144,10 @@ export default function App() {
               totalTrades: 0,
               rating: 5.0,
               walletAddress: null,
-          };
-        }
+            };
+          }
 
-          // Rellenamos el objeto estático en mock.ts para compatibilidad legacy
+          // Rellenamos el objeto estático en mock.ts para mantener compatibilidad legacy
           Object.assign(MOCK_USER, loggedUser);
 
           // Inyectamos estados al Store y ejecutamos la acción login de Zustand
@@ -161,7 +176,7 @@ export default function App() {
     }
   }, [isAuthenticated, currentView, navigate]);
 
-  // Pantalla de carga mientras se sincroniza Firebase inicialmente
+  // Pantalla de carga inicial mientras se sincroniza Firebase por primera vez
   if (authLoading) {
     return (
       <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col items-center justify-center">
@@ -182,5 +197,4 @@ export default function App() {
       </div>
     </div>
   );
-    }
-                                       
+                                         }
