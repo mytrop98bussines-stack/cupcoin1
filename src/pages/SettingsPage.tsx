@@ -1,8 +1,11 @@
+import { useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
+import { db } from "@/lib/firebase/config";
+import { doc, onSnapshot } from "firebase/firestore";
 import {
   Shield,
   Bell,
@@ -21,7 +24,38 @@ import {
 } from "lucide-react";
 
 export function SettingsPage() {
-  const { user, theme, toggleTheme, navigate, logout } = useAppStore();
+  const { user, setUser, theme, toggleTheme, navigate, logout } = useAppStore();
+
+  // ==========================================
+  // SOLUCIÓN EN CALIENTE PARA EL MODO OSCURO
+  // ==========================================
+  useEffect(() => {
+    const root = window.document.documentElement;
+    if (theme === "dark") {
+      root.classList.add("dark");
+    } else {
+      root.classList.remove("dark");
+    }
+  }, [theme]);
+
+  // ==========================================
+  // ESCUCHADOR EN TIEMPO REAL DEL PERFIL (FIRESTORE)
+  // ==========================================
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    // Escuchamos los cambios del documento del usuario (reputación, trades reales, KYC)
+    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
+      if (docSnap.exists()) {
+        // Combinamos el estado actual de la sesión con los datos frescos de la DB
+        setUser({ ...user, ...docSnap.data() });
+      }
+    }, (error) => {
+      console.error("Error sincronizando perfil con Firestore:", error);
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, setUser]);
 
   if (!user) return null;
 
@@ -32,6 +66,8 @@ export function SettingsPage() {
     rejected: { label: "Rechazado", variant: "danger" as const },
   };
 
+  const currentKyc = kycStatus[user.kycStatus as keyof typeof kycStatus] || kycStatus.unverified;
+
   const menuSections = [
     {
       title: "Cuenta",
@@ -39,8 +75,8 @@ export function SettingsPage() {
         {
           icon: <Shield className="h-4 w-4" />,
           label: "Verificación KYC",
-          subtitle: kycStatus[user.kycStatus].label,
-          badge: kycStatus[user.kycStatus].variant,
+          subtitle: currentKyc.label,
+          badge: currentKyc.variant,
           action: () => navigate("kyc"),
         },
         {
@@ -81,7 +117,7 @@ export function SettingsPage() {
         {
           icon: <ArrowLeftRight className="h-4 w-4" />,
           label: "Historial de trades",
-          subtitle: `${user.totalTrades} trades completados`,
+          subtitle: `${user.totalTrades || 0} trades completados`,
           action: () => navigate("p2p"),
         },
         {
@@ -124,7 +160,7 @@ export function SettingsPage() {
         <div className="flex items-center gap-4">
           <Avatar name={user.displayName} src={user.photoURL} size="lg" />
           <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-lg text-gray-900 dark:text-white">
+            <h2 className="font-bold text-lg text-gray-900 dark:text-white truncate">
               {user.displayName}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
@@ -133,14 +169,14 @@ export function SettingsPage() {
             <div className="flex items-center gap-2 mt-1.5">
               <div className="flex items-center gap-0.5 text-amber-500">
                 <Star className="h-3.5 w-3.5 fill-current" />
-                <span className="text-xs font-semibold">{user.rating}</span>
+                <span className="text-xs font-semibold">{user.rating || "5.0"}</span>
               </div>
               <span className="text-[10px] text-gray-400">•</span>
               <span className="text-[10px] text-gray-500 dark:text-gray-400">
-                {user.totalTrades} trades
+                {user.totalTrades || 0} trades
               </span>
-              <Badge variant={kycStatus[user.kycStatus].variant} size="sm">
-                {kycStatus[user.kycStatus].label}
+              <Badge variant={currentKyc.variant} size="sm">
+                {currentKyc.label}
               </Badge>
             </div>
           </div>
@@ -151,7 +187,11 @@ export function SettingsPage() {
       {menuSections.map((section) => (
         <div key={section.title}>
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 px-1">
-            {section.title}
+            {section.title
+              ? section.title === "Actividad" && user.uid === "invitado"
+                ? "" // Ocultamos el título si es un invitado sin historial real
+                : section.title
+              : ""}
           </h3>
           <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06]">
             {section.items.map((item) => (
@@ -171,20 +211,15 @@ export function SettingsPage() {
                     {item.subtitle}
                   </p>
                 </div>
-                {"badge" in item && item.badge && (
-                  <Badge variant={item.badge} size="sm">
-                    {item.subtitle}
-                  </Badge>
-                )}
                 {"toggle" in item && item.toggle ? (
                   <div
-                    className={`relative h-6 w-11 rounded-full transition-colors ${
+                    className={`relative h-6 w-11 rounded-full transition-colors flex items-center ${
                       theme === "dark" ? "bg-brand-500" : "bg-gray-300"
                     }`}
                   >
                     <div
-                      className={`absolute top-0.5 h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                        theme === "dark" ? "translate-x-5" : "translate-x-0.5"
+                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                        theme === "dark" ? "translate-x-5.5" : "translate-x-0.5"
                       }`}
                     />
                   </div>
@@ -211,8 +246,9 @@ export function SettingsPage() {
 
       {/* Version */}
       <p className="text-center text-[10px] text-gray-400 dark:text-gray-500">
-        CubaX v1.0.0 • Build 2025.01
+        CubaX v1.0.0 • Build 2026.06
       </p>
     </div>
   );
-}
+      }
+      
