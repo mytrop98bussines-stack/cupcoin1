@@ -4,16 +4,18 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 
+import { db } from "@/lib/firebase/config";
+import { collection, doc, setDoc } from "firebase/firestore";
 import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/mock";
 import {
   ArrowLeftRight,
   Shield,
   CheckCircle2,
 } from "lucide-react";
-import type { OrderType, CryptoAsset, PaymentMethod } from "@/types";
+import type { OrderType, CryptoAsset, PaymentMethod, P2POrder } from "@/types";
 
 export function CreateOrderPage() {
-  const { navigate, addOrder, user } = useAppStore();
+  const { navigate, user } = useAppStore();
 
   const [orderType, setOrderType] = useState<OrderType>("sell");
   const [asset, setAsset] = useState<CryptoAsset>("USDT");
@@ -34,30 +36,40 @@ export function CreateOrderPage() {
     if (!price || !minAmount || !maxAmount || selectedMethods.length === 0 || !user) return;
 
     setLoading(true);
-    await new Promise((r) => setTimeout(r, 1500));
 
-    addOrder({
-      id: `ord_${Date.now()}`,
-      userId: user.uid,
-      userName: user.displayName,
-      userRating: user.rating,
-      userTrades: user.totalTrades,
-      type: orderType,
-      asset,
-      pricePerUnit: parseFloat(price),
-      currency: "CUP",
-      minAmount: parseFloat(minAmount),
-      maxAmount: parseFloat(maxAmount),
-      paymentMethods: selectedMethods,
-      status: "active",
-      createdAt: Date.now(),
-      availableAmount: parseFloat(maxAmount),
-    });
+    try {
+      // Generamos una referencia nueva en Firestore para obtener un ID único instantáneo
+      const orderRef = doc(collection(db, "p2p_orders"));
 
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => navigate("p2p"), 1500);
-  }, [price, minAmount, maxAmount, selectedMethods, user, orderType, asset, addOrder, navigate]);
+      const newOrder: P2POrder = {
+        id: orderRef.id,
+        userId: user.uid,
+        userName: user.displayName || "Usuario CubaX",
+        userRating: user.rating || 5.0,
+        userTrades: user.totalTrades || 0,
+        type: orderType,
+        asset,
+        pricePerUnit: parseFloat(price),
+        currency: "CUP",
+        minAmount: parseFloat(minAmount),
+        maxAmount: parseFloat(maxAmount),
+        availableAmount: parseFloat(maxAmount), // Inicialmente todo lo máximo está disponible
+        paymentMethods: selectedMethods,
+        status: "active",
+        createdAt: Date.now(),
+      };
+
+      // Guardamos el documento directamente en la base de datos real de Firestore
+      await setDoc(orderRef, newOrder);
+
+      setLoading(false);
+      setSuccess(true);
+      setTimeout(() => navigate("p2p"), 1500);
+    } catch (error) {
+      console.error("Error al publicar la oferta en Firestore:", error);
+      setLoading(false);
+    }
+  }, [price, minAmount, maxAmount, selectedMethods, user, orderType, asset, navigate]);
 
   if (success) {
     return (
