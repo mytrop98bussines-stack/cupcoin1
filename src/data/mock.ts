@@ -1,6 +1,3 @@
-import { auth, db } from "@/lib/firebase/config";
-import { doc, onSnapshot } from "firebase/firestore";
-
 import type {
   User,
   CryptoBalance,
@@ -13,45 +10,25 @@ import type {
 } from "@/types";
 
 // ==========================================
-// CONEXIÓN REACTIVA CON FIREBASE (AUTH & FIRESTORE)
+// REFERENCIA ESTÁTICA SEGURA PARA COMPATIBILIDAD
 // ==========================================
 
-// Inicializamos el objeto vacío que mantendrá la misma referencia en toda la app
-export const MOCK_USER: User = {} as User;
-
-// Escuchamos los cambios de sesión en tiempo real
-onAuthStateChanged(auth, (firebaseUser) => {
-  if (firebaseUser) {
-    const userDocRef = doc(db, "users", firebaseUser.uid);
-    
-    // Escuchamos el documento del usuario en Firestore
-    onSnapshot(userDocRef, (docSnap) => {
-      if (docSnap.exists()) {
-        // Si ya tiene datos en la base de datos, los inyectamos en MOCK_USER
-        Object.assign(MOCK_USER, docSnap.data());
-      } else {
-        // Plantilla base obligatoria para que tus componentes no den undefined
-        Object.assign(MOCK_USER, {
-          uid: firebaseUser.uid,
-          email: firebaseUser.email || "",
-          displayName: firebaseUser.displayName || "Usuario",
-          photoURL: firebaseUser.photoURL || null,
-          kycStatus: "unverified",
-          createdAt: Date.now(),
-          totalTrades: 0,
-          rating: 5.0,
-          walletAddress: null,
-        });
-      }
-    });
-  } else {
-    // Si no hay sesión activa o se desloguea, limpiamos las propiedades del objeto
-    Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
-  }
-});
+// Le damos una estructura base por defecto. Si alguna página lo lee antes de que 
+// Firebase responda, tendrá datos válidos y no romperá la pantalla en blanco.
+export const MOCK_USER: User = {
+  uid: "loading",
+  email: "cargando@cubax.com",
+  displayName: "Usuario CubaX",
+  photoURL: null,
+  kycStatus: "unverified",
+  createdAt: Date.now(),
+  totalTrades: 0,
+  rating: 5.0,
+  walletAddress: null,
+};
 
 // ==========================================
-// RESTO DE MOCK DATA INTACTO
+// MOCK DATA INTACTO Y LISTO
 // ==========================================
 
 export const MOCK_BALANCES: CryptoBalance[] = [
