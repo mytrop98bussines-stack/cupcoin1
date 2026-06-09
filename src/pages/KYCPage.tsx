@@ -21,7 +21,7 @@ import {
 // ========================================================
 // CONFIGURACIÓN DE TU CUENTA GRATUITA DE CLOUDINARY
 // ========================================================
-const CLOUDINARY_CLOUD_NAME = ""; // Reemplaza con tu Cloud Name de Cloudinary
+const CLOUDINARY_CLOUD_NAME = "dc4caibrn"; // Reemplaza con tu Cloud Name de Cloudinary
 const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned"; // Reemplaza con tu Unsigned Upload Preset
 
 export function KYCPage() {
