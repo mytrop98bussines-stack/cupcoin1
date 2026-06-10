@@ -1,7 +1,7 @@
 // src/lib/firebase/messaging.ts
 import { getMessaging, getToken, onMessage } from 'firebase/messaging';
 import { doc, updateDoc } from 'firebase/firestore';
-import app, { db } from './config';
+import { app, db } from './config';
 
 const messaging = getMessaging(app);
 
