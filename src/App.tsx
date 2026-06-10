@@ -16,6 +16,9 @@ import { WalletPage } from "@/pages/WalletPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 
+// 1. Importamos tu nueva página de administración
+import { AdminKYCPage } from "@/pages/AdminKYCPage";
+
 // Sincronización en tiempo real con Firebase Auth y Firestore
 import { auth, db } from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
@@ -24,9 +27,9 @@ import { MOCK_USER, MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
 import type { User as AppUser } from "@/types";
 
 function AppContent() {
-  // Extraemos las variables necesarias para el control de seguridad
-  const { currentView, user, isAuthenticated } = useAppStore();
+  const { currentView, user, navigate } = useAppStore();
 
+  // 2. Añadimos el título del Header para la vista de administración
   const viewTitles: Record<string, string> = {
     dashboard: "",
     p2p: "",
@@ -39,8 +42,10 @@ function AppContent() {
     wallet: "Mi Wallet",
     settings: "Perfil",
     notifications: "Notificaciones",
+    "admin-kyc": "Panel de Control KYC", // Título de la vista admin
   };
 
+  // Vistas que muestran flecha de retroceso
   const showBackViews = [
     "create-order",
     "trade",
@@ -48,6 +53,7 @@ function AppContent() {
     "product-detail",
     "create-product",
     "notifications",
+    "admin-kyc", // Habilitamos botón atrás para salir del panel
   ];
 
   const authenticatedViews = [
@@ -62,11 +68,18 @@ function AppContent() {
     "wallet",
     "settings",
     "notifications",
+    "admin-kyc", // Registrada en el espectro autenticado
   ];
 
-  // CONTROL DE SEGURIDAD EXTREMO: Si Zustand está en una vista privada pero el objeto de usuario 
-  // en el Store todavía está vacío (null), congelamos la renderización para evitar que la dApp 
-  // intente leer propiedades inexistentes como user.displayName y rompa la pantalla en blanco.
+  // GUARDIÁN IMPRESCINDIBLE PARA EL PANEL: Si el usuario intenta forzar la vista 
+  // 'admin-kyc' pero no está registrado con el rol "admin" en Firestore,
+  // lo expulsamos inmediatamente al Dashboard para que no rompa las llamadas.
+  useEffect(() => {
+    if (currentView === "admin-kyc" && user?.role !== "admin") {
+      navigate("dashboard");
+    }
+  }, [currentView, user, navigate]);
+
   if (authenticatedViews.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950">
@@ -101,6 +114,9 @@ function AppContent() {
         {currentView === "wallet" && <WalletPage />}
         {currentView === "settings" && <SettingsPage />}
         {currentView === "notifications" && <NotificationsPage />}
+        
+        {/* 3. Renderizamos la vista de administración si coincide el estado */}
+        {currentView === "admin-kyc" && user?.role === "admin" && <AdminKYCPage />}
       </main>
       {showBottomNav && <BottomNav />}
     </>
@@ -111,7 +127,6 @@ export default function App() {
   const { theme, login, logout, currentView, isAuthenticated, navigate, setBalances, setNotifications } = useAppStore();
   const [authLoading, setAuthLoading] = useState(true);
 
-  // 1. Efecto para controlar el modo oscuro
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -121,7 +136,6 @@ export default function App() {
     }
   }, [theme]);
 
-  // 2. Guardián Central de Firebase Auth vinculado a Zustand
   useEffect(() => {
     const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
@@ -144,18 +158,16 @@ export default function App() {
               totalTrades: 0,
               rating: 5.0,
               walletAddress: null,
+              role: "user", // Rol por defecto si el usuario es nuevo
             };
           }
 
-          // Rellenamos el objeto estático en mock.ts para mantener compatibilidad legacy
           Object.assign(MOCK_USER, loggedUser);
 
-          // Inyectamos estados al Store y ejecutamos la acción login de Zustand
           setBalances(MOCK_BALANCES);
           setNotifications(MOCK_NOTIFICATIONS);
           login(loggedUser);
         } else {
-          // Si no hay sesión activa en Firebase, forzamos cierre seguro en el Store
           Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
           logout();
         }
@@ -169,14 +181,12 @@ export default function App() {
     return () => unsubscribe();
   }, [login, logout, setBalances, setNotifications]);
 
-  // 3. Interceptor de redirección para evitar bloqueos del Home
   useEffect(() => {
     if (isAuthenticated && ["landing", "login", "register"].includes(currentView)) {
       navigate("dashboard");
     }
   }, [isAuthenticated, currentView, navigate]);
 
-  // Pantalla de carga inicial mientras se sincroniza Firebase por primera vez
   if (authLoading) {
     return (
       <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col items-center justify-center">
@@ -197,4 +207,5 @@ export default function App() {
       </div>
     </div>
   );
-                                         }
+    }
+      
