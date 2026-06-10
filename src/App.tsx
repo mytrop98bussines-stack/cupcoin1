@@ -22,7 +22,7 @@ import { AdminKYCPage } from "@/pages/AdminKYCPage";
 // Sincronización en tiempo real con Firebase Auth y Firestore
 import { auth, db } from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc } from "firebase/firestore";
+import { doc, getDoc, setDoc } from "firebase/firestore";
 
 // Integración de Firebase Cloud Messaging (Notificaciones Push)
 import { requestNotificationPermission, onForegroundMessage } from "@/lib/firebase/messaging";
@@ -88,7 +88,6 @@ function AppContent() {
     const unsubscribePushForeground = onForegroundMessage((payload) => {
       console.log("Push recibido en primer plano:", payload);
       if (payload.notification) {
-        // Puedes cambiar este alert nativo por un componente Toast personalizado en el futuro
         alert(`🔔 ${payload.notification.title}\n${payload.notification.body}`);
       }
     });
@@ -167,6 +166,7 @@ export default function App() {
           if (docSnap.exists()) {
             loggedUser = docSnap.data() as AppUser;
           } else {
+            // Aseguramos la creación del documento base si el usuario es totalmente nuevo
             loggedUser = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || "",
@@ -179,6 +179,7 @@ export default function App() {
               walletAddress: null,
               role: "user",
             };
+            await setDoc(userDocRef, loggedUser);
           }
 
           Object.assign(MOCK_USER, loggedUser);
@@ -186,19 +187,22 @@ export default function App() {
 
           // ➡️ 1. CONEXIÓN REAL FIRESTORE NOTIFICATIONS
           if (unsubscribeNotifications) unsubscribeNotifications();
-          // Accedemos directamente a la acción del store de Zustand pasándole el uid real
           unsubscribeNotifications = useAppStore.getState().subscribeToNotifications(firebaseUser.uid);
 
-          // ➡️ 2. REGISTRO SILENCIOSO DE TOKEN PUSH (FCM)
+          // ➡️ 2. LOGIN DE ZUSTAND PRIMERO (Estabiliza el estado de la app)
+          login(loggedUser);
+
+          // ➡️ 3. REGISTRO ASÍNCRONO SEGURO DEL TOKEN PUSH
+          // Lo ejecutamos con un pequeño retraso para asegurar que las reglas de la BD no reboten la petición
           if (firebaseUser.uid !== "invitado") {
-            requestNotificationPermission(firebaseUser.uid).catch((err) =>
-              console.error("Fallo al registrar token push FCM:", err)
-            );
+            setTimeout(() => {
+              requestNotificationPermission(firebaseUser.uid).catch((err) =>
+                console.error("Registro push silenciado para evitar bloqueos:", err)
+              );
+            }, 300);
           }
 
-          login(loggedUser);
         } else {
-          // Si el usuario se desconecta, cerramos de inmediato el canal de Firestore
           if (unsubscribeNotifications) {
             unsubscribeNotifications();
             unsubscribeNotifications = null;
@@ -246,5 +250,5 @@ export default function App() {
       </div>
     </div>
   );
-            }
-  
+      }
+        
