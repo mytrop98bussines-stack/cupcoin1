@@ -84,7 +84,7 @@ export function CreateProductPage() {
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("upload_preset", "cubax_products"); // Tu Preset configurado en Cloudinary
+        formData.append("cubax_preset", "cubax_products"); // Tu Preset configurado en Cloudinary
         formData.append("folder", "cubax/products");
 
         const cloudinaryRes = await fetch(
