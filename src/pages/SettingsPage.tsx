@@ -21,6 +21,7 @@ import {
   Wallet,
   FileText,
   ExternalLink,
+  Wrench, // Icono para el panel de administración
 } from "lucide-react";
 
 export function SettingsPage() {
@@ -44,10 +45,8 @@ export function SettingsPage() {
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Escuchamos los cambios del documento del usuario (reputación, trades reales, KYC)
     const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
       if (docSnap.exists()) {
-        // Combinamos el estado actual de la sesión con los datos frescos de la DB
         setUser({ ...user, ...docSnap.data() });
       }
     }, (error) => {
@@ -183,13 +182,43 @@ export function SettingsPage() {
         </div>
       </Card>
 
+      {/* ========================================================
+          BLOQUE EXCLUSIVO DE ADMIN: SOLO APRECE SI TU ROL ES 'admin'
+         ======================================================== */}
+      {user?.role === "admin" && (
+        <div className="animate-fade-in">
+          <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wide mb-2 px-1 flex items-center gap-1.5">
+            <Wrench className="h-3 w-3" /> Configuración Interna
+          </h3>
+          <Card padding="none" className="border border-amber-500/20 dark:border-amber-500/10 bg-amber-500/[0.01]">
+            <button
+              onClick={() => navigate("admin-kyc")}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-500/[0.04] transition-colors rounded-2xl"
+            >
+              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
+                <Wrench className="h-4 w-4" />
+              </div>
+              <div className="flex-1 text-left min-w-0">
+                <p className="font-bold text-sm text-gray-900 dark:text-white">
+                  Panel de Control KYC
+                </p>
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">
+                  Revisar y aprobar solicitudes de usuarios pendientes
+                </p>
+              </div>
+              <ChevronRight className="h-4 w-4 text-amber-500/60 flex-shrink-0" />
+            </button>
+          </Card>
+        </div>
+      )}
+
       {/* Menu Sections */}
       {menuSections.map((section) => (
         <div key={section.title}>
           <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 px-1">
             {section.title
               ? section.title === "Actividad" && user.uid === "invitado"
-                ? "" // Ocultamos el título si es un invitado sin historial real
+                ? "" 
                 : section.title
               : ""}
           </h3>
@@ -250,5 +279,6 @@ export function SettingsPage() {
       </p>
     </div>
   );
-      }
+    }
       
+                  
