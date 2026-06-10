@@ -1,6 +1,7 @@
 // src/lib/cloudinary/upload.ts
-import { httpsCallable } from 'firebase/functions';
-import { functions } from '../firebase/config';
+import { httpsCallable, getFunctions } from 'firebase/functions';
+// Importamos la instancia global "app" que sí está exportada seguro en tu config
+import { app } from '../firebase/config'; 
 
 interface SignatureResponse {
   signature: string;
@@ -14,9 +15,13 @@ export async function uploadToCloudinary(
   file: File,
   folder: 'kyc' | 'products' | 'chat'
 ): Promise<string> {
-  // 1. Obtener firma del servidor
+  
+  // Inicializamos la instancia de las funciones localmente usando tu app
+  const functionsInstance = getFunctions(app);
+
+  // 1. Obtener firma del servidor usando la instancia local
   const getSignature = httpsCallable<{ folder: string }, SignatureResponse>(
-    functions,
+    functionsInstance,
     'getCloudinarySignature'
   );
   
