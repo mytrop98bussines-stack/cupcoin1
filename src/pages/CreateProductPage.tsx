@@ -90,7 +90,7 @@ export function CreateProductPage() {
         formData.append("folder", "cubax/products");
 
         const cloudinaryRes = await fetch(
-          "https://api.cloudinary.com/v1_1/cupcoin-b2b4f/image/upload",
+          "https://api.cloudinary.com/v1_1/dc4caibrn/image/upload",
           {
             method: "POST",
             body: formData, // El navegador inyecta el Content-Type correcto automáticamente
