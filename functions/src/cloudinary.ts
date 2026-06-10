@@ -25,7 +25,7 @@ export const getCloudinarySignature = functions.https.onCall(
       {
         timestamp,
         folder,
-        upload_preset: 'cubax_signed',
+        upload_preset: 'cubax_unsigned',
       },
       process.env.CLOUDINARY_API_SECRET!
     );
