@@ -6,6 +6,10 @@ import { Input } from "@/components/ui/Input";
 import { Badge } from "@/components/ui/Badge";
 import { db } from "@/lib/firebase/config";
 import { doc, updateDoc } from "firebase/firestore";
+
+// Importamos tu función nativa de firma y subida asíncrona
+import { uploadToCloudinary } from "@/lib/cloudinary/upload";
+
 import {
   Shield,
   Upload,
@@ -18,12 +22,6 @@ import {
   MapPin,
 } from "lucide-react";
 
-// ========================================================
-// CONFIGURACIÓN DE TU CUENTA GRATUITA DE CLOUDINARY
-// ========================================================
-const CLOUDINARY_CLOUD_NAME = "dc4caibrn"; // Reemplaza con tu Cloud Name de Cloudinary
-const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned"; // Reemplaza con tu Unsigned Upload Preset
-
 export function KYCPage() {
   const { user, setUser } = useAppStore();
 
@@ -32,7 +30,7 @@ export function KYCPage() {
   const [idNumber, setIdNumber] = useState("");
   const [address, setAddress] = useState("");
   
-  // Guardamos las URLs reales que devuelve Cloudinary
+  // Aquí se guardarán las URLs seguras finales devueltas por tu backend
   const [idFront, setIdFront] = useState<string | null>(null);
   const [selfie, setSelfie] = useState<string | null>(null);
   
@@ -40,47 +38,42 @@ export function KYCPage() {
   const [uploadingType, setUploadingType] = useState<"id" | "selfie" | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  // Referencias ocultas para activar los selectores de archivos nativos del móvil
+  // Referencias para disparar las cámaras nativas del móvil
   const idInputRef = useRef<HTMLInputElement>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
   // ========================================================
-  // SUBIDA DIRECTA A CLOUDINARY SIN COSTO DE STORAGE
+  // SUBIDA FIRMADA INTEGRADA CON TU CONFIGURACIÓN DE FIREBASE
   // ========================================================
-  const handleUploadToCloudinary = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: "id" | "selfie") => {
+  const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: "id" | "selfie") => {
     const file = e.target.files?.[0];
     if (!file) return;
 
     setUploadingType(type);
 
-    const formData = new FormData();
-    formData.append("file", file);
-    formData.append("cubax_unsigned", CLOUDINARY_UPLOAD_PRESET);
-
     try {
-      const response = await fetch(
-        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
-        { method: "POST", body: formData }
-      );
+      // Llamamos a tu función que pide la firma criptográfica a la Cloud Function y sube
+      const secureUrl = await uploadToCloudinary(file, "kyc");
 
-      if (!response.ok) throw new Error("Error en la respuesta del servidor Cloudinary");
+      if (!secureUrl) throw new Error("No se recibió la URL de Cloudinary");
 
-      const data = await response.json();
-      const secureUrl = data.secure_url; // Esta es la URL HTTP segura final
-
-      if (type === "id") setIdFront(secureUrl);
-      else setSelfie(secureUrl);
+      if (type === "id") {
+        setIdFront(secureUrl);
+      } else {
+        setSelfie(secureUrl);
+      }
       
-    } catch (error) {
-      console.error("Fallo al subir a Cloudinary:", error);
-      alert("No se pudo subir la imagen. Revisa tu conexión a internet.");
+    } catch (error: any) {
+      console.error("Fallo en la subida firmada a Cloudinary:", error);
+      // Te escupe el error exacto (Por ejemplo si las Cloud Functions no están desplegadas)
+      alert("Error en subida segura: " + (error.message || error));
     } finally {
       setUploadingType(null);
     }
   }, []);
 
   // ========================================================
-  // ENVÍO DE DATOS ESTRUCTURADOS A FIRESTORE
+  // REGISTRO DE DATOS EN TU COLECCIÓN DE FIRESTORE
   // ========================================================
   const handleSubmit = useCallback(async () => {
     if (!fullName || !idNumber || !address || !idFront || !selfie || !user?.uid) return;
@@ -90,23 +83,21 @@ export function KYCPage() {
     try {
       const userRef = doc(db, "users", user.uid);
 
-      // Mapeo exacto basado en la estructura nativa de tu base de datos
+      // Mapeo exacto acoplado al esquema de datos de tu dApp
       const kycPayload = {
         kycStatus: "pending_verification",
         kycDocuments: {
-          idFront: idFront,  // URL de Cloudinary
-          selfie: selfie     // URL de Cloudinary
+          idFront: idFront, // URL de Cloudinary firmada
+          selfie: selfie     // URL de Cloudinary firmada
         },
-        // Guardamos los metadatos extendidos dentro del perfil si lo deseas
         fullName,
         idNumber,
         address
       };
 
-      // Guardamos la actualización en la colección distribuida de Firestore
       await updateDoc(userRef, kycPayload);
 
-      // Sincronizamos el estado reactivo global de Zustand
+      // Sincronizamos estado global en Zustand
       setUser({
         ...user,
         kycStatus: "pending_verification",
@@ -115,8 +106,8 @@ export function KYCPage() {
 
       setSubmitted(true);
     } catch (error: any) {
-      console.error("Error guardando verificación en Firestore:", error);
-      alert("Error en Firestore: " + (error.message || error));
+      console.error("Error al actualizar estado KYC en Firestore:", error);
+      alert("Error de Firestore: " + (error.message || error));
     } finally {
       setLoading(false);
     }
@@ -134,8 +125,7 @@ export function KYCPage() {
           Cuenta verificada
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Tu identidad ha sido verificada exitosamente. Puedes operar sin
-          restricciones.
+          Tu identidad ha sido verificada exitosamente. Puedes operar sin restricciones.
         </p>
         <Badge variant="success" size="md" className="mt-4">
           ✓ KYC Aprobado
@@ -154,8 +144,7 @@ export function KYCPage() {
           En revisión
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 max-w-xs mx-auto">
-          Tus documentos están siendo revisados. Te notificaremos cuando se
-          complete la verificación. Tiempo estimado: 24-48 horas.
+          Tus documentos están siendo revisados. Te notificaremos cuando se complete la verificación. Tiempo estimado: 24-48 horas.
         </p>
         <Badge variant="info" size="md" className="mt-4">
           <Clock className="h-3 w-3 mr-1" /> Pendiente
@@ -172,19 +161,19 @@ export function KYCPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
-      {/* Inputs de tipo File ocultos para capturar multimedia en móviles */}
+      {/* Inputs nativos ocultos */}
       <input
         type="file"
         accept="image/*"
         ref={idInputRef}
-        onChange={(e) => handleUploadToCloudinary(e, "id")}
+        onChange={(e) => handleFileChange(e, "id")}
         className="hidden"
       />
       <input
         type="file"
         accept="image/*"
         ref={selfieInputRef}
-        onChange={(e) => handleUploadToCloudinary(e, "selfie")}
+        onChange={(e) => handleFileChange(e, "selfie")}
         className="hidden"
       />
 
@@ -228,7 +217,7 @@ export function KYCPage() {
         <div className="flex items-start gap-2">
           <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-            Las capturas se guardan externamente usando almacenamiento distribuido cifrado. No se consumen cuotas de almacenamiento de base de datos.
+            Tus documentos se suben de forma segura con firma criptográfica (Cloudinary Signed Upload). Las credenciales nunca se exponen al cliente.
           </p>
         </div>
       </Card>
@@ -282,12 +271,12 @@ export function KYCPage() {
             {uploadingType === "id" ? (
               <div className="space-y-2 py-4">
                 <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-xs text-gray-400">Subiendo a la red Cloudinary...</p>
+                <p className="text-xs text-gray-400">Solicitando firma y subiendo...</p>
               </div>
             ) : idFront ? (
               <div className="space-y-2">
                 <img src={idFront} alt="ID Front" className="w-40 h-28 object-cover rounded-lg mx-auto" />
-                <p className="text-xs text-emerald-500 font-medium">✓ Documento subido con éxito</p>
+                <p className="text-xs text-emerald-500 font-medium">✓ Documento firmado y guardado</p>
               </div>
             ) : (
               <>
@@ -322,12 +311,12 @@ export function KYCPage() {
             {uploadingType === "selfie" ? (
               <div className="space-y-2 py-4">
                 <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-xs text-gray-400">Inyectando selfie en la nube...</p>
+                <p className="text-xs text-gray-400">Firmando selfie de seguridad...</p>
               </div>
             ) : selfie ? (
               <div className="space-y-2">
                 <img src={selfie} alt="Selfie" className="w-32 h-32 object-cover rounded-full mx-auto" />
-                <p className="text-xs text-emerald-500 font-medium">✓ Selfie cargada con éxito</p>
+                <p className="text-xs text-emerald-500 font-medium">✓ Selfie firmada y guardada</p>
               </div>
             ) : (
               <>
@@ -354,8 +343,8 @@ export function KYCPage() {
                   <span className="font-medium text-gray-900 dark:text-white">{idNumber}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Enlaces Cloudinary</span>
-                  <span className="font-medium text-emerald-500">✓ Listo para escritura</span>
+                  <span className="text-gray-500 dark:text-gray-400">Seguridad</span>
+                  <span className="font-medium text-emerald-500">✓ Criptografía Cloudinary Activa</span>
                 </div>
               </div>
             </Card>
@@ -385,12 +374,11 @@ export function KYCPage() {
           <div className="flex items-start gap-2">
             <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
             <p className="text-xs text-gray-500 dark:text-gray-400">
-              <strong className="text-gray-700 dark:text-gray-300">Sin verificar:</strong> Límite de 50 USDT por operación. Verifica tu identidad para eliminar restricciones.
+              <strong className="text-gray-700 dark:text-gray-300">Límites P2P:</strong> Sin verificar tienes restricciones de volumen. Verifica tu cuenta para liberar el nodo de transacciones de CUPcoin.
             </p>
           </div>
         </Card>
       </div>
     </div>
   );
-        }
-              
+}
