@@ -7,9 +7,6 @@ import { Badge } from "@/components/ui/Badge";
 import { db } from "@/lib/firebase/config";
 import { doc, updateDoc } from "firebase/firestore";
 
-// Importamos tu función nativa de firma y subida asíncrona
-import { uploadToCloudinary } from "@/lib/cloudinary/upload";
-
 import {
   Shield,
   Upload,
@@ -22,6 +19,12 @@ import {
   MapPin,
 } from "lucide-react";
 
+// ========================================================
+// CONFIGURACIÓN DE TU CONSOLA DE CLOUDINARY (PLAN GRATUITO)
+// ========================================================
+const CLOUDINARY_CLOUD_NAME = "cubax_unsigned"; // <-- Reemplaza con tu Cloud Name real
+const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned"; // <-- Reemplaza con tu Preset Unsigned real
+
 export function KYCPage() {
   const { user, setUser } = useAppStore();
 
@@ -30,7 +33,6 @@ export function KYCPage() {
   const [idNumber, setIdNumber] = useState("");
   const [address, setAddress] = useState("");
   
-  // Aquí se guardarán las URLs seguras finales devueltas por tu backend
   const [idFront, setIdFront] = useState<string | null>(null);
   const [selfie, setSelfie] = useState<string | null>(null);
   
@@ -38,12 +40,11 @@ export function KYCPage() {
   const [uploadingType, setUploadingType] = useState<"id" | "selfie" | null>(null);
   const [submitted, setSubmitted] = useState(false);
 
-  // Referencias para disparar las cámaras nativas del móvil
   const idInputRef = useRef<HTMLInputElement>(null);
   const selfieInputRef = useRef<HTMLInputElement>(null);
 
   // ========================================================
-  // SUBIDA FIRMADA INTEGRADA CON TU CONFIGURACIÓN DE FIREBASE
+  // SUBIDA DIRECTA (UNSIGNED) - ADAPTADA PARA PLAN SPARK
   // ========================================================
   const handleFileChange = useCallback(async (e: React.ChangeEvent<HTMLInputElement>, type: "id" | "selfie") => {
     const file = e.target.files?.[0];
@@ -51,11 +52,28 @@ export function KYCPage() {
 
     setUploadingType(type);
 
-    try {
-      // Llamamos a tu función que pide la firma criptográfica a la Cloud Function y sube
-      const secureUrl = await uploadToCloudinary(file, "kyc");
+    // Preparar el paquete binario directo para Cloudinary
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+    formData.append("folder", `cubax/${type}`); // Organiza automáticamente en cubax/id o cubax/selfie
 
-      if (!secureUrl) throw new Error("No se recibió la URL de Cloudinary");
+    try {
+      const response = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        {
+          method: "POST",
+          body: formData,
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error?.message || `Código de estado: ${response.status}`);
+      }
+
+      const data = await response.json();
+      const secureUrl = data.secure_url;
 
       if (type === "id") {
         setIdFront(secureUrl);
@@ -64,16 +82,16 @@ export function KYCPage() {
       }
       
     } catch (error: any) {
-      console.error("Fallo en la subida firmada a Cloudinary:", error);
-      // Te escupe el error exacto (Por ejemplo si las Cloud Functions no están desplegadas)
-      alert("Error en subida segura: " + (error.message || error));
+      console.error("Fallo en la subida directa a Cloudinary:", error);
+      // Te dice la verdad de lo que responda Cloudinary (ej: si el preset está mal escrito)
+      alert("Error al subir documento: " + error.message);
     } finally {
       setUploadingType(null);
     }
   }, []);
 
   // ========================================================
-  // REGISTRO DE DATOS EN TU COLECCIÓN DE FIRESTORE
+  // REGISTRO DE DATOS EN FIRESTORE (OPERACIÓN TOTALMENTE GRATUITA)
   // ========================================================
   const handleSubmit = useCallback(async () => {
     if (!fullName || !idNumber || !address || !idFront || !selfie || !user?.uid) return;
@@ -83,12 +101,11 @@ export function KYCPage() {
     try {
       const userRef = doc(db, "users", user.uid);
 
-      // Mapeo exacto acoplado al esquema de datos de tu dApp
       const kycPayload = {
         kycStatus: "pending_verification",
         kycDocuments: {
-          idFront: idFront, // URL de Cloudinary firmada
-          selfie: selfie     // URL de Cloudinary firmada
+          idFront: idFront,
+          selfie: selfie 
         },
         fullName,
         idNumber,
@@ -97,7 +114,6 @@ export function KYCPage() {
 
       await updateDoc(userRef, kycPayload);
 
-      // Sincronizamos estado global en Zustand
       setUser({
         ...user,
         kycStatus: "pending_verification",
@@ -161,7 +177,6 @@ export function KYCPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
-      {/* Inputs nativos ocultos */}
       <input
         type="file"
         accept="image/*"
@@ -191,7 +206,6 @@ export function KYCPage() {
         </div>
       </div>
 
-      {/* Progress Steps */}
       <div className="flex items-center gap-2">
         {steps.map((s, i) => (
           <div key={s.label} className="flex-1">
@@ -212,17 +226,15 @@ export function KYCPage() {
         ))}
       </div>
 
-      {/* Security Notice */}
       <Card padding="sm" className="border-blue-500/20 bg-blue-50 dark:bg-blue-500/5">
         <div className="flex items-start gap-2">
           <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-            Tus documentos se suben de forma segura con firma criptográfica (Cloudinary Signed Upload). Las credenciales nunca se exponen al cliente.
+            Optimizado para la red de procesamiento directo. Tus capturas se guardan externamente sin consumir cuotas de almacenamiento en base de datos.
           </p>
         </div>
       </Card>
 
-      {/* Step 0: Personal Info */}
       {step === 0 && (
         <div className="space-y-4 animate-slide-up">
           <Input
@@ -257,7 +269,6 @@ export function KYCPage() {
         </div>
       )}
 
-      {/* Step 1: ID Upload */}
       {step === 1 && (
         <div className="space-y-4 animate-slide-up">
           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -271,12 +282,12 @@ export function KYCPage() {
             {uploadingType === "id" ? (
               <div className="space-y-2 py-4">
                 <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-xs text-gray-400">Solicitando firma y subiendo...</p>
+                <p className="text-xs text-gray-400">Subiendo imagen de forma directa...</p>
               </div>
             ) : idFront ? (
               <div className="space-y-2">
                 <img src={idFront} alt="ID Front" className="w-40 h-28 object-cover rounded-lg mx-auto" />
-                <p className="text-xs text-emerald-500 font-medium">✓ Documento firmado y guardado</p>
+                <p className="text-xs text-emerald-500 font-medium">✓ Documento guardado</p>
               </div>
             ) : (
               <>
@@ -297,7 +308,6 @@ export function KYCPage() {
         </div>
       )}
 
-      {/* Step 2: Selfie */}
       {step === 2 && (
         <div className="space-y-4 animate-slide-up">
           <p className="text-sm text-gray-600 dark:text-gray-400">
@@ -311,12 +321,12 @@ export function KYCPage() {
             {uploadingType === "selfie" ? (
               <div className="space-y-2 py-4">
                 <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto"></div>
-                <p className="text-xs text-gray-400">Firmando selfie de seguridad...</p>
+                <p className="text-xs text-gray-400">Subiendo selfie de verificación...</p>
               </div>
             ) : selfie ? (
               <div className="space-y-2">
                 <img src={selfie} alt="Selfie" className="w-32 h-32 object-cover rounded-full mx-auto" />
-                <p className="text-xs text-emerald-500 font-medium">✓ Selfie firmada y guardada</p>
+                <p className="text-xs text-emerald-500 font-medium">✓ Selfie guardada</p>
               </div>
             ) : (
               <>
@@ -327,7 +337,6 @@ export function KYCPage() {
             )}
           </button>
 
-          {/* Review Summary */}
           {selfie && (
             <Card padding="md" className="bg-gray-50 dark:bg-white/[0.03]">
               <p className="text-xs font-medium text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2">
@@ -341,10 +350,6 @@ export function KYCPage() {
                 <div className="flex justify-between">
                   <span className="text-gray-500 dark:text-gray-400">CI</span>
                   <span className="font-medium text-gray-900 dark:text-white">{idNumber}</span>
-                </div>
-                <div className="flex justify-between">
-                  <span className="text-gray-500 dark:text-gray-400">Seguridad</span>
-                  <span className="font-medium text-emerald-500">✓ Criptografía Cloudinary Activa</span>
                 </div>
               </div>
             </Card>
@@ -368,7 +373,6 @@ export function KYCPage() {
         </div>
       )}
 
-      {/* Info Cards */}
       <div className="space-y-2 pt-2">
         <Card padding="sm">
           <div className="flex items-start gap-2">
@@ -381,4 +385,5 @@ export function KYCPage() {
       </div>
     </div>
   );
-}
+          }
+                                                          
