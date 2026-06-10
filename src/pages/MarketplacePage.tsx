@@ -40,7 +40,8 @@ export function MarketplacePage() {
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const liveProducts: Product[] = [];
       snapshot.forEach((doc) => {
-        liveProducts.push(doc.data() as Product);
+        // Aseguramos capturar el ID real del documento por si acaso
+        liveProducts.push({ id: doc.id, ...doc.data() } as Product);
       });
 
       // Guardamos la lista real en el store global de Zustand
@@ -48,7 +49,7 @@ export function MarketplacePage() {
       setLoadingProducts(false);
     }, (error) => {
       console.error("Error cargando el marketplace desde Firestore:", error);
-      setLoadingOrders(false);
+      setLoadingProducts(false); // 🛠️ Corregido: antes decía setLoadingOrders
     });
 
     return () => unsubscribe();
@@ -170,12 +171,20 @@ export function MarketplacePage() {
               key={product.id}
               hover
               padding="none"
-              className="overflow-hidden cursor-pointer"
+              className="overflow-hidden cursor-pointer flex flex-col justify-between"
               onClick={() => handleProductClick(product.id)}
             >
-              {/* Image Placeholder */}
-              <div className="aspect-square bg-gradient-to-br from-gray-100 to-gray-200 dark:from-white/5 dark:to-white/[0.02] flex items-center justify-center">
-                <div className="text-center">
+              {/* 📸 RENDERIZACIÓN REAL DE IMAGEN CLOUDINARY */}
+              <div className="aspect-square w-full bg-gray-100 dark:bg-white/5 relative overflow-hidden flex items-center justify-center">
+                {product.images && product.images.length > 0 ? (
+                  <img
+                    src={product.images[0]} // Muestra la primera foto subida
+                    alt={product.title}
+                    className="h-full w-full object-cover transform hover:scale-105 transition-transform duration-300"
+                    loading="lazy"
+                  />
+                ) : (
+                  // Respaldo de seguridad con emoji si el producto viene sin foto
                   <span className="text-3xl">
                     {product.category === "phones"
                       ? "📱"
@@ -193,35 +202,43 @@ export function MarketplacePage() {
                       ? "🚗"
                       : "📦"}
                   </span>
-                </div>
+                )}
               </div>
-              <div className="p-3 space-y-1.5">
-                <h3 className="font-semibold text-xs text-gray-900 dark:text-white line-clamp-2 leading-tight">
-                  {product.title}
-                </h3>
-                <p className="text-sm font-bold text-brand-500">
-                  ${product.priceUSD.toLocaleString("en-US")}
-                </p>
-                <div className="flex items-center gap-1">
-                  {product.acceptedCryptos.slice(0, 3).map((c) => (
-                    <span
-                      key={c}
-                      className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-500 font-semibold"
+
+              <div className="p-3 space-y-1.5 flex-1 flex flex-col justify-between">
+                <div className="space-y-1">
+                  <h3 className="font-semibold text-xs text-gray-900 dark:text-white line-clamp-2 leading-tight">
+                    {product.title}
+                  </h3>
+                  <p className="text-sm font-bold text-brand-500">
+                    ${product.priceUSD.toLocaleString("en-US")}
+                  </p>
+                </div>
+
+                <div className="space-y-1.5 pt-1">
+                  <div className="flex flex-wrap gap-1">
+                    {product.acceptedCryptos.slice(0, 3).map((c) => (
+                      <span
+                        key={c}
+                        className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-500 font-semibold"
+                      >
+                        {c}
+                      </span>
+                    ))}
+                  </div>
+                  <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
+                    <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
+                    <span className="truncate">{product.location}</span>
+                  </div>
+                  <div className="pt-0.5">
+                    <Badge
+                      variant={product.condition === "new" ? "success" : "default"}
+                      size="sm"
                     >
-                      {c}
-                    </span>
-                  ))}
+                      {CONDITION_LABELS[product.condition] || product.condition}
+                    </Badge>
+                  </div>
                 </div>
-                <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
-                  <MapPin className="h-2.5 w-2.5" />
-                  {product.location}
-                </div>
-                <Badge
-                  variant={product.condition === "new" ? "success" : "default"}
-                  size="sm"
-                >
-                  {CONDITION_LABELS[product.condition] || product.condition}
-                </Badge>
               </div>
             </Card>
           ))}
@@ -229,4 +246,4 @@ export function MarketplacePage() {
       )}
     </div>
   );
-          }
+            }
