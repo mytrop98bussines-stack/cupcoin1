@@ -16,20 +16,26 @@ import { WalletPage } from "@/pages/WalletPage";
 import { SettingsPage } from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 
-// 1. Importamos tu nueva página de administración
+// 1. Vista de administración
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // Sincronización en tiempo real con Firebase Auth y Firestore
 import { auth, db } from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, getDoc } from "firebase/firestore";
-import { MOCK_USER, MOCK_BALANCES, MOCK_NOTIFICATIONS } from "@/data/mock";
+
+// Integración de Firebase Cloud Messaging (Notificaciones Push)
+import { requestNotificationPermission, onForegroundMessage } from "@/lib/firebase/messaging";
+
+import { MOCK_USER, MOCK_BALANCES } from "@/data/mock";
 import type { User as AppUser } from "@/types";
+
+// Variable global para controlar la desensamblación del listener de Firestore
+let unsubscribeNotifications: (() => void) | null = null;
 
 function AppContent() {
   const { currentView, user, navigate } = useAppStore();
 
-  // 2. Añadimos el título del Header para la vista de administración
   const viewTitles: Record<string, string> = {
     dashboard: "",
     p2p: "",
@@ -42,10 +48,9 @@ function AppContent() {
     wallet: "Mi Wallet",
     settings: "Perfil",
     notifications: "Notificaciones",
-    "admin-kyc": "Panel de Control KYC", // Título de la vista admin
+    "admin-kyc": "Panel de Control KYC", 
   };
 
-  // Vistas que muestran flecha de retroceso
   const showBackViews = [
     "create-order",
     "trade",
@@ -53,7 +58,7 @@ function AppContent() {
     "product-detail",
     "create-product",
     "notifications",
-    "admin-kyc", // Habilitamos botón atrás para salir del panel
+    "admin-kyc", 
   ];
 
   const authenticatedViews = [
@@ -68,17 +73,30 @@ function AppContent() {
     "wallet",
     "settings",
     "notifications",
-    "admin-kyc", // Registrada en el espectro autenticado
+    "admin-kyc", 
   ];
 
-  // GUARDIÁN IMPRESCINDIBLE PARA EL PANEL: Si el usuario intenta forzar la vista 
-  // 'admin-kyc' pero no está registrado con el rol "admin" en Firestore,
-  // lo expulsamos inmediatamente al Dashboard para que no rompa las llamadas.
+  // Interceptor de seguridad del lado del cliente para la ruta Admin
   useEffect(() => {
     if (currentView === "admin-kyc" && user?.role !== "admin") {
       navigate("dashboard");
     }
   }, [currentView, user, navigate]);
+
+  // Escuchador nativo para notificaciones push en primer plano (App abierta)
+  useEffect(() => {
+    const unsubscribePushForeground = onForegroundMessage((payload) => {
+      console.log("Push recibido en primer plano:", payload);
+      if (payload.notification) {
+        // Puedes cambiar este alert nativo por un componente Toast personalizado en el futuro
+        alert(`🔔 ${payload.notification.title}\n${payload.notification.body}`);
+      }
+    });
+
+    return () => {
+      if (unsubscribePushForeground) unsubscribePushForeground();
+    };
+  }, []);
 
   if (authenticatedViews.includes(currentView) && !user) {
     return (
@@ -115,7 +133,6 @@ function AppContent() {
         {currentView === "settings" && <SettingsPage />}
         {currentView === "notifications" && <NotificationsPage />}
         
-        {/* 3. Renderizamos la vista de administración si coincide el estado */}
         {currentView === "admin-kyc" && user?.role === "admin" && <AdminKYCPage />}
       </main>
       {showBottomNav && <BottomNav />}
@@ -124,9 +141,10 @@ function AppContent() {
 }
 
 export default function App() {
-  const { theme, login, logout, currentView, isAuthenticated, navigate, setBalances, setNotifications } = useAppStore();
+  const { theme, login, logout, currentView, isAuthenticated, navigate, setBalances } = useAppStore();
   const [authLoading, setAuthLoading] = useState(true);
 
+  // Control estructural del Dark Mode
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
@@ -136,8 +154,9 @@ export default function App() {
     }
   }, [theme]);
 
+  // Guardián Central de Sesión + Activación de canales de comunicación en tiempo real
   useEffect(() => {
-    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
           const userDocRef = doc(db, "users", firebaseUser.uid);
@@ -158,16 +177,32 @@ export default function App() {
               totalTrades: 0,
               rating: 5.0,
               walletAddress: null,
-              role: "user", // Rol por defecto si el usuario es nuevo
+              role: "user",
             };
           }
 
           Object.assign(MOCK_USER, loggedUser);
-
           setBalances(MOCK_BALANCES);
-          setNotifications(MOCK_NOTIFICATIONS);
+
+          // ➡️ 1. CONEXIÓN REAL FIRESTORE NOTIFICATIONS
+          if (unsubscribeNotifications) unsubscribeNotifications();
+          // Accedemos directamente a la acción del store de Zustand pasándole el uid real
+          unsubscribeNotifications = useAppStore.getState().subscribeToNotifications(firebaseUser.uid);
+
+          // ➡️ 2. REGISTRO SILENCIOSO DE TOKEN PUSH (FCM)
+          if (firebaseUser.uid !== "invitado") {
+            requestNotificationPermission(firebaseUser.uid).catch((err) =>
+              console.error("Fallo al registrar token push FCM:", err)
+            );
+          }
+
           login(loggedUser);
         } else {
+          // Si el usuario se desconecta, cerramos de inmediato el canal de Firestore
+          if (unsubscribeNotifications) {
+            unsubscribeNotifications();
+            unsubscribeNotifications = null;
+          }
           Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
           logout();
         }
@@ -178,9 +213,13 @@ export default function App() {
       }
     });
 
-    return () => unsubscribe();
-  }, [login, logout, setBalances, setNotifications]);
+    return () => {
+      unsubscribeAuth();
+      if (unsubscribeNotifications) unsubscribeNotifications();
+    };
+  }, [login, logout, setBalances]);
 
+  // Redirección automática de seguridad para rutas públicas estando logueado
   useEffect(() => {
     if (isAuthenticated && ["landing", "login", "register"].includes(currentView)) {
       navigate("dashboard");
@@ -207,5 +246,5 @@ export default function App() {
       </div>
     </div>
   );
-    }
-      
+            }
+  
