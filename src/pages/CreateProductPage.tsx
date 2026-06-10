@@ -84,19 +84,22 @@ export function CreateProductPage() {
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file", file);
-        formData.append("cubax_preset", "cubax_products"); // Tu Preset configurado en Cloudinary
+        
+        // 🛠️ ¡CORREGIDO AQUÍ! Clave oficial "upload_preset" apuntando a tu valor real "cubax_preset"
+        formData.append("upload_preset", "cubax_preset"); 
         formData.append("folder", "cubax/products");
 
         const cloudinaryRes = await fetch(
           "https://api.cloudinary.com/v1_1/cupcoin-b2b4f/image/upload",
           {
             method: "POST",
-            body: formData,
+            body: formData, // El navegador inyecta el Content-Type correcto automáticamente
           }
         );
 
         if (!cloudinaryRes.ok) {
-          throw new Error("Error en la respuesta del servidor de Cloudinary");
+          const errorData = await cloudinaryRes.json();
+          throw new Error(errorData.error?.message || "Error en la respuesta del servidor de Cloudinary");
         }
 
         const imageData = await cloudinaryRes.json();
@@ -130,9 +133,9 @@ export function CreateProductPage() {
       setLoading(false);
       setSuccess(true);
       setTimeout(() => navigate("marketplace"), 1500);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error al publicar el producto con imágenes reales:", error);
-      alert("Hubo un fallo al subir las imágenes a Cloudinary. Revisa tu conexión.");
+      alert(`Fallo en la publicación: ${error.message || "Revisa tu conexión."}`);
       setLoading(false);
     }
   }, [title, description, price, location, user, acceptedCryptos, selectedFiles, category, condition, navigate, previews]);
@@ -321,4 +324,4 @@ export function CreateProductPage() {
       </Button>
     </div>
   );
-      }
+          }
