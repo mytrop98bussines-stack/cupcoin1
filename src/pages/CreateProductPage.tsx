@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
@@ -13,6 +13,8 @@ import {
   Camera,
   CheckCircle2,
   Shield,
+  Loader2,
+  X,
 } from "lucide-react";
 import type { CryptoAsset, ProductCategory, Product } from "@/types";
 
@@ -26,9 +28,16 @@ export function CreateProductPage() {
   const [condition, setCondition] = useState<"new" | "used" | "refurbished">("new");
   const [location, setLocation] = useState("");
   const [acceptedCryptos, setAcceptedCryptos] = useState<CryptoAsset[]>(["USDT"]);
-  const [images, setImages] = useState<string[]>([]);
+  
+  // 📸 Manejo de imágenes reales (guardamos objetos File para subirlos luego)
+  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
+  const [previews, setPreviews] = useState<string[]>([]);
+  
   const [loading, setLoading] = useState(false);
   const [success, setSuccess] = useState(false);
+
+  // Referencia para disparar el input de archivos oculto
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const toggleCrypto = useCallback((crypto: CryptoAsset) => {
     setAcceptedCryptos((prev) =>
@@ -36,11 +45,32 @@ export function CreateProductPage() {
     );
   }, []);
 
-  const addImage = useCallback(() => {
-    if (images.length < 5) {
-      setImages((prev) => [...prev, `image_${prev.length + 1}`]);
+  // Capturar imágenes del sistema de archivos o cámara
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray = Array.from(e.target.files);
+      
+      // Controlar el límite estricto de 5 imágenes máximo
+      const availableSlots = 5 - selectedFiles.length;
+      const filesToProcess = filesArray.slice(0, availableSlots);
+
+      filesToProcess.forEach((file) => {
+        setSelectedFiles((prev) => [...prev, file]);
+        
+        // Crear URLs locales temporales para ver la miniatura de la imagen antes de subirla
+        const objectUrl = URL.createObjectURL(file);
+        setPreviews((prev) => [...prev, objectUrl]);
+      });
     }
-  }, [images.length]);
+  };
+
+  // Eliminar una imagen seleccionada antes de publicar
+  const removeImage = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+    // Revocamos la URL local para liberar memoria ram del dispositivo
+    URL.revokeObjectURL(previews[index]);
+    setPreviews((prev) => prev.filter((_, i) => i !== index));
+  };
 
   const handleSubmit = useCallback(async () => {
     if (!title || !description || !price || !location || !user) return;
@@ -48,7 +78,32 @@ export function CreateProductPage() {
     setLoading(true);
 
     try {
-      // Generamos un ID de documento único y automático en la colección de productos
+      const uploadedImageUrls: string[] = [];
+
+      // ➡️ 1. SUBIDA MULTIPART REAL A CLOUDINARY
+      for (const file of selectedFiles) {
+        const formData = new FormData();
+        formData.append("file", file);
+        formData.append("upload_preset", "cubax_products"); // Tu Preset configurado en Cloudinary
+        formData.append("folder", "cubax/products");
+
+        const cloudinaryRes = await fetch(
+          "https://api.cloudinary.com/v1_1/cupcoin-b2b4f/image/upload",
+          {
+            method: "POST",
+            body: formData,
+          }
+        );
+
+        if (!cloudinaryRes.ok) {
+          throw new Error("Error en la respuesta del servidor de Cloudinary");
+        }
+
+        const imageData = await cloudinaryRes.json();
+        uploadedImageUrls.push(imageData.secure_url); // URL segura HTTPS final
+      }
+
+      // ➡️ 2. GUARDADO DE DOCUMENTO FINAL EN FIRESTORE
       const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
@@ -59,7 +114,7 @@ export function CreateProductPage() {
         description,
         priceUSD: parseFloat(price),
         acceptedCryptos,
-        images,
+        images: uploadedImageUrls, // Aquí inyectamos el array de URLs reales
         category,
         condition,
         location,
@@ -67,17 +122,20 @@ export function CreateProductPage() {
         createdAt: Date.now(),
       };
 
-      // Guardamos directamente en la base de datos distribuida de Firestore
       await setDoc(productRef, newProduct);
+
+      // Limpieza de URLs temporales
+      previews.forEach((url) => URL.revokeObjectURL(url));
 
       setLoading(false);
       setSuccess(true);
       setTimeout(() => navigate("marketplace"), 1500);
     } catch (error) {
-      console.error("Error al publicar el producto en Firestore:", error);
+      console.error("Error al publicar el producto con imágenes reales:", error);
+      alert("Hubo un fallo al subir las imágenes a Cloudinary. Revisa tu conexión.");
       setLoading(false);
     }
-  }, [title, description, price, location, user, acceptedCryptos, images, category, condition, navigate]);
+  }, [title, description, price, location, user, acceptedCryptos, selectedFiles, category, condition, navigate, previews]);
 
   if (success) {
     return (
@@ -89,7 +147,7 @@ export function CreateProductPage() {
           ¡Producto publicado!
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Tu producto está visible en el marketplace.
+          Tu producto está visible en el marketplace con imágenes reales.
         </p>
       </div>
     );
@@ -112,27 +170,50 @@ export function CreateProductPage() {
         </div>
       </Card>
 
-      {/* Images */}
+      {/* Input nativo oculto para invocar el selector de archivos o la cámara del móvil */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        onChange={handleFileChange}
+        accept="image/*"
+        multiple
+        className="hidden"
+      />
+
+      {/* Images Preview Section */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
-          Fotos del producto (máx. 5)
+          Fotos del producto ({previews.length}/5)
         </p>
-        <div className="flex gap-2 overflow-x-auto scrollbar-hide">
-          {images.map((_, i) => (
+        <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
+          {previews.map((url, i) => (
             <div
               key={i}
-              className="flex-shrink-0 h-20 w-20 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-500/20 flex items-center justify-center"
+              className="relative flex-shrink-0 h-20 w-20 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm"
             >
-              <CheckCircle2 className="h-5 w-5 text-emerald-500" />
+              <img
+                src={url}
+                alt="preview"
+                className="h-full w-full object-cover"
+              />
+              <button
+                type="button"
+                onClick={() => removeImage(i)}
+                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
+              >
+                <X className="h-3 w-3" />
+              </button>
             </div>
           ))}
-          {images.length < 5 && (
+          
+          {previews.length < 5 && (
             <button
-              onClick={addImage}
-              className="flex-shrink-0 h-20 w-20 rounded-xl border-2 border-dashed border-gray-200 dark:border-white/10 flex flex-col items-center justify-center gap-1 hover:border-brand-500 transition-colors"
+              type="button"
+              onClick={() => fileInputRef.current?.click()}
+              className="flex-shrink-0 h-20 w-20 rounded-xl border-2 border-dashed border-gray-200 dark:border-white/10 flex flex-col items-center justify-center gap-1 hover:border-brand-500 hover:bg-brand-500/5 transition-all text-gray-400 hover:text-brand-500"
             >
-              <Camera className="h-5 w-5 text-gray-400" />
-              <span className="text-[9px] text-gray-400">Agregar</span>
+              <Camera className="h-5 w-5" />
+              <span className="text-[9px] font-medium">Agregar</span>
             </button>
           )}
         </div>
@@ -233,12 +314,11 @@ export function CreateProductPage() {
         fullWidth
         loading={loading}
         onClick={handleSubmit}
-        disabled={!title || !description || !price || !location || acceptedCryptos.length === 0}
-        icon={<Upload className="h-4 w-4" />}
+        disabled={!title || !description || !price || !location || acceptedCryptos.length === 0 || selectedFiles.length === 0}
+        icon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
       >
-        Publicar producto
+        {loading ? "Subiendo imágenes a Cloudinary..." : "Publicar producto real"}
       </Button>
     </div>
   );
-  }
-        
+      }
