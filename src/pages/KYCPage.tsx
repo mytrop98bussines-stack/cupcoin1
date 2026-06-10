@@ -22,7 +22,7 @@ import {
 // ========================================================
 // CONFIGURACIÓN DE TU CONSOLA DE CLOUDINARY (PLAN GRATUITO)
 // ========================================================
-const CLOUDINARY_CLOUD_NAME = "cubax_unsigned"; // <-- Reemplaza con tu Cloud Name real
+const CLOUDINARY_CLOUD_NAME = "dc4caibrn"; // <-- Reemplaza con tu Cloud Name real
 const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned"; // <-- Reemplaza con tu Preset Unsigned real
 
 export function KYCPage() {
