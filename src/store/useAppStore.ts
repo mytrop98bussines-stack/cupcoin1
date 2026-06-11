@@ -10,6 +10,7 @@ import type {
   Notification,
   ThemeMode,
   AppView,
+  CryptoAsset,
 } from "@/types";
 
 // Importaciones de Firebase para las notificaciones reales
@@ -23,7 +24,7 @@ interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   balances: CryptoBalance[];
-  prices: CryptoPrice[];
+  prices: CryptoPrice[]; // 🪙 Aquí mapearemos las cotizaciones en tiempo real
   orders: P2POrder[];
   activeTrade: Trade | null;
   tradeMessages: ChatMessage[];
@@ -35,6 +36,7 @@ interface AppState {
   selectedProductId: string | null;
   isLoading: boolean;
   mobileMenuOpen: boolean;
+  loadingPrices: boolean; // Estado para skeletons o loaders de precios
 
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
@@ -45,6 +47,7 @@ interface AppState {
   logout: () => void;
   setBalances: (balances: CryptoBalance[]) => void;
   setPrices: (prices: CryptoPrice[]) => void;
+  fetchPrices: () => Promise<void>; // 🔥 NUEVO: Método centralizado para CoinGecko
   setOrders: (orders: P2POrder[]) => void;
   addOrder: (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
@@ -82,7 +85,14 @@ export const useAppStore = create<AppState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   balances: [],
-  prices: [],
+  
+  // Cotizaciones iniciales estables por si la red o CoinGecko fallan
+  prices: [
+    { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
+    { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
+    { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: 67500.00, change24h: 1.5 },
+    { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: 3500.00, change24h: -0.8 },
+  ],
   orders: [],
   activeTrade: null,
   tradeMessages: [],
@@ -94,6 +104,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   selectedProductId: null,
   isLoading: false,
   mobileMenuOpen: false,
+  loadingPrices: false,
 
   setTheme: (theme) => {
     localStorage.setItem("cubax-theme", theme);
@@ -135,6 +146,64 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setBalances: (balances) => set({ balances }),
   setPrices: (prices) => set({ prices }),
+
+  // ========================================================
+  // 🦎 CONEXIÓN EN VIVO CON LA API DE COINGECKO
+  // ========================================================
+  fetchPrices: async () => {
+    set({ loadingPrices: true });
+    try {
+      // Consultamos los identificadores oficiales en un solo string
+      const response = await fetch(
+        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=usd&include_24hr_change=true"
+      );
+
+      if (!response.ok) {
+        throw new Error(`Error de CoinGecko: código ${response.status}`);
+      }
+
+      const data = await response.json();
+
+      // Formateamos la respuesta directo al array de CryptoPrice que usa la App
+      const updatedPrices: CryptoPrice[] = [
+        {
+          id: "1",
+          symbol: "USDT",
+          name: "Tether",
+          priceUSD: data.tether?.usd || 1.00,
+          change24h: data.tether?.usd_24h_change || 0,
+        },
+        {
+          id: "2",
+          symbol: "USDC",
+          name: "USD Coin",
+          priceUSD: data["usd-coin"]?.usd || 1.00,
+          change24h: data["usd-coin"]?.usd_24h_change || 0,
+        },
+        {
+          id: "3",
+          symbol: "BTC",
+          name: "Bitcoin",
+          priceUSD: data.bitcoin?.usd || 67500.00,
+          change24h: data.bitcoin?.usd_24h_change || 0,
+        },
+        {
+          id: "4",
+          symbol: "ETH",
+          name: "Ethereum",
+          priceUSD: data.ethereum?.usd || 3500.00,
+          change24h: data.ethereum?.usd_24h_change || 0,
+        },
+      ];
+
+      set({ prices: updatedPrices, loadingPrices: false });
+      console.log("📈 Precios actualizados en vivo desde CoinGecko:", updatedPrices);
+    } catch (error) {
+      console.error("Fallo al consultar CoinGecko, manteniendo precios en caché:", error);
+      set({ loadingPrices: false }); // Respaldo silencioso
+    }
+  },
+
   setOrders: (orders) => set({ orders }),
   addOrder: (order) => set({ orders: [order, ...get().orders] }),
   setActiveTrade: (trade) => set({ activeTrade: trade }),
@@ -213,4 +282,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-      
+          
