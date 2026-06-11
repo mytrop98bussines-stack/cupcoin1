@@ -253,11 +253,16 @@ export default function App() {
     );
   }
 
+    // ... Todo el código superior de tu App.tsx se queda exactamente igual ...
+
   return (
     <div className={theme === "dark" ? "dark" : ""}>
-      <div className="min-h-screen bg-gray-50 dark:bg-navy-950 text-gray-900 dark:text-white transition-colors duration-300">
+      {/* 🛡️ Quitamos 'transition-colors' y 'duration-300' para eliminar el grillado de la GPU */}
+      <div className="min-h-screen bg-gray-50 dark:bg-navy-950 text-gray-900 dark:text-white">
         <AppContent />
       </div>
     </div>
   );
+}
+
                                        }
