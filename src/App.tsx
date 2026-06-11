@@ -167,7 +167,6 @@ export default function App() {
           if (docSnap.exists()) {
             loggedUser = docSnap.data() as AppUser;
           } else {
-            // Aseguramos la creación del documento base si el usuario es totalmente nuevo
             loggedUser = {
               uid: firebaseUser.uid,
               email: firebaseUser.email || "",
@@ -190,7 +189,7 @@ export default function App() {
           if (unsubscribeNotifications) unsubscribeNotifications();
           unsubscribeNotifications = useAppStore.getState().subscribeToNotifications(firebaseUser.uid);
 
-          // ➡️ 2. LOGIN DE ZUSTAND PRIMERO (Estabiliza el estado de la app)
+          // ➡️ 2. LOGIN DE ZUSTAND PRIMERO
           login(loggedUser);
 
           // ➡️ 3. REGISTRO ASÍNCRONO SEGURO DEL TOKEN PUSH
@@ -203,7 +202,6 @@ export default function App() {
           }
 
         } else {
-          // Si no hay sesión activa en Firebase, limpiamos listeners
           if (unsubscribeNotifications) {
             unsubscribeNotifications();
             unsubscribeNotifications = null;
@@ -213,14 +211,12 @@ export default function App() {
           }
           logout();
           
-          // 🔥 SAFE FIX: Si no está autenticado, forzamos que se quede en la landing de inicio
           if (["dashboard", "wallet", "p2p", "settings"].includes(currentView) || !currentView) {
             navigate("landing");
           }
         }
       } catch (error) {
         console.error("Error controlando sesión de Firebase:", error);
-        // Fallback de seguridad en caso de error crítico de red
         navigate("landing");
       } finally {
         setAuthLoading(false);
@@ -253,16 +249,11 @@ export default function App() {
     );
   }
 
-    // ... Todo el código superior de tu App.tsx se queda exactamente igual ...
-
   return (
     <div className={theme === "dark" ? "dark" : ""}>
-      {/* 🛡️ Quitamos 'transition-colors' y 'duration-300' para eliminar el grillado de la GPU */}
-      <div className="min-h-screen bg-gray-50 dark:bg-navy-950 text-gray-900 dark:text-white">
+      <div className="min-h-screen text-gray-900 dark:text-white">
         <AppContent />
       </div>
     </div>
   );
-}
-
-                                       }
+    }
