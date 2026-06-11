@@ -13,8 +13,8 @@ import type {
 // REFERENCIA ESTÁTICA SEGURA PARA COMPATIBILIDAD
 // ==========================================
 
-// Le damos una estructura base por defecto. Si alguna página lo lee antes de que 
-// Firebase responda, tendrá datos válidos y no romperá la pantalla en blanco.
+// Estructura base limpia. Ya no se mutará dinámicamente con Object.assign.
+// Sirve exclusivamente como fallback inicial seguro en Zustand.
 export const MOCK_USER: User = {
   uid: "loading",
   email: "cargando@cubax.com",
@@ -25,10 +25,11 @@ export const MOCK_USER: User = {
   totalTrades: 0,
   rating: 5.0,
   walletAddress: null,
+  role: "user"
 };
 
 // ==========================================
-// MOCK DATA INTACTO Y LISTO
+// MOCK DATA INTACTO Y LISTO (Solo Lectura para Estado Inicial)
 // ==========================================
 
 export const MOCK_BALANCES: CryptoBalance[] = [
@@ -133,57 +134,6 @@ export const MOCK_ORDERS: P2POrder[] = [
     createdAt: Date.now() - 1800000,
     availableAmount: 0.008,
   },
-  {
-    id: "ord_004",
-    userId: "user_005",
-    userName: "Pedro G.",
-    userRating: 4.6,
-    userTrades: 56,
-    type: "sell",
-    asset: "ETH",
-    pricePerUnit: 1500000,
-    currency: "CUP",
-    minAmount: 0.01,
-    maxAmount: 0.5,
-    paymentMethods: ["enzona"],
-    status: "active",
-    createdAt: Date.now() - 5400000,
-    availableAmount: 0.45,
-  },
-  {
-    id: "ord_005",
-    userId: "user_006",
-    userName: "Laura M.",
-    userRating: 4.8,
-    userTrades: 178,
-    type: "buy",
-    asset: "USDT",
-    pricePerUnit: 390,
-    currency: "CUP",
-    minAmount: 50,
-    maxAmount: 2000,
-    paymentMethods: ["transfermovil", "enzona", "efectivo"],
-    status: "active",
-    createdAt: Date.now() - 900000,
-    availableAmount: 2000,
-  },
-  {
-    id: "ord_006",
-    userId: "user_007",
-    userName: "Roberto S.",
-    userRating: 4.5,
-    userTrades: 34,
-    type: "sell",
-    asset: "USDC",
-    pricePerUnit: 393,
-    currency: "CUP",
-    minAmount: 5,
-    maxAmount: 300,
-    paymentMethods: ["transfermovil"],
-    status: "active",
-    createdAt: Date.now() - 10800000,
-    availableAmount: 275,
-  },
 ];
 
 export const MOCK_TRADE: Trade = {
@@ -222,33 +172,6 @@ export const MOCK_MESSAGES: ChatMessage[] = [
     timestamp: Date.now() - 600000,
     type: "system",
   },
-  {
-    id: "msg_002",
-    tradeId: "trade_001",
-    senderId: "user_002",
-    senderName: "María L.",
-    message: "Hola Carlos, ya los fondos están en escrow. Puedes hacer la transferencia al número indicado.",
-    timestamp: Date.now() - 540000,
-    type: "text",
-  },
-  {
-    id: "msg_003",
-    tradeId: "trade_001",
-    senderId: "user_001",
-    senderName: "Carlos M.",
-    message: "Perfecto María, voy a transferir ahora mismo por Transfermóvil.",
-    timestamp: Date.now() - 480000,
-    type: "text",
-  },
-  {
-    id: "msg_004",
-    tradeId: "trade_001",
-    senderId: "user_001",
-    senderName: "Carlos M.",
-    message: "Listo, transferencia enviada. Ref: TM-2024-XXXXX",
-    timestamp: Date.now() - 300000,
-    type: "text",
-  },
 ];
 
 export const MOCK_PRODUCTS: Product[] = [
@@ -257,8 +180,7 @@ export const MOCK_PRODUCTS: Product[] = [
     sellerId: "user_004",
     sellerName: "Ana P.",
     title: "iPhone 14 Pro Max 256GB",
-    description:
-      "iPhone 14 Pro Max en excelente estado, 256GB, color Deep Purple. Incluye cargador y forro. Batería al 94%.",
+    description: "iPhone 14 Pro Max, color Deep Purple. Batería al 94%.",
     priceUSD: 850,
     acceptedCryptos: ["USDT", "USDC", "BTC"],
     images: [],
@@ -267,54 +189,6 @@ export const MOCK_PRODUCTS: Product[] = [
     location: "La Habana",
     status: "active",
     createdAt: Date.now() - 86400000,
-  },
-  {
-    id: "prod_002",
-    sellerId: "user_005",
-    sellerName: "Pedro G.",
-    title: "MacBook Air M2 2023",
-    description:
-      "MacBook Air M2, 8GB RAM, 512GB SSD. Perfecto estado, poco uso. Con caja original y cargador.",
-    priceUSD: 1100,
-    acceptedCryptos: ["USDT", "BTC", "ETH"],
-    images: [],
-    category: "computers",
-    condition: "used",
-    location: "Santiago de Cuba",
-    status: "active",
-    createdAt: Date.now() - 172800000,
-  },
-  {
-    id: "prod_003",
-    sellerId: "user_006",
-    sellerName: "Laura M.",
-    title: "Samsung Galaxy S24 Ultra",
-    description:
-      "Galaxy S24 Ultra nuevo de paquete, 512GB, color Titanium Black. Garantía de 1 año.",
-    priceUSD: 950,
-    acceptedCryptos: ["USDT", "USDC"],
-    images: [],
-    category: "phones",
-    condition: "new",
-    location: "La Habana",
-    status: "active",
-    createdAt: Date.now() - 259200000,
-  },
-  {
-    id: "prod_004",
-    sellerId: "user_003",
-    sellerName: "Jorge R.",
-    title: "Servicio de Diseño Web",
-    description:
-      "Desarrollo de sitios web profesionales. Landing pages, tiendas online, portafolios. Entrega en 7-15 días.",
-    priceUSD: 200,
-    acceptedCryptos: ["USDT", "USDC", "BTC", "ETH"],
-    images: [],
-    category: "services",
-    condition: "new",
-    location: "Remoto",
-    status: "active",
-    createdAt: Date.now() - 345600000,
   },
 ];
 
@@ -329,26 +203,11 @@ export const MOCK_NOTIFICATIONS: Notification[] = [
     createdAt: Date.now() - 120000,
     link: "trade",
   },
-  {
-    id: "notif_002",
-    userId: "user_001",
-    title: "Verificación KYC",
-    message: "Completa tu verificación de identidad para operar sin límites.",
-    type: "kyc",
-    read: false,
-    createdAt: Date.now() - 86400000,
-    link: "kyc",
-  },
-  {
-    id: "notif_003",
-    userId: "user_001",
-    title: "Precios actualizados",
-    message: "BTC subió +2.34% en las últimas 24h. Precio actual: $106,250",
-    type: "system",
-    read: true,
-    createdAt: Date.now() - 3600000,
-  },
 ];
+
+// ==========================================
+// DICCIONARIOS Y MAPEOS ESTRUCTURALES
+// ==========================================
 
 export const PAYMENT_METHOD_LABELS: Record<string, string> = {
   transfermovil: "Transfermóvil",
@@ -373,9 +232,6 @@ export const CATEGORY_LABELS: Record<string, string> = {
   electronics: "Electrónica",
   phones: "Teléfonos",
   computers: "Computadoras",
-  clothing: "Ropa",
-  home: "Hogar",
-  vehicles: "Vehículos",
   services: "Servicios",
   other: "Otros",
 };
@@ -385,4 +241,4 @@ export const CONDITION_LABELS: Record<string, string> = {
   used: "Usado",
   refurbished: "Reacondicionado",
 };
-  
+    
