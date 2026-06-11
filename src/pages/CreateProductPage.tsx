@@ -86,7 +86,7 @@ export function CreateProductPage() {
         formData.append("file", file);
         
         // Clave oficial obligatoria apuntando a tu preset unsigned
-        formData.append("upload_preset", "cubax_preset"); 
+        formData.append("upload_preset", "cubax_unsigned");
         formData.append("folder", "cubax/products");
 
         const cloudinaryRes = await fetch(
