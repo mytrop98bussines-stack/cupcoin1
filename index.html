@@ -11,17 +11,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
+    <meta name="supported-color-schemes" content="light" />
+
     <style>
       html, body {
-        background-color: #ffffff; /* Tu fondo por defecto en modo claro */
-        color: #000000;
         margin: 0;
         padding: 0;
+        background-color: #f9fafb; /* Equivale a tu bg-gray-50 base */
       }
-      /* Cuando tu app decida activar el dark mode, esta clase dominará todo */
+      /* Si el usuario tenía guardado el tema oscuro, React inyectará 'dark' inmediatamente */
       html.dark, html.dark body {
-        background-color: #0b0f19 !important; /* Tu color oscuro real de Cubax */
-        color: #ffffff !important;
+        background-color: #030712 !important; /* Equivale a tu bg-navy-950 real de CubaX */
       }
     </style>
   </head>
