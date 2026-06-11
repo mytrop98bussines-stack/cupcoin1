@@ -1,7 +1,12 @@
-// src/lib/coingecko/prices.ts
-const COINGECKO_API = 'https://api.coingecko.com/api/CG-zzRk6THcTeXm7N6Tj1gWbDuX';
+import { useQuery } from '@tanstack/react-query';
+import { useAppStore } from '@/store/useAppStore';
 
-interface CoinGeckoPrice {
+// 🌐 URL Base oficial y limpia para planes Demo/Gratuitos de CoinGecko
+const COINGECKO_API = 'https://api.coingecko.com/api/v3';
+// 🔑 Tu API Key real bien aislada
+const API_KEY = 'CG-zzRk6THcTeXm7N6Tj1gWbDuX';
+
+export interface CoinGeckoPrice {
   id: string;
   symbol: string;
   name: string;
@@ -15,25 +20,53 @@ interface CoinGeckoPrice {
 export async function fetchCryptoPrices(): Promise<CoinGeckoPrice[]> {
   const ids = 'bitcoin,ethereum,tether,usd-coin';
   
+  // 🛠️ Pasamos la API Key de forma correcta y nativa en los Headers de la petición
   const response = await fetch(
-    `${COINGECKO_API}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc`
+    `${COINGECKO_API}/coins/markets?vs_currency=usd&ids=${ids}&order=market_cap_desc`,
+    {
+      method: 'GET',
+      headers: {
+        'accept': 'application/json',
+        'x-cg-demo-api-key': API_KEY // Estructura obligatoria de CoinGecko para credenciales CG-
+      }
+    }
   );
   
   if (!response.ok) {
-    throw new Error('Failed to fetch prices');
+    const errText = await response.text();
+    console.error("Error nativo de CoinGecko:", errText);
+    throw new Error(`Failed to fetch prices: ${response.status}`);
   }
   
   return response.json();
 }
 
-// Hook para React Query
-import { useQuery } from '@tanstack/react-query';
-
+// 🔄 Hook optimizado para React Query conectado con Zustand
 export function useCryptoPrices() {
+  const setPrices = useAppStore((state) => state.setPrices);
+
   return useQuery({
     queryKey: ['crypto-prices'],
-    queryFn: fetchCryptoPrices,
-    refetchInterval: 30000, // Actualizar cada 30 segundos
-    staleTime: 15000,
+    queryFn: async () => {
+      const data = await fetchCryptoPrices();
+      
+      // 🔥 Sincronizamos React Query directamente con tu Zustand Store en cada ráfaga
+      if (data && Array.isArray(data)) {
+        const formattedPrices = data.map((coin, index) => ({
+          id: (index + 1).toString(),
+          symbol: coin.symbol.toUpperCase(),
+          name: coin.name,
+          priceUSD: coin.current_price,
+          change24h: coin.price_change_percentage_24h || 0,
+        }));
+        
+        // Seteamos el estado global para que CreateProductPage y ProductDetailPage muten en caliente
+        setPrices(formattedPrices);
+      }
+      
+      return data;
+    },
+    refetchInterval: 60000, // Subimos a 60s para cuidar tu API Key Demo y evitar baneos de IP (Rate Limits)
+    staleTime: 30000,
   });
 }
