@@ -14,11 +14,9 @@ import {
   Lock,
   ChevronRight,
   Star,
-  Loader2,
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
-import type { CryptoAsset } from "@/types";
 
 export function LandingPage() {
   const { navigate } = useAppStore();
@@ -151,12 +149,14 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Live Prices Preview (🔴 AHORA REAL EN TIEMPO REAL) */}
+      {/* Live Prices Preview (🔴 REAL Y ARREGLADO CON CSS NATIVO) */}
       <section className="max-w-lg mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
             Precios en vivo
-            {loadingPrices && <Loader2 className="h-3 w-3 animate-spin text-brand-500" />}
+            {loadingPrices && (
+              <div className="h-3 w-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+            )}
           </h2>
           <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">via CoinGecko</span>
         </div>
@@ -180,7 +180,7 @@ export function LandingPage() {
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-sm">
-                      {CRYPTO_ICONS[symbolUpper as CryptoAsset] || symbolUpper.charAt(0)}
+                      {(CRYPTO_ICONS as any)[symbolUpper] || symbolUpper.charAt(0)}
                     </div>
                     <div>
                       <div className="font-semibold text-sm font-mono">{symbolUpper}</div>
@@ -273,4 +273,5 @@ export function LandingPage() {
       </footer>
     </div>
   );
-      }
+              }
+                
