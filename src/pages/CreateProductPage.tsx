@@ -19,7 +19,7 @@ import {
 import type { CryptoAsset, ProductCategory, Product } from "@/types";
 
 export function CreateProductPage() {
-  const { navigate, user } = useAppStore();
+  const { navigate, user, prices } = useAppStore();
 
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -80,17 +80,16 @@ export function CreateProductPage() {
     try {
       const uploadedImageUrls: string[] = [];
 
-            // ➡️ 1. SUBIDA MULTIPART REAL A CLOUDINARY
+      // ➡️ 1. SUBIDA MULTIPART REAL A CLOUDINARY
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file", file);
         
-        // Clave oficial obligatoria apuntando a tu preset unsigned
+        // Clave oficial obligatoria apuntando a tu preset unsigned corregido
         formData.append("upload_preset", "cubax_unsigned");
         formData.append("folder", "cubax/products");
 
         const cloudinaryRes = await fetch(
-          // 🛠️ ¡CORREGIDO CON TU CLOUD NAME REAL!
           "https://api.cloudinary.com/v1_1/dc4caibrn/image/upload",
           {
             method: "POST",
@@ -118,7 +117,7 @@ export function CreateProductPage() {
         description,
         priceUSD: parseFloat(price),
         acceptedCryptos,
-        images: uploadedImageUrls, // Aquí inyectamos el array de URLs reales
+        images: uploadedImageUrls, // Array de URLs seguras reales
         category,
         condition,
         location,
@@ -151,7 +150,7 @@ export function CreateProductPage() {
           ¡Producto publicado!
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Tu producto está visible en el marketplace con imágenes reales.
+          Tu producto está visible en el marketplace con imágenes reales y cotizaciones activas.
         </p>
       </div>
     );
@@ -252,6 +251,28 @@ export function CreateProductPage() {
         rightElement={<span className="text-xs font-medium text-gray-400">USD</span>}
       />
 
+      {/* 🪙 Previsualización matemática de la conversión en vivo basada en el store global */}
+      {price && parseFloat(price) > 0 && (
+        <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 space-y-1.5">
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Equivalencia aproximada en vivo:</p>
+          <div className="grid grid-cols-2 gap-2">
+            {acceptedCryptos.map((crypto) => {
+              const cryptoData = prices.find((p) => p.symbol === crypto);
+              const rate = cryptoData ? cryptoData.priceUSD : 1;
+              const amount = parseFloat(price) / rate;
+              const formattedAmount = crypto === "BTC" || crypto === "ETH" ? amount.toFixed(6) : amount.toFixed(2);
+              
+              return (
+                <div key={crypto} className="flex items-center justify-between text-xs font-mono bg-white dark:bg-black/20 p-1.5 rounded-lg px-2 border dark:border-white/5">
+                  <span className="text-gray-500">{crypto}:</span>
+                  <span className="font-bold text-brand-500">{formattedAmount}</span>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       <Select
         label="Categoría"
         value={category}
@@ -318,11 +339,12 @@ export function CreateProductPage() {
         fullWidth
         loading={loading}
         onClick={handleSubmit}
-        disabled={!title || !description || !price || !location || acceptedCryptos.length === 0 || selectedFiles.length === 0}
+        disabled={!title || !description || !price || parseFloat(price) <= 0 || !location || acceptedCryptos.length === 0 || selectedFiles.length === 0}
         icon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
       >
         {loading ? "Subiendo imágenes a Cloudinary..." : "Publicar producto real"}
       </Button>
     </div>
   );
-          }
+            }
+      
