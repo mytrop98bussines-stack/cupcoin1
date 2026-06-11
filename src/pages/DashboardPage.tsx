@@ -3,7 +3,10 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
-import { CRYPTO_ICONS, MOCK_PRICES } from "@/data/mock";
+// 🔄 Invocamos el hook real conectado a tu API Key de CoinGecko
+import { useCryptoPrices } from "@/lib/coingecko/prices";
+
+import { CRYPTO_ICONS } from "@/data/mock";
 import {
   TrendingUp,
   TrendingDown,
@@ -18,19 +21,16 @@ import {
   AlertTriangle,
   CheckCircle2,
   Clock,
+  Loader2,
 } from "lucide-react";
-import { useState, useEffect } from "react";
-import type { CryptoPrice } from "@/types";
+import { useState } from "react";
 
 export function DashboardPage() {
   const { user, balances, navigate, notifications } = useAppStore();
   const [hideBalance, setHideBalance] = useState(false);
-  const [prices, setPrices] = useState<CryptoPrice[]>(MOCK_PRICES);
 
-  useEffect(() => {
-    useAppStore.getState().setPrices(MOCK_PRICES);
-    setPrices(MOCK_PRICES);
-  }, []);
+  // 🔥 CONEXIÓN EN TIEMPO REAL: React Query maneja el caché y el refetch pasivo cada 60s
+  const { data: cryptoPrices, isLoading: loadingMarket } = useCryptoPrices();
 
   if (!user) return null;
 
@@ -84,7 +84,7 @@ export function DashboardPage() {
           </button>
         </div>
         <div className="text-3xl font-black mb-1">
-          {hideBalance ? "••••••" : `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+          {hideBalance ? "•••••" : `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
         </div>
         <p className="text-xs text-gray-400 mb-4">
           ≈ {hideBalance ? "••••" : `${(totalUSD * 395).toLocaleString("es-CU")} CUP`}
@@ -176,10 +176,9 @@ export function DashboardPage() {
         </div>
         <div className="space-y-2">
           {balances.map((balance) => {
-            const price = prices.find(
-              (p) => p.symbol.toUpperCase() === balance.asset
-            );
-            const change = price?.price_change_percentage_24h ?? 0;
+            // 🪙 Buscamos el cambio porcentual directo del feed real de CoinGecko
+            const liveCoin = cryptoPrices?.find((p) => p.symbol.toUpperCase() === balance.asset.toUpperCase());
+            const change = liveCoin?.price_change_percentage_24h ?? 0;
             const isUp = change >= 0;
 
             return (
@@ -207,11 +206,7 @@ export function DashboardPage() {
                         isUp ? "text-emerald-500" : "text-red-500"
                       }`}
                     >
-                      {isUp ? (
-                        <TrendingUp className="h-3 w-3" />
-                      ) : (
-                        <TrendingDown className="h-3 w-3" />
-                      )}
+                      {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
                       {Math.abs(change).toFixed(2)}%
                     </div>
                   </div>
@@ -222,44 +217,59 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Prices */}
+      {/* Prices (Mercado en vivo) */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-semibold text-gray-900 dark:text-white">
             Mercado
           </h2>
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
-            CoinGecko • 30s
+          <span className="text-[10px] text-gray-400 dark:text-gray-500 font-mono flex items-center gap-1">
+            {loadingMarket && <Loader2 className="h-2.5 w-2.5 animate-spin text-brand-500" />}
+            CoinGecko • 60s
           </span>
         </div>
-        <div className="grid grid-cols-2 gap-2">
-          {prices.map((coin) => {
-            const isUp = coin.price_change_percentage_24h >= 0;
-            return (
-              <Card key={coin.id} hover padding="md">
-                <div className="flex items-center gap-2 mb-2">
-                  <div className="h-7 w-7 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-xs">
-                    {CRYPTO_ICONS[coin.symbol.toUpperCase()] || coin.symbol.charAt(0).toUpperCase()}
+
+        {loadingMarket && !cryptoPrices ? (
+          <div className="grid grid-cols-2 gap-2">
+            {[1, 2, 3, 4].map((i) => (
+              <div key={i} className="h-24 bg-gray-100 dark:bg-white/5 animate-pulse rounded-2xl" />
+            ))}
+          </div>
+        ) : (
+          <div className="grid grid-cols-2 gap-2">
+            {cryptoPrices?.map((coin) => {
+              const symbolUpper = coin.symbol.toUpperCase();
+              const isUp = coin.price_change_percentage_24h >= 0;
+              
+              return (
+                <Card key={coin.id} hover padding="md" className="border-gray-100 dark:border-white/5">
+                  <div className="flex items-center gap-2 mb-2">
+                    <div className="h-7 w-7 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-xs">
+                      {CRYPTO_ICONS[symbolUpper] || symbolUpper.charAt(0)}
+                    </div>
+                    <span className="font-semibold text-xs text-gray-900 dark:text-white">
+                      {symbolUpper}
+                    </span>
                   </div>
-                  <span className="font-semibold text-xs text-gray-900 dark:text-white">
-                    {coin.symbol.toUpperCase()}
-                  </span>
-                </div>
-                <div className="font-bold text-sm text-gray-900 dark:text-white">
-                  ${coin.current_price.toLocaleString("en-US")}
-                </div>
-                <div
-                  className={`text-xs font-medium ${
-                    isUp ? "text-emerald-500" : "text-red-500"
-                  }`}
-                >
-                  {isUp ? "+" : ""}
-                  {coin.price_change_percentage_24h.toFixed(2)}%
-                </div>
-              </Card>
-            );
-          })}
-        </div>
+                  <div className="font-bold text-sm text-gray-900 dark:text-white font-mono">
+                    ${coin.current_price >= 1 
+                      ? coin.current_price.toLocaleString("en-US", { minimumFractionDigits: 2 }) 
+                      : coin.current_price.toFixed(4)
+                    }
+                  </div>
+                  <div
+                    className={`text-xs font-mono font-bold flex items-center gap-0.5 ${
+                      isUp ? "text-emerald-500" : "text-red-500"
+                    }`}
+                  >
+                    {isUp ? "+" : ""}
+                    {coin.price_change_percentage_24h?.toFixed(2)}%
+                  </div>
+                </Card>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Recent Notifications */}
@@ -305,4 +315,5 @@ export function DashboardPage() {
       )}
     </div>
   );
-}
+            }
+                        
