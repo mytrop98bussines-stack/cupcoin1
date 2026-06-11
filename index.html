@@ -2,7 +2,7 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <meta name="color-scheme" content="light dark" />
+    <meta name="color-scheme" content="light" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="CubaX — Plataforma integral de finanzas, P2P y comercio cripto para el mercado cubano" />
     <title>CubaX — Plataforma P2P & Crypto</title>
@@ -11,16 +11,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-    <meta name="supported-color-schemes" content="light dark" />
-
     <style>
       html, body {
-        background-color: #000000; /* O el color de fondo por defecto de tu modo oscuro */
-        color: #ffffff;
+        background-color: #ffffff; /* Tu fondo por defecto en modo claro */
+        color: #000000;
         margin: 0;
         padding: 0;
-        width: 100%;
-        height: 100%;
+      }
+      /* Cuando tu app decida activar el dark mode, esta clase dominará todo */
+      html.dark, html.dark body {
+        background-color: #0b0f19 !important; /* Tu color oscuro real de Cubax */
+        color: #ffffff !important;
       }
     </style>
   </head>
