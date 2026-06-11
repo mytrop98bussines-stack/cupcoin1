@@ -144,13 +144,15 @@ export default function App() {
   const { theme, login, logout, currentView, isAuthenticated, navigate, setBalances } = useAppStore();
   const [authLoading, setAuthLoading] = useState(true);
 
-  // Control estructural del Dark Mode
+  // 🛡️ CONTROL STRUCTURAL INMUNE PARA MÓVILES (Fuerza independencia del sistema)
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
+      root.style.colorScheme = "dark"; // Bloquea la autoinversión de los navegadores webview
     } else {
       root.classList.remove("dark");
+      root.style.colorScheme = "light"; // Mantiene el renderizado nativo claro
     }
   }, [theme]);
 
@@ -182,7 +184,7 @@ export default function App() {
             await setDoc(userDocRef, loggedUser);
           }
 
-          // 🛡️ ACTUALIZACIÓN DE ESTADO CONTROLADA EN UN SOLO BLOQUE
+          // ACTUALIZACIÓN DE ESTADO CONTROLADA EN UN SOLO BLOQUE
           if (MOCK_USER) {
             Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
             Object.assign(MOCK_USER, loggedUser);
@@ -232,7 +234,7 @@ export default function App() {
       unsubscribeAuth();
       if (unsubscribeNotifications) unsubscribeNotifications();
     };
-  }, [login, logout, setBalances]); // ✂️ Quitamos currentView y navigate de aquí para romper el bucle infinito de renders
+  }, [login, logout, setBalances]); // Rompe bucles infinitos eliminando dependencias de navegación volátiles
 
   // Redirección automática de seguridad para rutas públicas estando logueado
   useEffect(() => {
@@ -241,22 +243,21 @@ export default function App() {
     }
   }, [isAuthenticated, currentView, navigate]);
 
+  // Pantalla de carga protegida contra parpadeos forzados de color
   if (authLoading) {
     return (
-      <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col items-center justify-center">
+      <div className={`min-h-screen flex flex-col items-center justify-center ${theme === 'dark' ? 'bg-navy-950 text-white' : 'bg-white text-gray-900'}`}>
         <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mb-4 animate-bounce shadow-lg shadow-brand-500/20">
           <span className="text-white font-black text-xl">CX</span>
         </div>
-        <div className="h-1 w-24 bg-gray-200 dark:bg-white/10 rounded-full overflow-hidden">
+        <div className={`h-1 w-24 rounded-full overflow-hidden ${theme === 'dark' ? 'bg-white/10' : 'bg-gray-200'}`}>
           <div className="h-full bg-brand-500 rounded-full animate-pulse w-full"></div>
         </div>
       </div>
     );
   }
 
-  return (
-    <div className={theme === "dark" ? "dark" : ""}>
-      <AppContent />
-    </div>
-  );
-    }
+  // Renderizado limpio de la estructura. La clase "dark" ya domina globalmente desde la etiqueta <html>.
+  return <AppContent />;
+                                                                 }
+            
