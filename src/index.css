@@ -33,16 +33,28 @@
 
   html {
     scroll-behavior: smooth;
+    /* 🍏 Previene saltos bruscos de color de fondo en móviles */
+    background-color: #f9fafb; 
   }
 
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
+    background-color: #f9fafb; /* bg-gray-50 */
+    color: #111827; /* text-gray-900 */
   }
 
+  /* 🛡️ FIX DEFINITIVO PARA EL GRILLADO EN MODO OSCURO */
   .dark {
     color-scheme: dark;
+  }
+
+  /* Forzamos al cuerpo entero a cambiar a un color sólido real sin depender de clases de React */
+  .dark body, 
+  .dark html {
+    background-color: #0c1335 !important; /* Tu color --color-navy-950 exacto */
+    color: #f9fafb !important;
   }
 }
 
