@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 
-// 🔄 Invocamos el hook real conectado a tu API Key de CoinGecko
+// 🔄 Conexión directa al feed real de CoinGecko
 import { useCryptoPrices } from "@/lib/coingecko/prices";
 
 import { CRYPTO_ICONS } from "@/data/mock";
@@ -29,7 +29,7 @@ export function DashboardPage() {
   const { user, balances, navigate, notifications } = useAppStore();
   const [hideBalance, setHideBalance] = useState(false);
 
-  // 🔥 CONEXIÓN EN TIEMPO REAL: React Query maneja el caché y el refetch pasivo cada 60s
+  // 🔥 React Query maneja el caché global y el tiempo real pasivo
   const { data: cryptoPrices, isLoading: loadingMarket } = useCryptoPrices();
 
   if (!user) return null;
@@ -66,15 +66,18 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Balance Card */}
-      <Card padding="lg" className="bg-gradient-to-br from-navy-900 to-navy-950 dark:from-white/[0.06] dark:to-white/[0.02] border-navy-800 dark:border-white/[0.08] text-white">
+      {/* Balance Card - 🥷 MODO OSCURO PREMIUM SIN GRILLADO */}
+      <Card 
+        padding="lg" 
+        className="bg-slate-900 dark:bg-navy-900 border border-brand-500/30 dark:border-white/[0.08] text-white shadow-xl"
+      >
         <div className="flex items-center justify-between mb-1">
-          <span className="text-xs font-medium text-gray-300 dark:text-gray-400 uppercase tracking-wide">
+          <span className="text-xs font-bold text-gray-400 dark:text-gray-400 uppercase tracking-wider">
             Balance total
           </span>
           <button
             onClick={() => setHideBalance(!hideBalance)}
-            className="p-1 rounded-lg hover:bg-white/10 transition-colors"
+            className="p-1.5 rounded-xl bg-white/5 hover:bg-white/10 transition-colors"
           >
             {hideBalance ? (
               <EyeOff className="h-4 w-4 text-gray-400" />
@@ -83,17 +86,17 @@ export function DashboardPage() {
             )}
           </button>
         </div>
-        <div className="text-3xl font-black mb-1">
+        <div className="text-3xl font-black font-mono tracking-tight text-white mb-1">
           {hideBalance ? "•••••" : `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
         </div>
-        <p className="text-xs text-gray-400 mb-4">
+        <p className="text-xs font-semibold text-brand-400 font-mono mb-4">
           ≈ {hideBalance ? "••••" : `${(totalUSD * 395).toLocaleString("es-CU")} CUP`}
         </p>
 
         <div className="flex gap-2">
           <Button
             size="sm"
-            className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
+            className="flex-1 bg-brand-500 hover:bg-brand-600 text-white font-bold"
             onClick={() => navigate("p2p")}
             icon={<ArrowLeftRight className="h-3.5 w-3.5" />}
           >
@@ -102,7 +105,7 @@ export function DashboardPage() {
           <Button
             size="sm"
             variant="secondary"
-            className="flex-1 bg-white/10 hover:bg-white/15 text-white border-0"
+            className="flex-1 bg-white/10 hover:bg-white/15 text-white border-0 font-bold"
             onClick={() => navigate("wallet")}
             icon={<Wallet className="h-3.5 w-3.5" />}
           >
@@ -176,7 +179,6 @@ export function DashboardPage() {
         </div>
         <div className="space-y-2">
           {balances.map((balance) => {
-            // 🪙 Buscamos el cambio porcentual directo del feed real de CoinGecko
             const liveCoin = cryptoPrices?.find((p) => p.symbol.toUpperCase() === balance.asset.toUpperCase());
             const change = liveCoin?.price_change_percentage_24h ?? 0;
             const isUp = change >= 0;
@@ -315,5 +317,5 @@ export function DashboardPage() {
       )}
     </div>
   );
-            }
-                        
+          }
+          
