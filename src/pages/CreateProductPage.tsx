@@ -80,20 +80,21 @@ export function CreateProductPage() {
     try {
       const uploadedImageUrls: string[] = [];
 
-      // ➡️ 1. SUBIDA MULTIPART REAL A CLOUDINARY
+            // ➡️ 1. SUBIDA MULTIPART REAL A CLOUDINARY
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file", file);
         
-        // 🛠️ ¡CORREGIDO AQUÍ! Clave oficial "upload_preset" apuntando a tu valor real "cubax_preset"
+        // Clave oficial obligatoria apuntando a tu preset unsigned
         formData.append("upload_preset", "cubax_preset"); 
         formData.append("folder", "cubax/products");
 
         const cloudinaryRes = await fetch(
+          // 🛠️ ¡CORREGIDO CON TU CLOUD NAME REAL!
           "https://api.cloudinary.com/v1_1/dc4caibrn/image/upload",
           {
             method: "POST",
-            body: formData, // El navegador inyecta el Content-Type correcto automáticamente
+            body: formData,
           }
         );
 
