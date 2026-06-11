@@ -115,12 +115,12 @@ function AppContent() {
   if (currentView === "login" || currentView === "register") return <AuthPage />;
 
   return (
-    <>
+    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-navy-950">
       <Header
         title={viewTitles[currentView] || ""}
         showBack={showBackViews.includes(currentView)}
       />
-      <main className="min-h-[calc(100vh-3.5rem-4rem)]">
+      <main className="flex-1 min-h-[calc(100vh-3.5rem-4rem)]">
         {currentView === "dashboard" && <DashboardPage />}
         {currentView === "p2p" && <P2PPage />}
         {currentView === "create-order" && <CreateOrderPage />}
@@ -136,7 +136,7 @@ function AppContent() {
         {currentView === "admin-kyc" && user?.role === "admin" && <AdminKYCPage />}
       </main>
       {showBottomNav && <BottomNav />}
-    </>
+    </div>
   );
 }
 
@@ -154,7 +154,7 @@ export default function App() {
     }
   }, [theme]);
 
-  // Guardián Central de Sesión + Activación de canales de comunicación en tiempo real
+  // Guardián Central de Sesión + Activación de canales en tiempo real
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
@@ -182,17 +182,22 @@ export default function App() {
             await setDoc(userDocRef, loggedUser);
           }
 
-          if (MOCK_USER) Object.assign(MOCK_USER, loggedUser);
+          // 🛡️ ACTUALIZACIÓN DE ESTADO CONTROLADA EN UN SOLO BLOQUE
+          if (MOCK_USER) {
+            Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+            Object.assign(MOCK_USER, loggedUser);
+          }
+          
           setBalances(MOCK_BALANCES);
 
-          // ➡️ 1. CONEXIÓN REAL FIRESTORE NOTIFICATIONS
+          // Conexión real a notificaciones de Firestore
           if (unsubscribeNotifications) unsubscribeNotifications();
           unsubscribeNotifications = useAppStore.getState().subscribeToNotifications(firebaseUser.uid);
 
-          // ➡️ 2. LOGIN DE ZUSTAND PRIMERO
+          // Login unificado en Zustand
           login(loggedUser);
 
-          // ➡️ 3. REGISTRO ASÍNCRONO SEGURO DEL TOKEN PUSH
+          // Registro asíncrono seguro del Token Push
           if (firebaseUser.uid !== "invitado") {
             setTimeout(() => {
               requestNotificationPermission(firebaseUser.uid).catch((err) =>
@@ -227,7 +232,7 @@ export default function App() {
       unsubscribeAuth();
       if (unsubscribeNotifications) unsubscribeNotifications();
     };
-  }, [login, logout, setBalances, currentView, navigate]);
+  }, [login, logout, setBalances]); // ✂️ Quitamos currentView y navigate de aquí para romper el bucle infinito de renders
 
   // Redirección automática de seguridad para rutas públicas estando logueado
   useEffect(() => {
@@ -251,9 +256,7 @@ export default function App() {
 
   return (
     <div className={theme === "dark" ? "dark" : ""}>
-      <div className="min-h-screen text-gray-900 dark:text-white">
-        <AppContent />
-      </div>
+      <AppContent />
     </div>
   );
     }
