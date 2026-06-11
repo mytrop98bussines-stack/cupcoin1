@@ -97,6 +97,7 @@ function AppContent() {
     };
   }, []);
 
+  // Si la vista requiere autenticación pero no hay usuario, muestra pantalla de carga controlada
   if (authenticatedViews.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950">
@@ -116,7 +117,7 @@ function AppContent() {
   return (
     <>
       <Header
-        title={viewTitles[currentView]}
+        title={viewTitles[currentView] || ""}
         showBack={showBackViews.includes(currentView)}
       />
       <main className="min-h-[calc(100vh-3.5rem-4rem)]">
@@ -182,7 +183,7 @@ export default function App() {
             await setDoc(userDocRef, loggedUser);
           }
 
-          Object.assign(MOCK_USER, loggedUser);
+          if (MOCK_USER) Object.assign(MOCK_USER, loggedUser);
           setBalances(MOCK_BALANCES);
 
           // ➡️ 1. CONEXIÓN REAL FIRESTORE NOTIFICATIONS
@@ -193,7 +194,6 @@ export default function App() {
           login(loggedUser);
 
           // ➡️ 3. REGISTRO ASÍNCRONO SEGURO DEL TOKEN PUSH
-          // Lo ejecutamos con un pequeño retraso para asegurar que las reglas de la BD no reboten la petición
           if (firebaseUser.uid !== "invitado") {
             setTimeout(() => {
               requestNotificationPermission(firebaseUser.uid).catch((err) =>
@@ -203,15 +203,25 @@ export default function App() {
           }
 
         } else {
+          // Si no hay sesión activa en Firebase, limpiamos listeners
           if (unsubscribeNotifications) {
             unsubscribeNotifications();
             unsubscribeNotifications = null;
           }
-          Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+          if (MOCK_USER) {
+            Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+          }
           logout();
+          
+          // 🔥 SAFE FIX: Si no está autenticado, forzamos que se quede en la landing de inicio
+          if (["dashboard", "wallet", "p2p", "settings"].includes(currentView) || !currentView) {
+            navigate("landing");
+          }
         }
       } catch (error) {
         console.error("Error controlando sesión de Firebase:", error);
+        // Fallback de seguridad en caso de error crítico de red
+        navigate("landing");
       } finally {
         setAuthLoading(false);
       }
@@ -221,7 +231,7 @@ export default function App() {
       unsubscribeAuth();
       if (unsubscribeNotifications) unsubscribeNotifications();
     };
-  }, [login, logout, setBalances]);
+  }, [login, logout, setBalances, currentView, navigate]);
 
   // Redirección automática de seguridad para rutas públicas estando logueado
   useEffect(() => {
@@ -244,11 +254,10 @@ export default function App() {
   }
 
   return (
-    <div className={`${theme === "dark" ? "dark" : ""}`}>
+    <div className={theme === "dark" ? "dark" : ""}>
       <div className="min-h-screen bg-gray-50 dark:bg-navy-950 text-gray-900 dark:text-white transition-colors duration-300">
         <AppContent />
       </div>
     </div>
   );
-      }
-        
+                                       }
