@@ -6,10 +6,7 @@ import { Badge } from "@/components/ui/Badge";
 import { CRYPTO_ICONS, MOCK_PRICES } from "@/data/mock";
 import {
   Wallet,
-  Link as LinkIcon,
-  Unlink,
   Copy,
-  ExternalLink,
   QrCode,
   ArrowUpRight,
   ArrowDownLeft,
@@ -20,26 +17,25 @@ import {
 } from "lucide-react";
 
 export function WalletPage() {
-  const { balances, walletConnected, walletAddress, setWallet } = useAppStore();
-  const [connecting, setConnecting] = useState(false);
-  const [hideBalances] = useState(false);
+  const { balances, user } = useAppStore();
+  const [hideBalances, setHideBalances] = useState(false);
   
-  // 🔄 Control de pestañas para el modelo híbrido
-  const [walletType, setWalletType] = useState<"internal" | "blockchain">("internal");
+  // Modals ficticios o estados para flujos de recarga/retiro directos
+  const [activeAction, setActiveAction] = useState<{ type: "deposit" | "withdraw" | null; asset: string | null }>({
+    type: null,
+    asset: null,
+  });
 
   const totalUSD = balances.reduce((sum, b) => sum + b.usdValue, 0);
   const prices = MOCK_PRICES;
 
-  const handleConnect = async () => {
-    setConnecting(true);
-    // Simulación de generación de llaves o handshake
-    await new Promise((r) => setTimeout(r, 2000));
-    setWallet(true, "0x7a8b6932...3d4e5f78");
-    setConnecting(false);
-  };
+  // Dirección única de depósito asignada al usuario en CubaX (Estilo Binance)
+  // En producción, esto vendrá de la cuenta del usuario en Firestore
+  const userDepositAddress = "TY9i7G9vKxM1R5X8yZuAnqWpB7B4Bck4Lm"; // Dirección TRON simulada
 
-  const handleDisconnect = () => {
-    setWallet(false, null);
+  const handleCopyAddress = () => {
+    navigator.clipboard.writeText(userDepositAddress);
+    alert("¡Dirección de depósito copiada al portapapeles!");
   };
 
   return (
@@ -48,171 +44,95 @@ export function WalletPage() {
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">
           Mi Wallet
         </h1>
-        <Badge variant="info" size="sm" className="font-semibold uppercase tracking-wider">
-          Híbrida
+        <Badge variant="success" size="sm" className="font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border-0">
+          Custodia Segura
         </Badge>
       </div>
 
-      {/* 🎛️ Selector de Tipo de Balance Híbrido */}
-      <div className="grid grid-cols-2 p-1 bg-gray-100 dark:bg-white/5 rounded-xl border border-gray-200 dark:border-white/[0.06]">
-        <button
-          onClick={() => setWalletType("internal")}
-          className={`flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
-            walletType === "internal"
-              ? "bg-white dark:bg-navy-900 text-brand-600 dark:text-brand-400 shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-          }`}
-        >
-          <Zap className="h-3.5 w-3.5" />
-          Balance CubaX (Sin Gas)
-        </button>
-        <button
-          onClick={() => setWalletType("blockchain")}
-          className={`flex items-center justify-center gap-2 py-2 text-xs font-semibold rounded-lg transition-all ${
-            walletType === "blockchain"
-              ? "bg-white dark:bg-navy-900 text-brand-600 dark:text-brand-400 shadow-sm"
-              : "text-gray-500 dark:text-gray-400 hover:text-gray-900 dark:hover:text-white"
-          }`}
-        >
-          <Wallet className="h-3.5 w-3.5" />
-          Balance Blockchain
-        </button>
-      </div>
+      {/* Tarjeta de Balance General (Estilo Binance) */}
+      <Card padding="lg" className="bg-gradient-to-br from-navy-900 to-navy-950 dark:from-white/[0.06] dark:to-white/[0.02] border-navy-800 dark:border-white/[0.08] text-white relative overflow-hidden">
+        <div className="absolute top-0 right-0 p-3 opacity-10">
+          <Wallet className="h-24 w-24" />
+        </div>
 
-      {/* 1. SECCIÓN CONTENEDORA SEGÚN TIPO DE WALLET */}
-      {walletType === "internal" ? (
-        /* --- Capa Custodial / Interna --- */
-        <Card padding="lg" className="bg-gradient-to-br from-brand-600 to-brand-800 text-white border-0 shadow-lg shadow-brand-600/10">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Zap className="h-5 w-5 text-amber-300 fill-amber-300" />
-              <span className="text-sm font-semibold opacity-90">Cuenta Interna Instantánea</span>
-            </div>
-            <Badge className="bg-white/20 text-white border-0">Activa</Badge>
+        <div className="flex items-center justify-between mb-2">
+          <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
+            <Zap className="h-3 w-3 text-amber-400 fill-amber-400" />
+            Balance Estimado de la Cuenta
+          </span>
+          <button 
+            onClick={() => setHideBalances(!hideBalances)} 
+            className="text-xs text-brand-400 hover:underline"
+          >
+            {hideBalances ? "Mostrar" : "Ocultar"}
+          </button>
+        </div>
+
+        <div className="text-left mb-4">
+          <p className="text-3xl font-black tracking-tight">
+            {hideBalances ? "••••••" : `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+          </p>
+          <p className="text-xs text-emerald-400 font-medium mt-1">
+            ≈ {(totalUSD / (prices.find(p => p.symbol === "btc")?.current_price || 60000)).toFixed(5)} BTC
+          </p>
+        </div>
+
+        {/* Acciones principales globales */}
+        <div className="flex gap-2">
+          <Button
+            size="sm"
+            onClick={() => setActiveAction({ type: "deposit", asset: "USDT" })}
+            className="flex-1 bg-brand-500 hover:bg-brand-600 text-white border-0"
+            icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
+          >
+            Depositar
+          </Button>
+          <Button
+            size="sm"
+            onClick={() => setActiveAction({ type: "withdraw", asset: "USDT" })}
+            className="flex-1 bg-white/10 hover:bg-white/15 text-white border-0"
+            icon={<ArrowUpRight className="h-3.5 w-3.5" />}
+          >
+            Retirar (On-Chain)
+          </Button>
+        </div>
+      </Card>
+
+      {/* Panel de depósito rápido si se activa */}
+      {activeAction.type === "deposit" && (
+        <Card padding="md" className="border-brand-500/30 bg-brand-500/[0.02] space-y-3 animate-slide-in">
+          <div className="flex justify-between items-center">
+            <span className="text-xs font-bold uppercase text-brand-500">Depositar {activeAction.asset} via Blockchain</span>
+            <button onClick={() => setActiveAction({ type: null, asset: null })} className="text-xs text-gray-400 hover:text-gray-600">Cerrar</button>
           </div>
-
-          <div className="text-center mb-4 mt-2">
-            <p className="text-xs text-brand-200 mb-1">Disponible para trading P2P instantáneo</p>
-            <p className="text-3xl font-black tracking-tight">
-              {hideBalances ? "••••••" : `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-            </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            Envía únicamente <b>{activeAction.asset}</b> a esta dirección a través de la red <b>TRON (TRC-20)</b>. Los depósitos se acreditan tras 1 confirmación.
+          </p>
+          <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 border border-gray-200 dark:border-white/10">
+            <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">
+              {userDepositAddress}
+            </span>
+            <button onClick={handleCopyAddress} className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded">
+              <Copy className="h-3.5 w-3.5 text-gray-500" />
+            </button>
           </div>
-
-          <div className="flex gap-2">
-            <Button
-              size="sm"
-              className="flex-1 bg-white/10 hover:bg-white/15 text-white border-0"
-              icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
-            >
-              Transferencia Interna
-            </Button>
-            <Button
-              size="sm"
-              className="flex-1 bg-amber-400 hover:bg-amber-500 text-gray-900 font-bold border-0"
-              icon={<ArrowUpRight className="h-3.5 w-3.5" />}
-            >
-              Cargar Fondos
-            </Button>
-          </div>
-        </Card>
-      ) : (
-        /* --- Capa No Custodial / Blockchain --- */
-        <Card padding="lg" className="bg-gradient-to-br from-navy-900 to-navy-950 dark:from-white/[0.06] dark:to-white/[0.02] border-navy-800 dark:border-white/[0.08] text-white">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <Wallet className="h-5 w-5 text-brand-400" />
-              <span className="text-sm font-semibold">Llave en Dispositivo (Web3)</span>
-            </div>
-            <Badge variant={walletConnected ? "success" : "warning"} size="sm">
-              {walletConnected ? "Resguardada" : "Inactiva"}
-            </Badge>
-          </div>
-
-          {walletConnected ? (
-            <>
-              <div className="flex items-center gap-2 mb-3 bg-white/5 rounded-lg px-3 py-2">
-                <div className="h-6 w-6 rounded-full bg-emerald-500/20 flex items-center justify-center">
-                  <div className="h-2 w-2 rounded-full bg-emerald-500" />
-                </div>
-                <span className="text-sm font-mono text-gray-300 flex-1 truncate">
-                  {walletAddress}
-                </span>
-                <button 
-                  onClick={() => navigator.clipboard.writeText(walletAddress || "")}
-                  className="p-1 hover:bg-white/10 rounded"
-                >
-                  <Copy className="h-3.5 w-3.5 text-gray-400" />
-                </button>
-              </div>
-
-              <div className="text-center mb-3">
-                <p className="text-xs text-gray-400 mb-1">Balance On-Chain</p>
-                <p className="text-2xl font-black">
-                  {hideBalances ? "••••••" : `$${(totalUSD * 0.4).toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-                </p>
-              </div>
-
-              <div className="flex gap-2">
-                <Button
-                  size="sm"
-                  className="flex-1 bg-white/10 hover:bg-white/15 text-white border-0"
-                  icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
-                >
-                  Recibir Web3
-                </Button>
-                <Button
-                  size="sm"
-                  className="flex-1 bg-brand-500 hover:bg-brand-600 text-white"
-                  icon={<ArrowUpRight className="h-3.5 w-3.5" />}
-                >
-                  Retirar de Cuba
-                </Button>
-              </div>
-
-              <button
-                onClick={handleDisconnect}
-                className="w-full mt-3 py-2 text-xs text-red-400 hover:text-red-300 flex items-center justify-center gap-1 transition-colors"
-              >
-                <Unlink className="h-3 w-3" />
-                Eliminar llave del almacenamiento local
-              </button>
-            </>
-          ) : (
-            <>
-              <p className="text-sm text-gray-300 mb-4">
-                Genera de manera segura tu dirección on-chain para recibir remesas directas y liquidar tus fondos hacia wallets externas.
-              </p>
-              <Button
-                size="lg"
-                fullWidth
-                loading={connecting}
-                onClick={handleConnect}
-                icon={<LinkIcon className="h-4 w-4" />}
-                className="bg-brand-500 hover:bg-brand-600 text-white"
-              >
-                Activar Wallet Blockchain
-              </Button>
-            </>
-          )}
         </Card>
       )}
 
-      {/* Escrow Info */}
+      {/* Info Escrow / Garantía de Fondos */}
       <Card padding="sm" className="border-blue-500/20 bg-blue-50 dark:bg-blue-500/5">
         <div className="flex items-start gap-2">
           <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-            {walletType === "internal" 
-              ? "Tu saldo interno está asegurado mediante registros atómicos en la base de datos de CubaX para transacciones sin coste." 
-              : "Los fondos on-chain interactúan con contratos inteligentes descentralizados (Escrow) independientes de los servidores de la plataforma."}
+            Tus fondos internos están custodiados de forma segura por CubaX. Puedes usarlos al instante en el mercado P2P y comercio local sin costes de gas de red.
           </p>
         </div>
       </Card>
 
-      {/* Asset List */}
+      {/* Lista de Activos */}
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
-          Activos ({walletType === "internal" ? "Internal Off-chain" : "On-chain"})
+          Balances por Criptomoneda
         </h2>
         <div className="space-y-2">
           {balances.map((balance) => {
@@ -222,15 +142,11 @@ export function WalletPage() {
             const change = price?.price_change_percentage_24h ?? 0;
             const isUp = change >= 0;
 
-            // Simulación: Modificamos balances para simular que son cuentas diferentes
-            const displayAmount = walletType === "internal" ? balance.amount : balance.amount * 0.4;
-            const displayUsdValue = walletType === "internal" ? balance.usdValue : balance.usdValue * 0.4;
-
             return (
-              <Card key={balance.asset} hover padding="md">
+              <Card key={balance.asset} hover padding="md" className="border-gray-100 dark:border-white/[0.04]">
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
-                    <div className="h-11 w-11 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-xl">
+                    <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-lg">
                       {CRYPTO_ICONS[balance.asset]}
                     </div>
                     <div>
@@ -240,7 +156,7 @@ export function WalletPage() {
                       <div className="text-xs text-gray-500 dark:text-gray-400">
                         {hideBalances
                           ? "••••"
-                          : `${displayAmount.toFixed(
+                          : `${balance.amount.toFixed(
                               balance.asset === "BTC" ? 5 : balance.asset === "ETH" ? 4 : 2
                             )} ${balance.asset}`}
                       </div>
@@ -250,7 +166,7 @@ export function WalletPage() {
                     <div className="font-semibold text-sm text-gray-900 dark:text-white">
                       {hideBalances
                         ? "••••"
-                        : `$${displayUsdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                        : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
                     </div>
                     <div
                       className={`text-xs font-medium flex items-center gap-0.5 justify-end ${
@@ -267,26 +183,26 @@ export function WalletPage() {
                   </div>
                 </div>
 
-                {/* Quick Actions */}
-                <div className="flex gap-2 mt-3 pt-3 border-t border-gray-100 dark:border-white/[0.06]">
-                  <button className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
+                {/* Acciones Rápidas del Activo */}
+                <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-white/[0.05]">
+                  <button 
+                    onClick={() => setActiveAction({ type: "deposit", asset: balance.asset })}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5"
+                  >
                     <ArrowDownLeft className="h-3 w-3" />
-                    {walletType === "internal" ? "Recibir Pago" : "Recibir Web3"}
+                    Depositar
                   </button>
-                  <button className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
+                  <button 
+                    onClick={() => setActiveAction({ type: "withdraw", asset: balance.asset })}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5"
+                  >
                     <ArrowUpRight className="h-3 w-3" />
-                    Enviar
+                    Retirar
                   </button>
                   <button className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
                     <QrCode className="h-3 w-3" />
-                    QR
+                    Mi QR
                   </button>
-                  {walletType === "blockchain" && (
-                    <button className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
-                      <ExternalLink className="h-3 w-3" />
-                      Explorer
-                    </button>
-                  )}
                 </div>
               </Card>
             );
@@ -295,5 +211,5 @@ export function WalletPage() {
       </div>
     </div>
   );
-                  }
-          
+      }
+                          
