@@ -22,16 +22,13 @@ import { AdminKYCPage } from "@/pages/AdminKYCPage";
 // Sincronización en tiempo real con Firebase Auth y Firestore
 import { auth, db } from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 
 // Integración de Firebase Cloud Messaging (Notificaciones Push)
 import { requestNotificationPermission, onForegroundMessage } from "@/lib/firebase/messaging";
 
-import { MOCK_USER, MOCK_BALANCES } from "@/data/mock";
+import { MOCK_USER } from "@/data/mock";
 import type { User as AppUser } from "@/types";
-
-// Variable global para controlar la desensamblación del listener de Firestore
-let unsubscribeNotifications: (() => void) | null = null;
 
 function AppContent() {
   const { currentView, user, navigate } = useAppStore();
@@ -141,65 +138,44 @@ function AppContent() {
 }
 
 export default function App() {
-  const { theme, login, logout, currentView, isAuthenticated, navigate, setBalances } = useAppStore();
+  const { theme, login, logout, currentView, isAuthenticated, navigate, setWalletData, subscribeToNotifications } = useAppStore();
   const [authLoading, setAuthLoading] = useState(true);
 
-  // 🛡️ CONTROL STRUCTURAL INMUNE PARA MÓVILES (Fuerza independencia del sistema)
+  // 🛡️ CONTROL STRUCTURAL PARA MÓVILES (Fuerza independencia del sistema/modo oscuro)
   useEffect(() => {
     const root = document.documentElement;
     if (theme === "dark") {
       root.classList.add("dark");
-      root.style.colorScheme = "dark"; // Bloquea la autoinversión de los navegadores webview
+      root.style.colorScheme = "dark";
     } else {
       root.classList.remove("dark");
-      root.style.colorScheme = "light"; // Mantiene el renderizado nativo claro
+      root.style.colorScheme = "light";
     }
   }, [theme]);
 
-  // Guardián Central de Sesión + Activación de canales en tiempo real
+  // 1. GUARDIÁN CENTRAL DE AUTENTICACIÓN INMEDIATA (Sin Snapshots pesados)
   useEffect(() => {
     const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
       try {
         if (firebaseUser) {
-          const userDocRef = doc(db, "users", firebaseUser.uid);
-          const docSnap = await getDoc(userDocRef);
-          
-          let loggedUser: AppUser;
-          
-          if (docSnap.exists()) {
-            loggedUser = docSnap.data() as AppUser;
-          } else {
-            loggedUser = {
-              uid: firebaseUser.uid,
-              email: firebaseUser.email || "",
-              displayName: firebaseUser.displayName || "Usuario",
-              photoURL: firebaseUser.photoURL || null,
-              kycStatus: "unverified",
-              createdAt: Date.now(),
-              totalTrades: 0,
-              rating: 5.0,
-              walletAddress: null,
-              role: "user",
-            };
-            await setDoc(userDocRef, loggedUser);
-          }
+          // Construimos un perfil plano rápido para desbloquear la pantalla de carga de inmediato
+          const initialUserData: AppUser = {
+            uid: firebaseUser.uid,
+            email: firebaseUser.email || "",
+            displayName: firebaseUser.displayName || "Usuario",
+            photoURL: firebaseUser.photoURL || null,
+            kycStatus: "unverified",
+            createdAt: Date.now(),
+            totalTrades: 0,
+            rating: 5.0,
+            walletAddress: null,
+            role: "user",
+          };
 
-          // ACTUALIZACIÓN DE ESTADO CONTROLADA EN UN SOLO BLOQUE
-          if (MOCK_USER) {
-            Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
-            Object.assign(MOCK_USER, loggedUser);
-          }
-          
-          setBalances(MOCK_BALANCES);
+          // Login instantáneo en Zustand para renderizar el Dashboard rápido
+          login(initialUserData);
 
-          // Conexión real a notificaciones de Firestore
-          if (unsubscribeNotifications) unsubscribeNotifications();
-          unsubscribeNotifications = useAppStore.getState().subscribeToNotifications(firebaseUser.uid);
-
-          // Login unificado en Zustand
-          login(loggedUser);
-
-          // Registro asíncrono seguro del Token Push
+          // Registro asíncrono del Token Push de manera pasiva
           if (firebaseUser.uid !== "invitado") {
             setTimeout(() => {
               requestNotificationPermission(firebaseUser.uid).catch((err) =>
@@ -207,17 +183,11 @@ export default function App() {
               );
             }, 300);
           }
-
         } else {
-          if (unsubscribeNotifications) {
-            unsubscribeNotifications();
-            unsubscribeNotifications = null;
-          }
           if (MOCK_USER) {
             Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
           }
           logout();
-          
           if (["dashboard", "wallet", "p2p", "settings"].includes(currentView) || !currentView) {
             navigate("landing");
           }
@@ -230,11 +200,67 @@ export default function App() {
       }
     });
 
+    return () => unsubscribeAuth();
+  }, [login, logout]);
+
+  // 2. SINCRONIZACIÓN EN TIEMPO REAL CON FIRESTORE (Balances, Redes CEX y Notificaciones)
+  useEffect(() => {
+    // Si no hay sesión iniciada real, no activamos ningún snapshot
+    if (!auth.currentUser || auth.currentUser.uid === "invitado") return;
+
+    const uid = auth.currentUser.uid;
+    const userDocRef = doc(db, "users", uid);
+
+    // Escuchador dinámico aislado para el documento del usuario (Balances Estilo Binance)
+    const unsubscribeUserDoc = onSnapshot(userDocRef, async (docSnap) => {
+      try {
+        if (docSnap.exists()) {
+          const fullUserData = docSnap.data() as AppUser;
+          
+          // Sincronizamos la información extendida en Zustand
+          useAppStore.setState({ user: fullUserData });
+          
+          if (MOCK_USER) {
+            Object.keys(MOCK_USER).forEach((key) => delete (MOCK_USER as any)[key]);
+            Object.assign(MOCK_USER, fullUserData);
+          }
+
+          // Inyectamos balances off-chain y direcciones del Pool CEX reales
+          const firestoreBalances = (fullUserData as any).balances || { USDT: 0, BTC: 0, CUP: 0 };
+          const depositAddresses = (fullUserData as any).depositAddresses || {};
+          setWalletData(firestoreBalances, depositAddresses);
+
+        } else {
+          // Si el usuario no existe en la DB (Primer registro), creamos su plantilla inicial
+          const templateUser = {
+            uid: uid,
+            email: auth.currentUser.email || "",
+            displayName: auth.currentUser.displayName || "Usuario",
+            photoURL: auth.currentUser.photoURL || null,
+            kycStatus: "unverified",
+            createdAt: Date.now(),
+            totalTrades: 0,
+            rating: 5.0,
+            role: "user",
+            balances: { USDT: 0, BTC: 0, CUP: 0 },
+            depositAddresses: {}
+          };
+          await setDoc(userDocRef, templateUser);
+        }
+      } catch (err) {
+        console.error("Error sincronizando base de datos en snapshot:", err);
+      }
+    });
+
+    // Escuchador dinámico de notificaciones reales de la subcolección
+    const unsubscribeNotificationsList = subscribeToNotifications(uid);
+
+    // Limpieza atómica total al desmontar o cerrar sesión para liberar memoria
     return () => {
-      unsubscribeAuth();
-      if (unsubscribeNotifications) unsubscribeNotifications();
+      unsubscribeUserDoc();
+      unsubscribeNotificationsList();
     };
-  }, [login, logout, setBalances]); // Rompe bucles infinitos eliminando dependencias de navegación volátiles
+  }, [auth.currentUser?.uid, setWalletData, subscribeToNotifications]);
 
   // Redirección automática de seguridad para rutas públicas estando logueado
   useEffect(() => {
@@ -257,7 +283,5 @@ export default function App() {
     );
   }
 
-  // Renderizado limpio de la estructura. La clase "dark" ya domina globalmente desde la etiqueta <html>.
   return <AppContent />;
-                                                                 }
-            
+    }
