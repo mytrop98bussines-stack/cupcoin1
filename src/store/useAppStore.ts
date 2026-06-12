@@ -13,7 +13,7 @@ import type {
   CryptoAsset,
 } from "@/types";
 
-// Importaciones de Firebase para las notificaciones reales
+// Importaciones de Firebase para la sincronización real
 import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
@@ -24,19 +24,21 @@ interface AppState {
   user: User | null;
   isAuthenticated: boolean;
   balances: CryptoBalance[];
-  prices: CryptoPrice[]; // 🪙 Aquí mapearemos las cotizaciones en tiempo real
+  prices: CryptoPrice[]; 
   orders: P2POrder[];
   activeTrade: Trade | null;
   tradeMessages: ChatMessage[];
   products: Product[];
   notifications: Notification[];
-  walletConnected: boolean;
-  walletAddress: string | null;
+  
+  // 🏦 MODELO BINANCE: Direcciones de depósito fijas asignadas al usuario por CubaX
+  depositAddresses: Record<string, string>;
+  
   selectedTradeId: string | null;
   selectedProductId: string | null;
   isLoading: boolean;
   mobileMenuOpen: boolean;
-  loadingPrices: boolean; // Estado para skeletons o loaders de precios
+  loadingPrices: boolean; 
 
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
@@ -45,9 +47,12 @@ interface AppState {
   setUser: (user: User | null) => void;
   login: (user: User) => void;
   logout: () => void;
-  setBalances: (balances: CryptoBalance[]) => void;
+  
+  // 🔄 NUEVO: Mapeador central de Balances reales desde Firestore + Precios en tiempo real
+  setWalletData: (firestoreBalances: Record<string, number>, depositAddresses?: Record<string, string>) => void;
+  
   setPrices: (prices: CryptoPrice[]) => void;
-  fetchPrices: () => Promise<void>; // 🔥 NUEVO: Método centralizado para CoinGecko
+  fetchPrices: () => Promise<void>; 
   setOrders: (orders: P2POrder[]) => void;
   addOrder: (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
@@ -57,12 +62,10 @@ interface AppState {
   setProducts: (products: Product[]) => void;
   addProduct: (product: Product) => void;
   
-  // Métodos de notificaciones actualizados para Firebase
   setNotifications: (notifications: Notification[]) => void;
   subscribeToNotifications: (userId: string) => (() => void);
   markNotificationRead: (id: string) => Promise<void>;
   
-  setWallet: (connected: boolean, address: string | null) => void;
   setSelectedTradeId: (id: string | null) => void;
   setSelectedProductId: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
@@ -85,8 +88,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   balances: [],
+  depositAddresses: {}, // Inicialmente vacías hasta que el documento de Firebase cargue
   
-  // Cotizaciones iniciales estables por si la red o CoinGecko fallan
   prices: [
     { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
     { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
@@ -98,8 +101,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   tradeMessages: [],
   products: [],
   notifications: [],
-  walletConnected: false,
-  walletAddress: null,
   selectedTradeId: null,
   selectedProductId: null,
   isLoading: false,
@@ -138,22 +139,40 @@ export const useAppStore = create<AppState>((set, get) => ({
       isAuthenticated: false,
       currentView: "landing",
       balances: [],
-      walletConnected: false,
-      walletAddress: null,
+      depositAddresses: {},
       notifications: [],
       activeTrade: null,
     }),
 
-  setBalances: (balances) => set({ balances }),
+  // ========================================================
+  // ⚡ PROCESADOR DE BALANCES INTERNOS ESTILO CEX
+  // ========================================================
+  setWalletData: (firestoreBalances, depositAddresses = {}) => {
+    const currentPrices = get().prices;
+
+    // Convertimos el mapa de Firestore { USDT: 120, BTC: 0.004 } al array de la UI calculando USD
+    const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(([asset, amount]) => {
+      const cryptoPriceInfo = currentPrices.find((p) => p.symbol.toUpperCase() === asset.toUpperCase());
+      const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.00; // Fallback a 1:1 si es estable o no la encuentra
+
+      return {
+        asset: asset.toUpperCase(),
+        amount: amount,
+        usdValue: amount * priceUSD,
+      };
+    });
+
+    set({ 
+      balances: updatedBalances,
+      depositAddresses: depositAddresses 
+    });
+  },
+
   setPrices: (prices) => set({ prices }),
 
-  // ========================================================
-  // 🦎 CONEXIÓN EN VIVO CON LA API DE COINGECKO
-  // ========================================================
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
-      // Consultamos los identificadores oficiales en un solo string
       const response = await fetch(
         "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=usd&include_24hr_change=true"
       );
@@ -164,7 +183,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const data = await response.json();
 
-      // Formateamos la respuesta directo al array de CryptoPrice que usa la App
       const updatedPrices: CryptoPrice[] = [
         {
           id: "1",
@@ -197,10 +215,15 @@ export const useAppStore = create<AppState>((set, get) => ({
       ];
 
       set({ prices: updatedPrices, loadingPrices: false });
-      console.log("📈 Precios actualizados en vivo desde CoinGecko:", updatedPrices);
+      
+      // 🔄 Recalculo inmediato de los balances acumulados tras refrescar los valores del mercado
+      const currentUser = get().user;
+      if (currentUser && (currentUser as any).balances) {
+        get().setWalletData((currentUser as any).balances, get().depositAddresses);
+      }
     } catch (error) {
       console.error("Fallo al consultar CoinGecko, manteniendo precios en caché:", error);
-      set({ loadingPrices: false }); // Respaldo silencioso
+      set({ loadingPrices: false }); 
     }
   },
 
@@ -222,49 +245,35 @@ export const useAppStore = create<AppState>((set, get) => ({
   
   setNotifications: (notifications) => set({ notifications }),
 
-  // ========================================================
-  // ESCUCHADOR REAL DE NOTIFICACIONES DESDE FIRESTORE
-  // ========================================================
   subscribeToNotifications: (userId: string) => {
     if (!userId || userId === "invitado") return () => {};
 
-    // Apuntamos a la subcolección interna: users/{uid}/notifications
     const q = query(
       collection(db, "users", userId, "notifications"),
       orderBy("createdAt", "desc")
     );
 
-    // Abrimos el canal en tiempo real
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notificationsList: Notification[] = [];
       snapshot.forEach((doc) => {
         notificationsList.push({ id: doc.id, ...doc.data() } as Notification);
       });
-      
-      // Actualizamos Zustand automáticamente cada vez que cambie algo en la DB
       set({ notifications: notificationsList });
     }, (error) => {
       console.error("Error en Snapshot de notificaciones:", error);
     });
 
-    return unsubscribe; // Nos permite cerrarlo desde App.tsx en el logout
+    return unsubscribe; 
   },
 
-  // ========================================================
-  // ACTUALIZACIÓN DE LECTURA ASÍNCRONA EN FIRESTORE
-  // ========================================================
   markNotificationRead: async (id) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
 
     try {
-      // Referencia al documento específico dentro de la subcolección del usuario
       const notifRef = doc(db, "users", currentUser.uid, "notifications", id);
-      
-      // Impactamos la base de datos de Firebase cambiando 'read' a true
       await updateDoc(notifRef, { read: true });
 
-      // Modificación optimista local en Zustand para mantener la UI instantánea
       set({
         notifications: get().notifications.map((n) =>
           n.id === id ? { ...n, read: true } : n
@@ -275,11 +284,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  setWallet: (connected, address) =>
-    set({ walletConnected: connected, walletAddress: address }),
   setSelectedTradeId: (id) => set({ selectedTradeId: id }),
   setSelectedProductId: (id) => set({ selectedProductId: id }),
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-          
+      
