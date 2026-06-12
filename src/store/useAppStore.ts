@@ -13,7 +13,7 @@ import type {
 } from "@/types";
 
 // Importaciones de Firebase para la sincronización real
-import { collection, query, orderBy, onSnapshot, doc, updateDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 interface AppState {
@@ -56,8 +56,13 @@ interface AppState {
   addOrder: (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
   updateTradeStatus: (status: Trade["status"]) => void;
+  
+  // 💬 CHAT P2P INTERFACES ESTILO BINANCE
   setTradeMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
+  subscribeToTradeMessages: (tradeId: string) => (() => void);
+  sendMessage: (tradeId: string, text: string) => Promise<void>;
+  
   setProducts: (products: Product[]) => void;
   addProduct: (product: Product) => void;
   
@@ -141,6 +146,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       depositAddresses: {},
       notifications: [],
       activeTrade: null,
+      tradeMessages: [],
     }),
 
   // ========================================================
@@ -149,7 +155,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setWalletData: (firestoreBalances, depositAddresses = {}) => {
     const currentPrices = get().prices;
 
-    // Convertimos el mapa de Firestore { USDT: 120, BTC: 0.004 } al array de la UI calculando USD
     const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(([asset, amount]) => {
       const cryptoPriceInfo = currentPrices.find((p) => p.symbol.toUpperCase() === asset.toUpperCase());
       const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.00; 
@@ -216,8 +221,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       ];
 
-      // Seteamos los precios planos. La sincronización de balances ocurre de forma 
-      // aislada mediante el onSnapshot en segundo plano alojado en App.tsx.
       set({ prices: updatedPrices, loadingPrices: false });
       
     } catch (error) {
@@ -237,8 +240,51 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // ========================================================
+  // 💬 CONTROL DE MENSAJES Y SINCRONIZACIÓN REAL DEL CHAT P2P
+  // ========================================================
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
   addMessage: (message) => set({ tradeMessages: [...get().tradeMessages, message] }),
+
+  subscribeToTradeMessages: (tradeId: string) => {
+    if (!tradeId) return () => {};
+
+    const q = query(
+      collection(db, "trades", tradeId, "messages"),
+      orderBy("createdAt", "asc")
+    );
+
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const messagesList: ChatMessage[] = [];
+      snapshot.forEach((doc) => {
+        messagesList.push({ id: doc.id, ...doc.data() } as ChatMessage);
+      });
+      set({ tradeMessages: messagesList });
+    }, (error) => {
+      console.error("Error en Snapshot de mensajes P2P:", error);
+    });
+
+    return unsubscribe; 
+  },
+
+  sendMessage: async (tradeId: string, text: string) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid || !tradeId || !text.trim()) return;
+
+    try {
+      const messageData = {
+        senderId: currentUser.uid,
+        senderName: currentUser.displayName || "Usuario",
+        text: text.trim(),
+        createdAt: Date.now(),
+      };
+
+      await addDoc(collection(db, "trades", tradeId, "messages"), messageData);
+    } catch (error) {
+      console.error("Error al enviar mensaje P2P:", error);
+    }
+  },
+
   setProducts: (products) => set({ products }),
   addProduct: (product) => set({ products: [product, ...get().products] }),
   
@@ -288,4 +334,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-  
+      
