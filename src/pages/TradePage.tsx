@@ -1,10 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { MOCK_TRADE, MOCK_MESSAGES, PAYMENT_METHOD_LABELS } from "@/data/mock";
+import { TradeChat } from "@/components/TradeChat"; // 🔥 Inyección del chat reactivo
+import { MOCK_TRADE, PAYMENT_METHOD_LABELS } from "@/data/mock";
 import {
   Shield,
   Clock,
@@ -13,7 +14,6 @@ import {
   Send,
   Copy,
   Phone,
-  MessageCircle,
   Lock,
   Unlock,
   XCircle,
@@ -71,34 +71,27 @@ const STATUS_CONFIG: Record<
 export function TradePage() {
   const {
     activeTrade: trade,
-    tradeMessages,
     user,
     updateTradeStatus,
-    addMessage,
+    sendMessage: sendChatMessage, // Usamos la acción reactiva de Zustand para mensajes del sistema
     setActiveTrade,
-    setTradeMessages,
     navigate,
   } = useAppStore();
 
-  const [chatInput, setChatInput] = useState("");
   const [loading, setLoading] = useState(false);
-  const chatEndRef = useRef<HTMLDivElement>(null);
 
+  // Mantenemos el fallback seguro por si no hay un trade en el store local global
   useEffect(() => {
     if (!trade) {
       setActiveTrade(MOCK_TRADE);
-      setTradeMessages(MOCK_MESSAGES);
     }
-  }, [trade, setActiveTrade, setTradeMessages]);
-
-  useEffect(() => {
-    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [tradeMessages]);
+  }, [trade, setActiveTrade]);
 
   const currentTrade = trade || MOCK_TRADE;
   const statusConfig = STATUS_CONFIG[currentTrade.status];
   const isBuyer = user?.uid === currentTrade.buyerId;
 
+  // Manejo de acciones en el flujo comercial
   const handleAction = useCallback(
     async (action: string) => {
       setLoading(true);
@@ -110,56 +103,36 @@ export function TradePage() {
       switch (action) {
         case "fund_escrow":
           newStatus = "escrow_funded";
-          systemMsg = `${currentTrade.sellerName} depositó ${currentTrade.amount} ${currentTrade.asset} en el escrow.`;
+          systemMsg = `🔔 BANCO: ${currentTrade.sellerName} depositó ${currentTrade.amount} ${currentTrade.asset} en el sistema de custodia segura (Escrow).`;
           break;
         case "mark_paid":
           newStatus = "payment_sent";
-          systemMsg = `${currentTrade.buyerName} marcó el pago como enviado.`;
+          systemMsg = `💸 PAGO: ${currentTrade.buyerName} marcó la orden como PAGADA. Verifique su Transfermóvil/Enzona antes de liberar.`;
           break;
         case "confirm_payment":
           newStatus = "payment_confirmed";
-          systemMsg = `${currentTrade.sellerName} confirmó la recepción del pago.`;
+          systemMsg = `✅ CONFIRMACIÓN: ${currentTrade.sellerName} confirmó la recepción de los fondos fiduciarios.`;
           break;
         case "release":
           newStatus = "crypto_released";
-          systemMsg = `¡Trade completado! ${currentTrade.amount} ${currentTrade.asset} liberados a ${currentTrade.buyerName}.`;
+          systemMsg = `🚀 SISTEMA: ¡Trade completado con éxito! Fondos liberados hacia la billetera de ${currentTrade.buyerName}.`;
           break;
         case "dispute":
           newStatus = "disputed";
-          systemMsg = "Se ha iniciado una disputa. Un mediador revisará el caso.";
+          systemMsg = "⚠️ DISPUTA: Se abrió un reclamo formal. El chat ha sido congelado temporalmente para revisión de soporte.";
           break;
       }
 
       updateTradeStatus(newStatus);
+      
+      // Inyección del log del sistema directo en Firestore a través del backend del chat
       if (systemMsg) {
-        addMessage({
-          id: `msg_${Date.now()}`,
-          tradeId: currentTrade.id,
-          senderId: "system",
-          senderName: "Sistema",
-          message: systemMsg,
-          timestamp: Date.now(),
-          type: "system",
-        });
+        await sendChatMessage(currentTrade.id, systemMsg);
       }
       setLoading(false);
     },
-    [currentTrade, updateTradeStatus, addMessage]
+    [currentTrade, updateTradeStatus, sendChatMessage]
   );
-
-  const sendMessage = useCallback(() => {
-    if (!chatInput.trim() || !user) return;
-    addMessage({
-      id: `msg_${Date.now()}`,
-      tradeId: currentTrade.id,
-      senderId: user.uid,
-      senderName: user.displayName,
-      message: chatInput.trim(),
-      timestamp: Date.now(),
-      type: "text",
-    });
-    setChatInput("");
-  }, [chatInput, user, currentTrade.id, addMessage]);
 
   const copyText = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
@@ -410,92 +383,13 @@ export function TradePage() {
         </div>
       </div>
 
-      {/* Chat */}
+      {/* ======================================================== */}
+      {/* 🔥 NUEVO CONTENEDOR REACTIVO CHAT P2P ESTILO BINANCE      */}
+      {/* ======================================================== */}
       <div className="px-4 mt-4">
-        <div className="flex items-center gap-2 mb-3">
-          <MessageCircle className="h-4 w-4 text-brand-500" />
-          <h3 className="font-semibold text-sm text-gray-900 dark:text-white">
-            Chat del trade
-          </h3>
-        </div>
-
-        <Card padding="none" className="overflow-hidden">
-          {/* Messages */}
-          <div className="h-64 overflow-y-auto p-3 space-y-2 scrollbar-hide">
-            {tradeMessages.map((msg) => {
-              const isSystem = msg.type === "system";
-              const isMe = msg.senderId === user?.uid;
-
-              if (isSystem) {
-                return (
-                  <div
-                    key={msg.id}
-                    className="text-center py-1"
-                  >
-                    <span className="text-[10px] text-gray-400 dark:text-gray-500 bg-gray-50 dark:bg-white/[0.03] px-3 py-1 rounded-full">
-                      🔔 {msg.message}
-                    </span>
-                  </div>
-                );
-              }
-
-              return (
-                <div
-                  key={msg.id}
-                  className={`flex ${isMe ? "justify-end" : "justify-start"}`}
-                >
-                  <div
-                    className={`max-w-[75%] px-3 py-2 rounded-2xl ${
-                      isMe
-                        ? "bg-brand-500 text-white rounded-br-md"
-                        : "bg-gray-100 dark:bg-white/5 text-gray-900 dark:text-white rounded-bl-md"
-                    }`}
-                  >
-                    {!isMe && (
-                      <p className="text-[10px] font-semibold mb-0.5 opacity-70">
-                        {msg.senderName}
-                      </p>
-                    )}
-                    <p className="text-sm leading-relaxed">{msg.message}</p>
-                    <p
-                      className={`text-[9px] mt-0.5 ${
-                        isMe ? "text-white/60" : "text-gray-400"
-                      }`}
-                    >
-                      {new Date(msg.timestamp).toLocaleTimeString("es-CU", {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })}
-                    </p>
-                  </div>
-                </div>
-              );
-            })}
-            <div ref={chatEndRef} />
-          </div>
-
-          {/* Chat Input */}
-          <div className="border-t border-gray-100 dark:border-white/[0.06] p-2">
-            <div className="flex gap-2">
-              <input
-                type="text"
-                value={chatInput}
-                onChange={(e) => setChatInput(e.target.value)}
-                onKeyDown={(e) => e.key === "Enter" && sendMessage()}
-                placeholder="Escribe un mensaje..."
-                className="flex-1 px-3 py-2 text-sm rounded-xl bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 outline-none focus:ring-2 focus:ring-brand-500/20 border border-transparent focus:border-brand-500"
-              />
-              <button
-                onClick={sendMessage}
-                disabled={!chatInput.trim()}
-                className="p-2 rounded-xl bg-brand-500 text-white disabled:opacity-50 hover:bg-brand-600 transition-colors"
-              >
-                <Send className="h-4 w-4" />
-              </button>
-            </div>
-          </div>
-        </Card>
+        <TradeChat tradeId={currentTrade.id} />
       </div>
     </div>
   );
-}
+    }
+                    
