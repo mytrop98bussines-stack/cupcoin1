@@ -10,7 +10,6 @@ import type {
   Notification,
   ThemeMode,
   AppView,
-  CryptoAsset,
 } from "@/types";
 
 // Importaciones de Firebase para la sincronización real
@@ -48,7 +47,7 @@ interface AppState {
   login: (user: User) => void;
   logout: () => void;
   
-  // 🔄 NUEVO: Mapeador central de Balances reales desde Firestore + Precios en tiempo real
+  // 🔄 MAPEADOR CENTRAL: Procesa los saldos planos de Firestore cruzándolos con los precios del store
   setWalletData: (firestoreBalances: Record<string, number>, depositAddresses?: Record<string, string>) => void;
   
   setPrices: (prices: CryptoPrice[]) => void;
@@ -88,7 +87,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   user: null,
   isAuthenticated: false,
   balances: [],
-  depositAddresses: {}, // Inicialmente vacías hasta que el documento de Firebase cargue
+  depositAddresses: {}, 
   
   prices: [
     { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
@@ -153,7 +152,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     // Convertimos el mapa de Firestore { USDT: 120, BTC: 0.004 } al array de la UI calculando USD
     const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(([asset, amount]) => {
       const cryptoPriceInfo = currentPrices.find((p) => p.symbol.toUpperCase() === asset.toUpperCase());
-      const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.00; // Fallback a 1:1 si es estable o no la encuentra
+      const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.00; 
 
       return {
         asset: asset.toUpperCase(),
@@ -170,6 +169,9 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
+  // ========================================================
+  // 🦎 CONSULTA LIMPIA A COINGECKO (Inmune a bucles infinitos)
+  // ========================================================
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
@@ -214,13 +216,10 @@ export const useAppStore = create<AppState>((set, get) => ({
         },
       ];
 
+      // Seteamos los precios planos. La sincronización de balances ocurre de forma 
+      // aislada mediante el onSnapshot en segundo plano alojado en App.tsx.
       set({ prices: updatedPrices, loadingPrices: false });
       
-      // 🔄 Recalculo inmediato de los balances acumulados tras refrescar los valores del mercado
-      const currentUser = get().user;
-      if (currentUser && (currentUser as any).balances) {
-        get().setWalletData((currentUser as any).balances, get().depositAddresses);
-      }
     } catch (error) {
       console.error("Fallo al consultar CoinGecko, manteniendo precios en caché:", error);
       set({ loadingPrices: false }); 
@@ -289,4 +288,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-      
+  
