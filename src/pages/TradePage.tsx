@@ -1,292 +1,420 @@
-import { create } from "zustand";
-import type {
-  User,
-  CryptoBalance,
-  CryptoPrice,
-  P2POrder,
-  Trade,
-  ChatMessage,
-  Product,
-  Notification,
-  ThemeMode,
-  AppView,
-} from "@/types";
+import { useState, useEffect, useCallback } from "react";
+import { useAppStore } from "@/store/useAppStore";
+import { Card } from "@/components/ui/Card";
+import { Badge } from "@/components/ui/Badge";
+import { Button } from "@/components/ui/Button";
+import { Avatar } from "@/components/ui/Avatar";
+import { TradeChat } from "@/components/TradeChat"; 
+import { MOCK_TRADE, PAYMENT_METHOD_LABELS } from "@/data/mock";
+import {
+  Shield,
+  Clock,
+  CheckCircle2,
+  AlertTriangle,
+  Send,
+  Copy,
+  Phone,
+  Lock,
+  Unlock,
+  XCircle,
+} from "lucide-react";
+import type { TradeStatus } from "@/types";
 
-// Importaciones de Firebase para la sincronización real
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
-
-interface AppState {
-  theme: ThemeMode;
-  currentView: AppView;
-  previousView: AppView | null;
-  user: User | null;
-  isAuthenticated: boolean;
-  balances: CryptoBalance[];
-  prices: CryptoPrice[]; 
-  orders: P2POrder[];
-  activeTrade: Trade | null;
-  tradeMessages: ChatMessage[];
-  products: Product[];
-  notifications: Notification[];
-  
-  // 🏦 MODELO BINANCE: Direcciones de depósito fijas asignadas al usuario por CubaX
-  depositAddresses: Record<string, string>;
-  
-  selectedTradeId: string | null;
-  selectedProductId: string | null;
-  isLoading: boolean;
-  mobileMenuOpen: boolean;
-  loadingPrices: boolean; 
-
-  setTheme: (theme: ThemeMode) => void;
-  toggleTheme: () => void;
-  navigate: (view: AppView) => void;
-  goBack: () => void;
-  setUser: (user: User | null) => void;
-  login: (user: User) => void;
-  logout: () => void;
-  
-  // 🔄 MAPEADOR CENTRAL: Procesa los saldos planos de Firestore cruzándolos con los precios del store
-  setWalletData: (firestoreBalances: Record<string, number>, depositAddresses?: Record<string, string>) => void;
-  
-  setPrices: (prices: CryptoPrice[]) => void;
-  fetchPrices: () => Promise<void>; 
-  setOrders: (orders: P2POrder[]) => void;
-  addOrder: (order: P2POrder) => void;
-  setActiveTrade: (trade: Trade | null) => void;
-  
-  // 🔥 FIRESTORE CORE: Mutación en caliente del estado financiero de un intercambio
-  updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
-  
-  // 💬 CHAT P2P INTERFACES ESTILO BINANCE
-  setTradeMessages: (messages: ChatMessage[]) => void;
-  addMessage: (message: ChatMessage) => void;
-  subscribeToTradeMessages: (tradeId: string) => (() => void);
-  sendMessage: (tradeId: string, text: string) => Promise<void>;
-  
-  setProducts: (products: Product[]) => void;
-  addProduct: (product: Product) => void;
-  
-  setNotifications: (notifications: Notification[]) => void;
-  subscribeToNotifications: (userId: string) => (() => void);
-  markNotificationRead: (id: string) => Promise<void>;
-  
-  setSelectedTradeId: (id: string | null) => void;
-  setSelectedProductId: (id: string | null) => void;
-  setLoading: (loading: boolean) => void;
-  setMobileMenuOpen: (open: boolean) => void;
-}
-
-const getInitialTheme = (): ThemeMode => {
-  if (typeof window !== "undefined") {
-    const stored = localStorage.getItem("cubax-theme") as ThemeMode | null;
-    if (stored) return stored;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
-  }
-  return "dark";
+const STATUS_CONFIG: Record<
+  TradeStatus,
+  { label: string; color: string; icon: React.ReactNode; desc: string }
+> = {
+  awaiting_escrow: {
+    label: "Esperando depósito",
+    color: "text-amber-500",
+    icon: <Clock className="h-5 w-5" />,
+    desc: "El vendedor debe depositar los fondos en el escrow.",
+  },
+  escrow_funded: {
+    label: "Escrow fondeado",
+    color: "text-blue-500",
+    icon: <Lock className="h-5 w-5" />,
+    desc: "Los fondos están seguros en el contrato. Realiza el pago móvil.",
+  },
+  payment_sent: {
+    label: "Pago enviado",
+    color: "text-indigo-500",
+    icon: <Send className="h-5 w-5" />,
+    desc: "El comprador marcó el pago como enviado. Esperando confirmación.",
+  },
+  payment_confirmed: {
+    label: "Pago confirmado",
+    color: "text-emerald-500",
+    icon: <CheckCircle2 className="h-5 w-5" />,
+    desc: "El vendedor confirmó el pago. Liberando cripto...",
+  },
+  crypto_released: {
+    label: "Completado",
+    color: "text-emerald-500",
+    icon: <Unlock className="h-5 w-5" />,
+    desc: "¡Trade completado! Los fondos han sido liberados.",
+  },
+  disputed: {
+    label: "En disputa",
+    color: "text-red-500",
+    icon: <AlertTriangle className="h-5 w-5" />,
+    desc: "Un mediador revisará el caso. Por favor, proporciona evidencia.",
+  },
+  cancelled: {
+    label: "Cancelado",
+    color: "text-gray-500",
+    icon: <XCircle className="h-5 w-5" />,
+    desc: "Este trade fue cancelado. Los fondos fueron devueltos.",
+  },
 };
 
-export const useAppStore = create<AppState>((set, get) => ({
-  theme: getInitialTheme(),
-  currentView: "landing",
-  previousView: null,
-  user: null,
-  isAuthenticated: false,
-  balances: [],
-  depositAddresses: {}, 
-  
-  prices: [
-    { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
-    { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
-    { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: 67500.00, change24h: 1.5 },
-    { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: 3500.00, change24h: -0.8 },
-  ],
-  orders: [],
-  activeTrade: null,
-  tradeMessages: [],
-  products: [],
-  notifications: [],
-  selectedTradeId: null,
-  selectedProductId: null,
-  isLoading: false,
-  mobileMenuOpen: false,
-  loadingPrices: false,
+export function TradePage() {
+  const {
+    activeTrade: trade,
+    user,
+    updateTradeStatus,
+    sendMessage: sendChatMessage,
+    setActiveTrade,
+    navigate,
+  } = useAppStore();
 
-  setTheme: (theme) => {
-    localStorage.setItem("cubax-theme", theme);
-    set({ theme });
-  },
+  const [loading, setLoading] = useState(false);
 
-  toggleTheme: () => {
-    const newTheme = get().theme === "dark" ? "light" : "dark";
-    localStorage.setItem("cubax-theme", newTheme);
-    set({ theme: newTheme });
-  },
-
-  navigate: (view) => {
-    set({ previousView: get().currentView, currentView: view, mobileMenuOpen: false });
-  },
-
-  goBack: () => {
-    const prev = get().previousView;
-    if (prev) {
-      set({ currentView: prev, previousView: null });
+  useEffect(() => {
+    if (!trade) {
+      setActiveTrade(MOCK_TRADE);
     }
-  },
+  }, [trade, setActiveTrade]);
 
-  setUser: (user) => set({ user }),
+  const currentTrade = trade || MOCK_TRADE;
+  const statusConfig = STATUS_CONFIG[currentTrade.status];
+  const isBuyer = user?.uid === currentTrade.buyerId;
 
-  login: (user) => set({ user, isAuthenticated: true, currentView: "dashboard" }),
+  // 🔥 ACCIONES REALES DIRECTAS CONTRA FIRESTORE CLOUD
+  const handleAction = useCallback(
+    async (action: string) => {
+      setLoading(true);
+      let newStatus: TradeStatus = currentTrade.status;
+      let systemMsg = "";
 
-  logout: () =>
-    set({
-      user: null,
-      isAuthenticated: false,
-      currentView: "landing",
-      balances: [],
-      depositAddresses: {},
-      notifications: [],
-      activeTrade: null,
-      tradeMessages: [],
-    }),
-
-  setWalletData: (firestoreBalances, depositAddresses = {}) => {
-    const currentPrices = get().prices;
-    const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(([asset, amount]) => {
-      const cryptoPriceInfo = currentPrices.find((p) => p.symbol.toUpperCase() === asset.toUpperCase());
-      const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.00; 
-
-      return {
-        asset: asset.toUpperCase(),
-        amount: amount,
-        usdValue: amount * priceUSD,
-      };
-    });
-
-    set({ 
-      balances: updatedBalances,
-      depositAddresses: depositAddresses 
-    });
-  },
-
-  setPrices: (prices) => set({ prices }),
-
-  fetchPrices: async () => {
-    set({ loadingPrices: true });
-    try {
-      const response = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=usd&include_24hr_change=true"
-      );
-      if (!response.ok) throw new Error(`Error de CoinGecko: código ${response.status}`);
-      const data = await response.json();
-
-      const updatedPrices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT", name: "Tether", priceUSD: data.tether?.usd || 1.00, change24h: data.tether?.usd_24h_change || 0 },
-        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd || 1.00, change24h: data["usd-coin"]?.usd_24h_change || 0 },
-        { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: data.bitcoin?.usd || 67500.00, change24h: data.bitcoin?.usd_24h_change || 0 },
-        { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: data.ethereum?.usd || 3500.00, change24h: data.ethereum?.usd_24h_change || 0 },
-      ];
-      set({ prices: updatedPrices, loadingPrices: false });
-    } catch (error) {
-      console.error("Fallo al consultar CoinGecko, manteniendo precios en caché:", error);
-      set({ loadingPrices: false }); 
-    }
-  },
-
-  setOrders: (orders) => set({ orders }),
-  addOrder: (order) => set({ orders: [order, ...get().orders] }),
-  setActiveTrade: (trade) => set({ activeTrade: trade }),
-
-  // 🏦 ACTUALIZACIÓN SÍNCRONIZADA CON FIRESTORE CLOUD
-  updateTradeStatus: async (tradeId, status) => {
-    if (!tradeId) return;
-    try {
-      const tradeRef = doc(db, "trades", tradeId);
-      await updateDoc(tradeRef, {
-        status,
-        updatedAt: Date.now(),
-      });
-      
-      const currentActive = get().activeTrade;
-      if (currentActive && currentActive.id === tradeId) {
-        set({ activeTrade: { ...currentActive, status, updatedAt: Date.now() } });
+      switch (action) {
+        case "fund_escrow":
+          newStatus = "escrow_funded";
+          systemMsg = `💥 DEPÓSITO: El vendedor ha colocado los fondos en Escrow. El comprador ya puede enviar de forma segura el saldo en CUP.`;
+          break;
+        case "mark_paid":
+          newStatus = "payment_sent";
+          systemMsg = `💸 ACCIÓN: El comprador ha pulsado "Pago Realizado" (Ya pagué). Vendedor, verifique sus aplicaciones bancarias locales (Transfermóvil/Enzona).`;
+          break;
+        case "confirm_payment":
+          newStatus = "payment_confirmed";
+          systemMsg = `✅ CONFIRMACIÓN: El vendedor corroboró el dinero en moneda nacional fiduciaria.`;
+          break;
+        case "release":
+          newStatus = "crypto_released";
+          systemMsg = `🎉 COMPLETO: Criptomonedas liberadas hacia el comprador. Operación cerrada con éxito.`;
+          break;
+        case "dispute":
+          newStatus = "disputed";
+          systemMsg = "⚠️ ALERTA: Operación bajo reclamo / disputa técnica. Un moderador de CubaX auditará los logs del chat.";
+          break;
       }
-    } catch (error) {
-      console.error("Error al mutar el estado del trade en Firebase:", error);
-    }
-  },
 
-  setTradeMessages: (messages) => set({ tradeMessages: messages }),
-  addMessage: (message) => set({ tradeMessages: [...get().tradeMessages, message] }),
+      // Ejecuta la promesa global contra Firebase pasando el ID del trade y el nuevo estado
+      await updateTradeStatus(currentTrade.id, newStatus);
+      
+      if (systemMsg) {
+        await sendChatMessage(currentTrade.id, systemMsg);
+      }
+      setLoading(false);
+    },
+    [currentTrade, updateTradeStatus, sendChatMessage]
+  );
 
-  subscribeToTradeMessages: (tradeId: string) => {
-    if (!tradeId) return () => {};
-    const q = query(collection(db, "trades", tradeId, "messages"), orderBy("createdAt", "asc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const messagesList: ChatMessage[] = [];
-      snapshot.forEach((doc) => {
-        messagesList.push({ id: doc.id, ...doc.data() } as ChatMessage);
-      });
-      set({ tradeMessages: messagesList });
-    }, (error) => {
-      console.error("Error en Snapshot de mensajes P2P:", error);
-    });
-    return unsubscribe; 
-  },
+  const copyText = useCallback((text: string) => {
+    navigator.clipboard.writeText(text);
+  }, []);
 
-  sendMessage: async (tradeId: string, text: string) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || !tradeId || !text.trim()) return;
-    try {
-      const messageData = {
-        senderId: currentUser.uid,
-        senderName: currentUser.displayName || "Usuario",
-        text: text.trim(),
-        createdAt: Date.now(),
-      };
-      await addDoc(collection(db, "trades", tradeId, "messages"), messageData);
-    } catch (error) {
-      console.error("Error al enviar mensaje P2P:", error);
-    }
-  },
+  const progress = (() => {
+    const steps: TradeStatus[] = [
+      "awaiting_escrow",
+      "escrow_funded",
+      "payment_sent",
+      "payment_confirmed",
+      "crypto_released",
+    ];
+    const idx = steps.indexOf(currentTrade.status);
+    return idx >= 0 ? ((idx + 1) / steps.length) * 100 : 0;
+  })();
 
-  setProducts: (products) => set({ products }),
-  addProduct: (product) => set({ products: [product, ...get().products] }),
-  setNotifications: (notifications) => set({ notifications }),
+  return (
+    <div className="max-w-lg mx-auto pb-24 animate-fade-in">
+      {/* Status Header */}
+      <div className="px-4 py-4 space-y-3">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-2">
+            <div className={`${statusConfig.color}`}>{statusConfig.icon}</div>
+            <div>
+              <h2 className="font-bold text-sm text-gray-900 dark:text-white">
+                {statusConfig.label}
+              </h2>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                {statusConfig.desc}
+              </p>
+            </div>
+          </div>
+          <Badge
+            variant={
+              currentTrade.status === "crypto_released"
+                ? "success"
+                : currentTrade.status === "disputed"
+                ? "danger"
+                : "info"
+            }
+          >
+            #{currentTrade.id.slice(-6)}
+          </Badge>
+        </div>
 
-  subscribeToNotifications: (userId: string) => {
-    if (!userId || userId === "invitado") return () => {};
-    const q = query(collection(db, "users", userId, "notifications"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const notificationsList: Notification[] = [];
-      snapshot.forEach((doc) => {
-        notificationsList.push({ id: doc.id, ...doc.data() } as Notification);
-      });
-      set({ notifications: notificationsList });
-    }, (error) => {
-      console.error("Error en Snapshot de notificaciones:", error);
-    });
-    return unsubscribe; 
-  },
+        {/* Progress Bar */}
+        <div className="h-1.5 bg-gray-100 dark:bg-white/5 rounded-full overflow-hidden">
+          <div
+            className="h-full bg-gradient-to-r from-brand-400 to-brand-600 rounded-full transition-all duration-700 ease-out"
+            style={{ width: `${progress}%` }}
+          />
+        </div>
+      </div>
 
-  markNotificationRead: async (id) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") return;
-    try {
-      const notifRef = doc(db, "users", currentUser.uid, "notifications", id);
-      await updateDoc(notifRef, { read: true });
-      set({
-        notifications: get().notifications.map((n) => n.id === id ? { ...n, read: true } : n),
-      });
-    } catch (error) {
-      console.error("Error al marcar notificación como leída en Firebase:", error);
-    }
-  },
+      {/* Trade Details */}
+      <div className="px-4 space-y-3">
+        <Card padding="md">
+          <div className="space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Monto</span>
+              <span className="font-bold text-sm text-gray-900 dark:text-white">
+                {currentTrade.amount} {currentTrade.asset}
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Precio</span>
+              <span className="font-semibold text-sm text-gray-900 dark:text-white">
+                {currentTrade.pricePerUnit.toLocaleString("es-CU")} CUP/{currentTrade.asset}
+              </span>
+            </div>
+            <div className="h-px bg-gray-100 dark:bg-white/[0.06]" />
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Total a pagar</span>
+              <span className="font-bold text-lg text-brand-500">
+                {currentTrade.totalFiat.toLocaleString("es-CU")} CUP
+              </span>
+            </div>
+            <div className="flex items-center justify-between">
+              <span className="text-xs text-gray-500 dark:text-gray-400">Método</span>
+              <span className="font-medium text-sm text-gray-900 dark:text-white">
+                {PAYMENT_METHOD_LABELS[currentTrade.paymentMethod]}
+              </span>
+            </div>
+          </div>
+        </Card>
 
-  setSelectedTradeId: (id) => set({ selectedTradeId: id }),
-  setSelectedProductId: (id) => set({ selectedProductId: id }),
-  setLoading: (loading) => set({ isLoading: loading }),
-  setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
-}));
-  
+        {/* Escrow Info */}
+        {currentTrade.escrowTxHash && (
+          <Card padding="sm" className="border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5">
+            <div className="flex items-center gap-2">
+              <Shield className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+              <div className="flex-1 min-w-0">
+                <p className="text-xs font-semibold text-emerald-600 dark:text-emerald-400">
+                  Fondos en Escrow
+                </p>
+                <p className="text-[10px] text-gray-500 dark:text-gray-400 truncate">
+                  Tx: {currentTrade.escrowTxHash}
+                </p>
+              </div>
+              <button
+                onClick={() => copyText(currentTrade.escrowTxHash || "")}
+                className="p-1 rounded hover:bg-emerald-500/10"
+              >
+                <Copy className="h-3.5 w-3.5 text-emerald-500" />
+              </button>
+            </div>
+          </Card>
+        )}
+
+        {/* Payment Details */}
+        {currentTrade.paymentDetails &&
+          (currentTrade.status === "escrow_funded" ||
+            currentTrade.status === "payment_sent") && (
+            <Card padding="md">
+              <div className="flex items-center gap-2 mb-3">
+                <Phone className="h-4 w-4 text-brand-500" />
+                <h3 className="font-semibold text-sm text-gray-900 dark:text-white">
+                  Datos de pago
+                </h3>
+              </div>
+              <div className="space-y-2">
+                {currentTrade.paymentDetails.phone && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Teléfono</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="font-medium text-sm text-gray-900 dark:text-white">
+                        {currentTrade.paymentDetails.phone}
+                      </span>
+                      <button
+                        onClick={() => copyText(currentTrade.paymentDetails?.phone || "")}
+                        className="p-0.5 rounded hover:bg-gray-100 dark:hover:bg-white/5"
+                      >
+                        <Copy className="h-3 w-3 text-gray-400" />
+                      </button>
+                    </div>
+                  </div>
+                )}
+                {currentTrade.paymentDetails.accountName && (
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs text-gray-500 dark:text-gray-400">Titular</span>
+                    <span className="font-medium text-sm text-gray-900 dark:text-white">
+                      {currentTrade.paymentDetails.accountName}
+                    </span>
+                  </div>
+                )}
+                {currentTrade.paymentDetails.instructions && (
+                  <p className="text-xs text-gray-500 dark:text-gray-400 bg-gray-50 dark:bg-white/[0.03] p-2 rounded-lg">
+                    💡 {currentTrade.paymentDetails.instructions}
+                  </p>
+                )}
+              </div>
+            </Card>
+          )}
+
+        {/* Counterparty */}
+        <Card padding="sm">
+          <div className="flex items-center gap-3">
+            <Avatar name={isBuyer ? currentTrade.sellerName : currentTrade.buyerName} size="sm" />
+            <div className="flex-1">
+              <p className="font-semibold text-sm text-gray-900 dark:text-white">
+                {isBuyer ? currentTrade.sellerName : currentTrade.buyerName}
+              </p>
+              <p className="text-[10px] text-gray-500 dark:text-gray-400">
+                {isBuyer ? "Vendedor" : "Comprador"}
+              </p>
+            </div>
+            <Badge variant="success" size="sm">Online</Badge>
+          </div>
+        </Card>
+
+        {/* ======================================================== */}
+        {/* 🏦 BOTONERA OPERATIVA BINANCE EN TIEMPO REAL             */}
+        {/* ======================================================== */}
+        <div className="space-y-2">
+          
+          {/* CASO 1: ESPERANDO FONDOS (Solo Vendedor ve botón) */}
+          {currentTrade.status === "awaiting_escrow" && !isBuyer && (
+            <Button
+              size="lg"
+              fullWidth
+              loading={loading}
+              onClick={() => handleAction("fund_escrow")}
+              icon={<Lock className="h-4 w-4" />}
+              className="bg-brand-500 hover:bg-brand-600 text-white"
+            >
+              Depositar Garantía en Escrow
+            </Button>
+          )}
+
+          {/* CASO 2: COMPRADOR VE QUE FALTA GARANTÍA (Seguridad antibloqueo) */}
+          {currentTrade.status === "awaiting_escrow" && isBuyer && (
+            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
+              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400">
+                Espera a que el vendedor deposite las criptomonedas en garantía. No envíes dinero aún.
+              </p>
+            </div>
+          )}
+
+          {/* CASO 3: ESCROW FONDEADO (Botón "Ya pagué" listo para el Comprador) */}
+          {currentTrade.status === "escrow_funded" && isBuyer && (
+            <Button
+              size="lg"
+              fullWidth
+              loading={loading}
+              onClick={() => handleAction("mark_paid")}
+              icon={<Send className="h-4 w-4" />}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/10 font-bold"
+            >
+              Pago Realizado (Ya pagué)
+            </Button>
+          )}
+
+          {/* CASO 4: ESCROW FONDEADO (Vendedor esperando transferencia) */}
+          {currentTrade.status === "escrow_funded" && !isBuyer && (
+            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl text-center animate-pulse">
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400">
+                Fondos en garantía asegurados. Esperando transferencia fiat (CUP) del comprador.
+              </p>
+            </div>
+          )}
+
+          {/* CASO 5: PAGO ENVIADO (Vendedor confirma y libera) */}
+          {currentTrade.status === "payment_sent" && !isBuyer && (
+            <div className="space-y-2">
+              <div className="p-2.5 bg-brand-500/10 border border-brand-500/20 rounded-xl text-center">
+                <p className="text-[11px] font-medium text-brand-600 dark:text-brand-400">
+                  ⚠️ Revisa tu Transfermóvil o Enzona personalmente. No te fíes solo de capturas de pantalla.
+                </p>
+              </div>
+              <Button
+                size="lg"
+                fullWidth
+                loading={loading}
+                onClick={() => handleAction("release")}
+                icon={<Unlock className="h-4 w-4" />}
+                className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/10 font-bold"
+              >
+                Confirmar Recibo y Liberar Cripto
+              </Button>
+            </div>
+          )}
+
+          {/* CASO 6: PAGO ENVIADO (Comprador esperando liberación) */}
+          {currentTrade.status === "payment_sent" && isBuyer && (
+            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl text-center">
+              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400">
+                Marcado como pagado. El vendedor está verificando sus cuentas bancarias para liberar los activos.
+              </p>
+            </div>
+          )}
+
+          {/* CASO 7: TRADE FINALIZADO CON ÉXITO */}
+          {currentTrade.status === "crypto_released" && (
+            <Button
+              size="lg"
+              fullWidth
+              variant="secondary"
+              onClick={() => navigate("p2p")}
+            >
+              Volver al Mercado P2P
+            </Button>
+          )}
+
+          {/* BOTÓN DE DISPUTA GENERAL */}
+          {!["crypto_released", "cancelled", "disputed", "awaiting_escrow"].includes(currentTrade.status) && (
+            <Button
+              size="sm"
+              fullWidth
+              variant="ghost"
+              onClick={() => handleAction("dispute")}
+              icon={<AlertTriangle className="h-3.5 w-3.5" />}
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-500/5 font-semibold"
+            >
+              Apelar / Iniciar Disputa
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Chat en vivo */}
+      <div className="px-4 mt-4">
+        <TradeChat tradeId={currentTrade.id} />
+      </div>
+    </div>
+  );
+                       }
+          
