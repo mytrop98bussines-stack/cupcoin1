@@ -23,19 +23,27 @@ import {
   Clock,
   Loader2,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
 
 export function DashboardPage() {
   const { user, balances, navigate, notifications } = useAppStore();
   const [hideBalance, setHideBalance] = useState(false);
 
-  // 🔥 React Query maneja el caché global y el tiempo real pasivo
+  // 🔥 React Query maneja el cache global y el tiempo real pasivo
   const { data: cryptoPrices, isLoading: loadingMarket } = useCryptoPrices();
 
-  if (!user) return null;
+  // 🛡️ OPTIMIZACIÓN: Memorizar el balance total para blindar el hilo principal
+  const totalUSD = useMemo(() => {
+    if (!balances || balances.length === 0) return 0;
+    return balances.reduce((sum, b) => sum + (b.usdValue || 0), 0);
+  }, [balances]);
 
-  const totalUSD = balances.reduce((sum, b) => sum + b.usdValue, 0);
-  const unreadNotifs = notifications.filter((n) => !n.read);
+  // 🛡️ OPTIMIZACIÓN: Memorizar notificaciones no leídas
+  const unreadNotifs = useMemo(() => {
+    return notifications.filter((n) => !n.read);
+  }, [notifications]);
+
+  if (!user) return null;
 
   const kycStatusConfig = {
     unverified: { label: "Sin verificar", variant: "warning" as const, icon: <AlertTriangle className="h-4 w-4" /> },
@@ -44,7 +52,7 @@ export function DashboardPage() {
     rejected: { label: "Rechazado", variant: "danger" as const, icon: <AlertTriangle className="h-4 w-4" /> },
   };
 
-  const kycConfig = kycStatusConfig[user.kycStatus];
+  const kycConfig = kycStatusConfig[user.kycStatus] || kycStatusConfig.unverified;
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
@@ -66,7 +74,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* Balance Card - 🥷 MODO OSCURO PREMIUM SIN GRILLADO */}
+      {/* Balance Card - MODO OSCURO PREMIUM */}
       <Card 
         padding="lg" 
         className="bg-slate-900 dark:bg-navy-900 border border-brand-500/30 dark:border-white/[0.08] text-white shadow-xl"
@@ -188,7 +196,7 @@ export function DashboardPage() {
                 <div className="flex items-center justify-between">
                   <div className="flex items-center gap-3">
                     <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-lg">
-                      {CRYPTO_ICONS[balance.asset]}
+                      {CRYPTO_ICONS[balance.asset] || "🪙"}
                     </div>
                     <div>
                       <div className="font-semibold text-sm text-gray-900 dark:text-white">
@@ -317,5 +325,4 @@ export function DashboardPage() {
       )}
     </div>
   );
-          }
-          
+            }
