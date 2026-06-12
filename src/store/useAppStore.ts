@@ -55,7 +55,9 @@ interface AppState {
   setOrders: (orders: P2POrder[]) => void;
   addOrder: (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
-  updateTradeStatus: (status: Trade["status"]) => void;
+  
+  // 🔥 FIRESTORE CORE: Mutación en caliente del estado financiero de un intercambio
+  updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
   
   // 💬 CHAT P2P INTERFACES ESTILO BINANCE
   setTradeMessages: (messages: ChatMessage[]) => void;
@@ -149,12 +151,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       tradeMessages: [],
     }),
 
-  // ========================================================
-  // ⚡ PROCESADOR DE BALANCES INTERNOS ESTILO CEX
-  // ========================================================
   setWalletData: (firestoreBalances, depositAddresses = {}) => {
     const currentPrices = get().prices;
-
     const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(([asset, amount]) => {
       const cryptoPriceInfo = currentPrices.find((p) => p.symbol.toUpperCase() === asset.toUpperCase());
       const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.00; 
@@ -174,55 +172,22 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
-  // ========================================================
-  // 🦎 CONSULTA LIMPIA A COINGECKO (Inmune a bucles infinitos)
-  // ========================================================
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
       const response = await fetch(
         "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=usd&include_24hr_change=true"
       );
-
-      if (!response.ok) {
-        throw new Error(`Error de CoinGecko: código ${response.status}`);
-      }
-
+      if (!response.ok) throw new Error(`Error de CoinGecko: código ${response.status}`);
       const data = await response.json();
 
       const updatedPrices: CryptoPrice[] = [
-        {
-          id: "1",
-          symbol: "USDT",
-          name: "Tether",
-          priceUSD: data.tether?.usd || 1.00,
-          change24h: data.tether?.usd_24h_change || 0,
-        },
-        {
-          id: "2",
-          symbol: "USDC",
-          name: "USD Coin",
-          priceUSD: data["usd-coin"]?.usd || 1.00,
-          change24h: data["usd-coin"]?.usd_24h_change || 0,
-        },
-        {
-          id: "3",
-          symbol: "BTC",
-          name: "Bitcoin",
-          priceUSD: data.bitcoin?.usd || 67500.00,
-          change24h: data.bitcoin?.usd_24h_change || 0,
-        },
-        {
-          id: "4",
-          symbol: "ETH",
-          name: "Ethereum",
-          priceUSD: data.ethereum?.usd || 3500.00,
-          change24h: data.ethereum?.usd_24h_change || 0,
-        },
+        { id: "1", symbol: "USDT", name: "Tether", priceUSD: data.tether?.usd || 1.00, change24h: data.tether?.usd_24h_change || 0 },
+        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd || 1.00, change24h: data["usd-coin"]?.usd_24h_change || 0 },
+        { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: data.bitcoin?.usd || 67500.00, change24h: data.bitcoin?.usd_24h_change || 0 },
+        { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: data.ethereum?.usd || 3500.00, change24h: data.ethereum?.usd_24h_change || 0 },
       ];
-
       set({ prices: updatedPrices, loadingPrices: false });
-      
     } catch (error) {
       console.error("Fallo al consultar CoinGecko, manteniendo precios en caché:", error);
       set({ loadingPrices: false }); 
@@ -233,27 +198,31 @@ export const useAppStore = create<AppState>((set, get) => ({
   addOrder: (order) => set({ orders: [order, ...get().orders] }),
   setActiveTrade: (trade) => set({ activeTrade: trade }),
 
-  updateTradeStatus: (status) => {
-    const trade = get().activeTrade;
-    if (trade) {
-      set({ activeTrade: { ...trade, status, updatedAt: Date.now() } });
+  // 🏦 ACTUALIZACIÓN SÍNCRONIZADA CON FIRESTORE CLOUD
+  updateTradeStatus: async (tradeId, status) => {
+    if (!tradeId) return;
+    try {
+      const tradeRef = doc(db, "trades", tradeId);
+      await updateDoc(tradeRef, {
+        status,
+        updatedAt: Date.now(),
+      });
+      
+      const currentActive = get().activeTrade;
+      if (currentActive && currentActive.id === tradeId) {
+        set({ activeTrade: { ...currentActive, status, updatedAt: Date.now() } });
+      }
+    } catch (error) {
+      console.error("Error al mutar el estado del trade en Firebase:", error);
     }
   },
 
-  // ========================================================
-  // 💬 CONTROL DE MENSAJES Y SINCRONIZACIÓN REAL DEL CHAT P2P
-  // ========================================================
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
   addMessage: (message) => set({ tradeMessages: [...get().tradeMessages, message] }),
 
   subscribeToTradeMessages: (tradeId: string) => {
     if (!tradeId) return () => {};
-
-    const q = query(
-      collection(db, "trades", tradeId, "messages"),
-      orderBy("createdAt", "asc")
-    );
-
+    const q = query(collection(db, "trades", tradeId, "messages"), orderBy("createdAt", "asc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const messagesList: ChatMessage[] = [];
       snapshot.forEach((doc) => {
@@ -263,14 +232,12 @@ export const useAppStore = create<AppState>((set, get) => ({
     }, (error) => {
       console.error("Error en Snapshot de mensajes P2P:", error);
     });
-
     return unsubscribe; 
   },
 
   sendMessage: async (tradeId: string, text: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || !tradeId || !text.trim()) return;
-
     try {
       const messageData = {
         senderId: currentUser.uid,
@@ -278,7 +245,6 @@ export const useAppStore = create<AppState>((set, get) => ({
         text: text.trim(),
         createdAt: Date.now(),
       };
-
       await addDoc(collection(db, "trades", tradeId, "messages"), messageData);
     } catch (error) {
       console.error("Error al enviar mensaje P2P:", error);
@@ -287,17 +253,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setProducts: (products) => set({ products }),
   addProduct: (product) => set({ products: [product, ...get().products] }),
-  
   setNotifications: (notifications) => set({ notifications }),
 
   subscribeToNotifications: (userId: string) => {
     if (!userId || userId === "invitado") return () => {};
-
-    const q = query(
-      collection(db, "users", userId, "notifications"),
-      orderBy("createdAt", "desc")
-    );
-
+    const q = query(collection(db, "users", userId, "notifications"), orderBy("createdAt", "desc"));
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const notificationsList: Notification[] = [];
       snapshot.forEach((doc) => {
@@ -307,22 +267,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }, (error) => {
       console.error("Error en Snapshot de notificaciones:", error);
     });
-
     return unsubscribe; 
   },
 
   markNotificationRead: async (id) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
-
     try {
       const notifRef = doc(db, "users", currentUser.uid, "notifications", id);
       await updateDoc(notifRef, { read: true });
-
       set({
-        notifications: get().notifications.map((n) =>
-          n.id === id ? { ...n, read: true } : n
-        ),
+        notifications: get().notifications.map((n) => n.id === id ? { ...n, read: true } : n),
       });
     } catch (error) {
       console.error("Error al marcar notificación como leída en Firebase:", error);
@@ -334,4 +289,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-      
+        
