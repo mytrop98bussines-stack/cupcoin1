@@ -16,6 +16,10 @@ import type {
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
+// Configuración del URL del Core en Replit y Token de seguridad
+const BACKEND_URL = "https://tu-proyecto.replit.app/api"; 
+const ADMIN_TOKEN = "TU_ADMIN_TOKEN_CONFIGURADO"; // Vinculado a tu env de producción
+
 interface AppState {
   theme: ThemeMode;
   currentView: AppView;
@@ -30,7 +34,7 @@ interface AppState {
   products: Product[];
   notifications: Notification[];
   
-  // 🏦 MODELO BINANCE: Direcciones de depósito fijas asignadas al usuario por CubaX
+  // 🏦 MODELO COINEX: Direcciones de depósito asignadas dinámicamente
   depositAddresses: Record<string, string>;
   
   selectedTradeId: string | null;
@@ -59,6 +63,10 @@ interface AppState {
   // 🔥 FIRESTORE CORE: Mutación en caliente del estado financiero de un intercambio
   updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
   
+  // 🏦 COINEX GATEWAY OPERATIONS (Nuevas interfaces conectadas al Core de Replit)
+  fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
+  requestWithdrawal: (asset: string, amount: number, toAddress: string, chain: string) => Promise<{ success: boolean; txId?: string; message: string }>;
+
   // 💬 CHAT P2P INTERFACES ESTILO BINANCE
   setTradeMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
@@ -99,8 +107,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   prices: [
     { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
     { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
-    { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: 67500.00, change24h: 1.5 },
-    { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: 3500.00, change24h: -0.8 },
+    { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: 67500.00, change24h: 0 },
+    { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: 3500.00, change24h: 0 },
   ],
   orders: [],
   activeTrade: null,
@@ -166,31 +174,107 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     set({ 
       balances: updatedBalances,
-      depositAddresses: depositAddresses 
+      depositAddresses: { ...get().depositAddresses, ...depositAddresses } 
     });
   },
 
   setPrices: (prices) => set({ prices }),
 
+  // 🔄 CONEXIÓN INTEGRADA: Consulta de cotizaciones nativas en CoinEx API v2
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
       const response = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price?ids=bitcoin,ethereum,tether,usd-coin&vs_currencies=usd&include_24hr_change=true"
+        "https://api.coinex.com/v2/market/ticker?market=BTCUSDT,ETHUSDT,USDCUSDT"
       );
-      if (!response.ok) throw new Error(`Error de CoinGecko: código ${response.status}`);
-      const data = await response.json();
+      if (!response.ok) throw new Error(`Error de CoinEx API`);
+      const json = await response.json();
 
-      const updatedPrices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT", name: "Tether", priceUSD: data.tether?.usd || 1.00, change24h: data.tether?.usd_24h_change || 0 },
-        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd || 1.00, change24h: data["usd-coin"]?.usd_24h_change || 0 },
-        { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: data.bitcoin?.usd || 67500.00, change24h: data.bitcoin?.usd_24h_change || 0 },
-        { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: data.ethereum?.usd || 3500.00, change24h: data.ethereum?.usd_24h_change || 0 },
-      ];
-      set({ prices: updatedPrices, loadingPrices: false });
+      if (json.code === 0) {
+        // Inicializamos estables planos en base 1 USD
+        const livePricesMap: Record<string, { price: number; change: number }> = {
+          USDT: { price: 1.00, change: 0 },
+          USDC: { price: 1.00, change: 0 }
+        };
+
+        json.data.forEach((item: any) => {
+          if (item.market === "BTCUSDT") {
+            livePricesMap["BTC"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
+          } else if (item.market === "ETHUSDT") {
+            livePricesMap["ETH"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
+          } else if (item.market === "USDCUSDT") {
+            // USDC respecto a USDT (Suele oscilar cerca de 1.00)
+            livePricesMap["USDC"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
+          }
+        });
+
+        const updatedPrices: CryptoPrice[] = [
+          { id: "1", symbol: "USDT", name: "Tether", priceUSD: livePricesMap["USDT"].price, change24h: livePricesMap["USDT"].change },
+          { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: livePricesMap["USDC"].price, change24h: livePricesMap["USDC"].change },
+          { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: livePricesMap["BTC"]?.price || 67500.00, change24h: livePricesMap["BTC"]?.change || 0 },
+          { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: livePricesMap["ETH"]?.price || 3500.00, change24h: livePricesMap["ETH"]?.change || 0 },
+        ];
+
+        set({ prices: updatedPrices, loadingPrices: false });
+      } else {
+        throw new Error(json.message);
+      }
     } catch (error) {
-      console.error("Fallo al consultar CoinGecko, manteniendo precios en caché:", error);
+      console.error("Fallo al consultar CoinEx v2, manteniendo precios estáticos:", error);
       set({ loadingPrices: false }); 
+    }
+  },
+
+  // 📥 COINEX FLOW: Solicitar wallet fija de depósitos al backend seguro
+  fetchDepositAddress: async (asset, chain) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/wallet/deposit-address`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Token": ADMIN_TOKEN
+        },
+        body: JSON.stringify({ ccy: asset, chain })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        set((state) => ({
+          depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: data.address }
+        }));
+      } else {
+        console.error("Core Rechazó la petición de wallet:", data.message);
+      }
+    } catch (error) {
+      console.error("Fallo de red conectando con sub-rutas de depósito:", error);
+    }
+  },
+
+  // 📤 COINEX FLOW: Disparar retiro automatizado validado al Core de Replit
+  requestWithdrawal: async (asset, amount, toAddress, chain) => {
+    try {
+      const response = await fetch(`${BACKEND_URL}/wallet/withdraw`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+          "X-Admin-Token": ADMIN_TOKEN
+        },
+        body: JSON.stringify({
+          ccy: asset.toUpperCase(),
+          amount: amount,
+          toAddress: toAddress,
+          chain: chain
+        })
+      });
+      const data = await response.json();
+      
+      if (data.success) {
+        return { success: true, txId: data.txId, message: data.message };
+      } else {
+        return { success: false, message: data.message || "Error interno devuelto por CoinEx" };
+      }
+    } catch (error) {
+      return { success: false, message: "Error de enlace de red con la pasarela distribuidora" };
     }
   },
 
@@ -289,4 +373,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-        
+                             
