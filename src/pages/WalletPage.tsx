@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -17,7 +17,16 @@ import {
 } from "lucide-react";
 
 export function WalletPage() {
-  const { balances, prices, depositAddresses } = useAppStore();
+  // Acciones y estados del store global
+  const { 
+    balances, 
+    prices, 
+    depositAddresses, 
+    fetchLiveBalancesAndPrices, 
+    fetchDepositAddress, 
+    requestWithdrawal 
+  } = useAppStore();
+
   const [hideBalances, setHideBalances] = useState(false);
   
   // Estado para controlar qué panel de acción On-Chain está desplegado
@@ -25,6 +34,23 @@ export function WalletPage() {
     type: null,
     asset: null,
   });
+
+  // Estados locales para los inputs del formulario de retiro y loaders de acción
+  const [withdrawAddress, setWithdrawAddress] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+
+  // Sincronización en tiempo real (Balances desde Replit + Precios desde CoinEx v2)
+  useEffect(() => {
+    fetchLiveBalancesAndPrices();
+    
+    const interval = setInterval(() => {
+      fetchLiveBalancesAndPrices();
+    }, 5000); // Polling constante cada 5 segundos
+
+    return () => clearInterval(interval);
+  }, [fetchLiveBalancesAndPrices]);
 
   // Cálculo del balance neto total sumando el valor en USD de cada activo real
   const totalUSD = balances.reduce((sum, b) => sum + b.usdValue, 0);
@@ -41,9 +67,54 @@ export function WalletPage() {
     ETH: "Ethereum (ERC-20)",
   };
 
+  // Mapa de identificadores de red requeridos por la API v2 de CoinEx
+  const coinexChainMap: Record<string, string> = {
+    USDT: "TRC20",
+    USDC: "BSC",
+    BTC: "BTC",
+    ETH: "ERC20",
+  };
+
+  // Manejador para abrir el panel de depósito y solicitar la dirección real
+  const handleOpenDeposit = async (asset: string) => {
+    setActiveAction({ type: "deposit", asset });
+    if (!depositAddresses[asset]) {
+      setIsLoadingAddress(true);
+      const chain = coinexChainMap[asset] || "TRC20";
+      await fetchDepositAddress(asset, chain);
+      setIsLoadingAddress(false);
+    }
+  };
+
   const handleCopyAddress = (address: string) => {
     navigator.clipboard.writeText(address);
     alert("¡Dirección de depósito copiada al portapapeles!");
+  };
+
+  const handleExecuteWithdrawal = async () => {
+    if (!activeAction.asset || !withdrawAddress || !withdrawAmount) return;
+    
+    setIsSubmitting(true);
+    const chain = coinexChainMap[activeAction.asset] || "";
+    
+    const res = await requestWithdrawal(
+      activeAction.asset,
+      parseFloat(withdrawAmount),
+      withdrawAddress,
+      chain
+    );
+
+    setIsSubmitting(false);
+    
+    if (res.success) {
+      alert(`✅ Retiro procesado con éxito.\nID de retiro: ${res.txId || 'N/A'}`);
+      // Limpiar estados y cerrar panel
+      setActiveAction({ type: null, asset: null });
+      setWithdrawAddress("");
+      setWithdrawAmount("");
+    } else {
+      alert(`🚨 Error al procesar retiro: ${res.message}`);
+    }
   };
 
   return (
@@ -90,7 +161,7 @@ export function WalletPage() {
         <div className="flex gap-2">
           <Button
             size="sm"
-            onClick={() => setActiveAction({ type: "deposit", asset: "USDT" })}
+            onClick={() => handleOpenDeposit("USDT")}
             className="flex-1 bg-brand-500 hover:bg-brand-600 text-white border-0 shadow-sm"
             icon={<ArrowDownLeft className="h-3.5 w-3.5" />}
           >
@@ -126,7 +197,11 @@ export function WalletPage() {
             Envía únicamente <b>{activeAction.asset}</b> a esta dirección asignada a través de la red de seguridad de <b>{networkMap[activeAction.asset] || "Mainnet"}</b>. El saldo impactará tu balance interno automáticamente tras confirmarse en la blockchain.
           </p>
 
-          {depositAddresses[activeAction.asset] ? (
+          {isLoadingAddress ? (
+            <div className="text-center p-3 text-xs text-brand-500 font-medium animate-pulse">
+              Generando dirección única mediante CoinEx API v2...
+            </div>
+          ) : depositAddresses[activeAction.asset] ? (
             <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 border border-gray-200 dark:border-white/10">
               <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">
                 {depositAddresses[activeAction.asset]}
@@ -141,7 +216,7 @@ export function WalletPage() {
             </div>
           ) : (
             <div className="text-center p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-medium">
-              ⚠️ Aún no tienes una dirección {activeAction.asset} generada. Realiza tu primera transacción en el P2P para activar tu pool de depósitos.
+              ⚠️ No se pudo recuperar una dirección válida. Intenta nuevamente o verifica la conexión del servidor.
             </div>
           )}
         </Card>
@@ -164,10 +239,14 @@ export function WalletPage() {
           
           <div className="space-y-2">
             <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">Dirección Externa Destino ({networkMap[activeAction.asset] || "On-Chain"})</label>
+              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
+                Dirección Externa Destino ({networkMap[activeAction.asset] || "On-Chain"})
+              </label>
               <input 
                 type="text" 
-                placeholder={`Introduce dirección externa de ${activeAction.asset}`}
+                value={withdrawAddress}
+                onChange={(e) => setWithdrawAddress(e.target.value)}
+                placeholder={`Introduce dirección de ${activeAction.asset} o e-mail/ID de CoinEx`}
                 className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-brand-500"
               />
             </div>
@@ -176,14 +255,22 @@ export function WalletPage() {
               <div className="relative">
                 <input 
                   type="number" 
+                  value={withdrawAmount}
+                  onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.00"
                   className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 pr-12 text-gray-900 dark:text-white focus:outline-none focus:border-brand-500"
                 />
                 <span className="absolute right-3 top-2 text-xs font-bold text-gray-400">{activeAction.asset}</span>
               </div>
             </div>
-            <Button size="sm" fullWidth className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs">
-              Solicitar Retiro Externo
+            <Button 
+              size="sm" 
+              fullWidth 
+              disabled={isSubmitting || !withdrawAddress || !withdrawAmount}
+              onClick={handleExecuteWithdrawal}
+              className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs"
+            >
+              {isSubmitting ? "Procesando con CoinEx Core..." : "Solicitar Retiro Externo"}
             </Button>
           </div>
         </Card>
@@ -206,7 +293,7 @@ export function WalletPage() {
         </h2>
         <div className="space-y-2">
           {balances.map((balance) => {
-            // Buscamos el precio dinámico mapeado por CoinGecko en el store
+            // Buscamos el precio dinámico mapeado por CoinEx en el store
             const tokenPriceInfo = prices.find((p) => p.symbol.toUpperCase() === balance.asset.toUpperCase());
             const change = tokenPriceInfo?.change24h ?? 0;
             const isUp = change >= 0;
@@ -250,7 +337,7 @@ export function WalletPage() {
                 {/* Acciones Inline del Activo de la Cuenta */}
                 <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-white/[0.05]">
                   <button 
-                    onClick={() => setActiveAction({ type: "deposit", asset: balance.asset })}
+                    onClick={() => handleOpenDeposit(balance.asset)}
                     className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5"
                   >
                     <ArrowDownLeft className="h-3 w-3" />
@@ -275,4 +362,4 @@ export function WalletPage() {
       </div>
     </div>
   );
-              }
+          }
