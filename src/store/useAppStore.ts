@@ -13,12 +13,8 @@ import type {
 } from "@/types";
 
 // Importaciones de Firebase para la sincronización real
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
-
-// Configuración del URL del Core en Replit y Token de seguridad
-const BACKEND_URL = "https://tu-proyecto.replit.app/api"; 
-const ADMIN_TOKEN = "TU_ADMIN_TOKEN_CONFIGURADO"; // Vinculado a tu env de producción
 
 interface AppState {
   theme: ThemeMode;
@@ -34,7 +30,7 @@ interface AppState {
   products: Product[];
   notifications: Notification[];
   
-  // 🏦 MODELO COINEX: Direcciones de depósito asignadas dinámicamente
+  // 🏦 MODELO COINEX: Direcciones de depósito asignadas dinámicamente o leídas del perfil
   depositAddresses: Record<string, string>;
   
   selectedTradeId: string | null;
@@ -63,7 +59,7 @@ interface AppState {
   // 🔥 FIRESTORE CORE: Mutación en caliente del estado financiero de un intercambio
   updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
   
-  // 🏦 COINEX GATEWAY OPERATIONS (Nuevas interfaces conectadas al Core de Replit)
+  // 🏦 COINEX GATEWAY OPERATIONS (Alineadas de forma reactiva con el listener del backend)
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
   requestWithdrawal: (asset: string, amount: number, toAddress: string, chain: string) => Promise<{ success: boolean; txId?: string; message: string }>;
 
@@ -180,7 +176,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
-  // 🔄 CONEXIÓN INTEGRADA: Consulta de cotizaciones nativas en CoinEx API v2
+  // 🔄 CONEXIÓN INTEGRADA: Consulta de cotizaciones nativas en CoinEx API v2 con salvavidas
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
@@ -191,7 +187,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       const json = await response.json();
 
       if (json.code === 0) {
-        // Inicializamos estables planos en base 1 USD
         const livePricesMap: Record<string, { price: number; change: number }> = {
           USDT: { price: 1.00, change: 0 },
           USDC: { price: 1.00, change: 0 }
@@ -203,7 +198,6 @@ export const useAppStore = create<AppState>((set, get) => ({
           } else if (item.market === "ETHUSDT") {
             livePricesMap["ETH"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
           } else if (item.market === "USDCUSDT") {
-            // USDC respecto a USDT (Suele oscilar cerca de 1.00)
             livePricesMap["USDC"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
           }
         });
@@ -220,61 +214,79 @@ export const useAppStore = create<AppState>((set, get) => ({
         throw new Error(json.message);
       }
     } catch (error) {
-      console.error("Fallo al consultar CoinEx v2, manteniendo precios estáticos:", error);
-      set({ loadingPrices: false }); 
+      console.error("Fallo al consultar CoinEx v2, aplicando precios de rescate para evitar pantalla blanca:", error);
+      
+      // 🛡️ CONTROL DE PANTALLA BLANCA: Precios por defecto si falla la red o el servidor está apagado
+      const fallbackPrices: CryptoPrice[] = [
+        { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
+        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
+        { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: 66800.00, change24h: 0.5 },
+        { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: 3450.00, change24h: -0.2 },
+      ];
+      set({ prices: fallbackPrices, loadingPrices: false });
     }
   },
 
-  // 📥 COINEX FLOW: Solicitar wallet fija de depósitos al backend seguro
+  // 📥 MODIFICADO PARA FIRESTORE REACTIVO: Obtiene la wallet asignada al documento del usuario
   fetchDepositAddress: async (asset, chain) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid || currentUser.uid === "invitado") return;
+
     try {
-      const response = await fetch(`${BACKEND_URL}/wallet/deposit-address`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Admin-Token": ADMIN_TOKEN
-        },
-        body: JSON.stringify({ ccy: asset, chain })
-      });
-      const data = await response.json();
+      const userDocRef = doc(db, "users", currentUser.uid);
+      const userSnap = await getDoc(userDocRef);
       
-      if (data.success) {
-        set((state) => ({
-          depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: data.address }
-        }));
-      } else {
-        console.error("Core Rechazó la petición de wallet:", data.message);
+      if (userSnap.exists()) {
+        const userData = userSnap.data();
+        const address = userData.depositAddresses?.[asset.toUpperCase()];
+        
+        if (address) {
+          set((state) => ({
+            depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: address }
+          }));
+          return;
+        }
       }
+      console.warn(`[Wallet] No se localizó una dirección pre-asignada de CoinEx para ${asset} en Firestore.`);
     } catch (error) {
-      console.error("Fallo de red conectando con sub-rutas de depósito:", error);
+      console.error("Error leyendo la dirección de depósito en Firestore:", error);
     }
   },
 
-  // 📤 COINEX FLOW: Disparar retiro automatizado validado al Core de Replit
+  // 📤 MODIFICADO PARA ENCAJAR CON INDEX.TS: Crea el documento 'pending' que activa tu listener de Replit
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid || currentUser.uid === "invitado") {
+      return { success: false, message: "Operación no permitida para usuarios invitados." };
+    }
+
     try {
-      const response = await fetch(`${BACKEND_URL}/wallet/withdraw`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          "X-Admin-Token": ADMIN_TOKEN
-        },
-        body: JSON.stringify({
-          ccy: asset.toUpperCase(),
-          amount: amount,
-          toAddress: toAddress,
-          chain: chain
-        })
-      });
-      const data = await response.json();
+      // Estructura idéntica a la que destructura tu función 'procesarRetiroCripto' en el backend
+      const withdrawalRequest = {
+        userId: currentUser.uid,
+        asset: asset.toUpperCase(),
+        amount: amount,
+        destinationAddress: toAddress,
+        chain: chain ? chain.toUpperCase() : "TRC20",
+        status: "pending", // 🔥 Activa la cláusula '.where("status", "==", "pending")' del backend
+        intentos: 0,
+        createdAt: Date.now()
+      };
+
+      // Inserción directa en la colección withdrawals
+      const docRef = await addDoc(collection(db, "withdrawals"), withdrawalRequest);
       
-      if (data.success) {
-        return { success: true, txId: data.txId, message: data.message };
-      } else {
-        return { success: false, message: data.message || "Error interno devuelto por CoinEx" };
-      }
-    } catch (error) {
-      return { success: false, message: "Error de enlace de red con la pasarela distribuidora" };
+      return { 
+        success: true, 
+        txId: docRef.id, 
+        message: "Solicitud registrada de forma atómica. El motor de CubaX está procesando el envío." 
+      };
+    } catch (error: any) {
+      console.error("Error al inyectar retiro en la cola de Firestore:", error);
+      return { 
+        success: false, 
+        message: error.message || "Error en la red de bases de datos distribuida." 
+      };
     }
   },
 
@@ -373,4 +385,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-                             
+      
