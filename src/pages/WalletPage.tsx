@@ -14,20 +14,22 @@ import {
   TrendingDown,
   Shield,
   Zap,
+  Loader2,
+  Check,
 } from "lucide-react";
 
 export function WalletPage() {
-  // Acciones y estados mapeados correctamente desde el store centralizado
+  // 1. Acciones y estados globales integrados con el Store centralizado y Firebase
   const { 
-    balances, 
+    user,
     prices, 
-    depositAddresses, 
     fetchPrices, 
     fetchDepositAddress, 
     requestWithdrawal 
   } = useAppStore();
 
   const [hideBalances, setHideBalances] = useState(false);
+  const [copied, setCopied] = useState(false);
   
   // Estado para controlar qué panel de acción On-Chain está desplegado
   const [activeAction, setActiveAction] = useState<{ type: "deposit" | "withdraw" | null; asset: string | null }>({
@@ -41,7 +43,7 @@ export function WalletPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
-  // 🔄 Sincronización en tiempo real mediante el endpoint centralizado en tu Backend
+  // 🔄 Sincronización de precios mediante el endpoint de CoinEx centralizado en tu Backend
   useEffect(() => {
     fetchPrices();
     
@@ -52,8 +54,19 @@ export function WalletPage() {
     return () => clearInterval(interval);
   }, [fetchPrices]);
 
+  // 🛡️ ADAPTACIÓN REACTIVA PARA FIRESTORE: Mapeamos los balances del usuario reactivo de Firebase
+  // Si tu store de Zustand procesa arreglos, esto asegura consistencia de datos planos.
+  const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
+  
+  const balancesList = [
+    { asset: "USDT", amount: firestoreBalances.USDT || 0, usdValue: (firestoreBalances.USDT || 0) * (prices.find(p => p.symbol.toUpperCase() === "USDT")?.priceUSD || 1) },
+    { asset: "BTC", amount: firestoreBalances.BTC || 0, usdValue: (firestoreBalances.BTC || 0) * (prices.find(p => p.symbol.toUpperCase() === "BTC")?.priceUSD || 65000) },
+    { asset: "ETH", amount: firestoreBalances.ETH || 0, usdValue: (firestoreBalances.ETH || 0) * (prices.find(p => p.symbol.toUpperCase() === "ETH")?.priceUSD || 35000) },
+    { asset: "USDC", amount: firestoreBalances.USDC || 0, usdValue: (firestoreBalances.USDC || 0) * (prices.find(p => p.symbol.toUpperCase() === "USDC")?.priceUSD || 1) },
+  ];
+
   // Cálculo del balance neto total sumando el valor en USD de cada activo real
-  const totalUSD = balances.reduce((sum, b) => sum + b.usdValue, 0);
+  const totalUSD = balancesList.reduce((sum, b) => sum + b.usdValue, 0);
   
   // Obtenemos el precio actual de Bitcoin para mostrar la equivalencia aproximada estilo CEX
   const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 65000;
@@ -75,10 +88,15 @@ export function WalletPage() {
     ETH: "ERC20",
   };
 
-  // Manejador para abrir el panel de depósito y solicitar la dirección real
+  // Manejador para abrir el panel de depósito y comprobar la dirección en Firestore
   const handleOpenDeposit = async (asset: string) => {
     setActiveAction({ type: "deposit", asset });
-    if (!depositAddresses[asset]) {
+    
+    // Extraemos de forma segura del mapa dinámico de Firebase asignado a Zustand
+    const currentAddress = user?.depositAddresses?.[asset];
+    
+    // Si la dirección no existe en Firebase o es una cadena vacía "", disparamos la CoinEx API
+    if (!currentAddress || currentAddress === "") {
       setIsLoadingAddress(true);
       const chain = coinexChainMap[asset] || "TRC20";
       await fetchDepositAddress(asset, chain);
@@ -88,7 +106,8 @@ export function WalletPage() {
 
   const handleCopyAddress = (address: string) => {
     navigator.clipboard.writeText(address);
-    alert("¡Dirección de depósito copiada al portapapeles!");
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
   };
 
   const handleExecuteWithdrawal = async () => {
@@ -108,7 +127,6 @@ export function WalletPage() {
     
     if (res.success) {
       alert(`✅ Retiro procesado con éxito.\nID de retiro en cola: ${res.txId || 'N/A'}`);
-      // Limpiar estados y cerrar panel
       setActiveAction({ type: null, asset: null });
       setWithdrawAddress("");
       setWithdrawAmount("");
@@ -116,6 +134,9 @@ export function WalletPage() {
       alert(`🚨 Error al procesar retiro: ${res.message}`);
     }
   };
+
+  // Obtenemos la dirección del activo seleccionado actualmente en el panel de depósito
+  const activeDepositAddress = activeAction.asset ? user?.depositAddresses?.[activeAction.asset] : null;
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
@@ -178,7 +199,7 @@ export function WalletPage() {
         </div>
       </Card>
 
-      {/* 📥 PANEL DINÁMICO: Flujo de Depósito Blockchain */}
+      {/* 📥 PANEL DINÁMICO: Flujo de Depósito Blockchain Reactivo a Firebase */}
       {activeAction.type === "deposit" && activeAction.asset && (
         <Card padding="md" className="border-brand-500/30 bg-brand-500/[0.02] space-y-3 animate-slide-in">
           <div className="flex justify-between items-center">
@@ -197,22 +218,35 @@ export function WalletPage() {
             Envía únicamente <b>{activeAction.asset}</b> a esta dirección asignada a través de la red de seguridad de <b>{networkMap[activeAction.asset] || "Mainnet"}</b>. El saldo impactará tu balance interno automáticamente tras confirmarse en la blockchain.
           </p>
 
-          {isLoadingAddress ? (
-            <div className="text-center p-3 text-xs text-brand-500 font-medium animate-pulse">
-              Generando dirección única mediante CoinEx API v2...
+          {/* 🔥 CONTROL DE FLUJO SEGURO: Si la dirección está vacía en Firebase o cargando por la API */}
+          {isLoadingAddress || activeDepositAddress === "" ? (
+            <div className="py-6 flex flex-col items-center justify-center space-y-2 text-center">
+              <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+              <div className="text-xs text-brand-500 font-medium animate-pulse">
+                Asignando dirección única mediante CoinEx API v2...
+              </div>
             </div>
-          ) : depositAddresses[activeAction.asset] ? (
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 border border-gray-200 dark:border-white/10">
-              <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">
-                {depositAddresses[activeAction.asset]}
-              </span>
-              <button 
-                onClick={() => handleCopyAddress(depositAddresses[activeAction.asset || ""])} 
-                className="p-1 hover:bg-gray-200 dark:hover:bg-white/10 rounded transition-colors"
-                title="Copiar dirección"
-              >
-                <Copy className="h-3.5 w-3.5 text-gray-500" />
-              </button>
+          ) : activeDepositAddress ? (
+            <div className="space-y-3">
+              {/* Contenedor e Icono del Código QR del Depósito */}
+              <div className="bg-white p-3 rounded-xl mx-auto w-36 h-36 flex flex-col items-center justify-center border border-gray-100 shadow-sm">
+                <QrCode className="h-16 w-16 text-gray-400 dark:text-gray-600" />
+                <span className="text-[10px] text-gray-400 font-sans mt-1">QR Listo</span>
+              </div>
+
+              {/* Input con opción de copiado rápido en smartphone */}
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 border border-gray-200 dark:border-white/10">
+                <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">
+                  {activeDepositAddress}
+                </span>
+                <button 
+                  onClick={() => handleCopyAddress(activeDepositAddress)} 
+                  className={`p-1.5 rounded transition-colors ${copied ? "bg-emerald-500 text-white" : "hover:bg-gray-200 dark:hover:bg-white/10"}`}
+                  title="Copiar dirección"
+                >
+                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 text-gray-500" />}
+                </button>
+              </div>
             </div>
           ) : (
             <div className="text-center p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-medium">
@@ -286,13 +320,13 @@ export function WalletPage() {
         </div>
       </Card>
 
-      {/* Crypto Asset List Container */}
+      {/* Crypto Asset List Container Reactivo */}
       <div>
         <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">
           Saldos por Criptomoneda
         </h2>
         <div className="space-y-2">
-          {balances.map((balance) => {
+          {balancesList.map((balance) => {
             const tokenPriceInfo = prices.find((p) => p.symbol.toUpperCase() === balance.asset.toUpperCase());
             const change = tokenPriceInfo?.change24h ?? 0;
             const isUp = change >= 0;
@@ -349,7 +383,10 @@ export function WalletPage() {
                     <ArrowUpRight className="h-3 w-3" />
                     Retirar
                   </button>
-                  <button className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
+                  <button 
+                    onClick={() => handleOpenDeposit(balance.asset)}
+                    className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5"
+                  >
                     <QrCode className="h-3 w-3" />
                     Mi QR
                   </button>
@@ -361,5 +398,5 @@ export function WalletPage() {
       </div>
     </div>
   );
-            }
-              
+      }
+            
