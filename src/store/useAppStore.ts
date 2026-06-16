@@ -13,7 +13,7 @@ import type {
 } from "@/types";
 
 // Importaciones de Firebase para la sincronización real
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc, setDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc, setDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 // 🚀 ENLACE OFICIAL A TU BACKEND EN REPLIT
@@ -33,7 +33,7 @@ interface AppState {
   products: Product[];
   notifications: Notification[];
   
-  // 🏦 MODELO COINEX: Direcciones de depósito asignadas dinámicamente o leídas del perfil
+  // 🏦 MODELO COINEX
   depositAddresses: Record<string, string>;
   
   selectedTradeId: string | null;
@@ -50,7 +50,7 @@ interface AppState {
   login: (user: User) => void;
   logout: () => void;
   
-  // 🔄 MAPEADOR CENTRAL: Procesa los saldos planos de Firestore cruzándolos con los precios del store
+  // 🔄 MAPEADOR CENTRAL
   setWalletData: (firestoreBalances: Record<string, number>, depositAddresses?: Record<string, string>) => void;
   
   setPrices: (prices: CryptoPrice[]) => void;
@@ -59,14 +59,14 @@ interface AppState {
   addOrder: (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
   
-  // 🔥 FIRESTORE CORE: Mutación en caliente del estado financiero de un intercambio
+  // 🔥 FIRESTORE CORE
   updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
   
-  // 🏦 COINEX GATEWAY OPERATIONS (Alineadas de forma reactiva con el listener del backend)
+  // 🏦 COINEX GATEWAY OPERATIONS
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
   requestWithdrawal: (asset: string, amount: number, toAddress: string, chain: string) => Promise<{ success: boolean; txId?: string; message: string }>;
 
-  // 💬 CHAT P2P INTERFACES ESTILO BINANCE
+  // 💬 CHAT P2P ALINEADO CON TU COLECION REAL
   setTradeMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
   subscribeToTradeMessages: (tradeId: string) => (() => void);
@@ -75,6 +75,7 @@ interface AppState {
   setProducts: (products: Product[]) => void;
   addProduct: (product: Product) => void;
   
+  // 🔔 NOTIFICACIONES CORREGIDAS (Apunta a la colección raíz de tu BD)
   setNotifications: (notifications: Notification[]) => void;
   subscribeToNotifications: (userId: string) => (() => void);
   markNotificationRead: (id: string) => Promise<void>;
@@ -192,8 +193,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ loadingPrices: false });
       }
     } catch (error) {
-      console.error("Fallo al consultar Replit, aplicando precios de rescate para evitar pantalla blanca:", error);
-      
+      console.error("Fallo al consultar Replit, aplicando precios de rescate:", error);
       const fallbackPrices: CryptoPrice[] = [
         { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
         { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
@@ -204,42 +204,24 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 📥 INYECTOR DE ENERME POTENCIA: Sincroniza y fuerza la existencia de los mapas financieros en el usuario real
+  // 📥 INYECTOR FINANCIERO CON MERGE DE SEGURIDAD (No daña tus campos de KYC)
   fetchDepositAddress: async (asset, chain) => {
     const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") {
-      console.warn("[Wallet] ID de usuario no válido para consultar depósitos.");
-      return;
-    }
+    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") return;
 
     try {
       const userDocRef = doc(db, "users", currentUser.uid);
       
-      // 💥 FUSIÓN INTELIGENTE: Nos aseguramos de que existan las propiedades en Firestore
-      // Al usar merge: true, salvaguardamos tu KYC actual, fotos y campos del archivo "1000214218.jpg"
       await setDoc(userDocRef, {
-        balances: {
-          USDT: 0,
-          USDC: 0,
-          BTC: 0,
-          ETH: 0
-        },
-        depositAddresses: {
-          USDT: "",
-          USDC: "",
-          BTC: "",
-          ETH: ""
-        }
+        balances: { USDT: 0, USDC: 0, BTC: 0, ETH: 0 },
+        depositAddresses: { USDT: "", USDC: "", BTC: "", ETH: "" }
       }, { merge: true });
 
-      // Leemos el documento actualizado tras garantizar la estructura
       const userSnap = await getDoc(userDocRef);
-      
       if (userSnap.exists()) {
         const userData = userSnap.data();
         const address = userData.depositAddresses?.[asset.toUpperCase()];
         
-        // Si el backend ya le asignó una dirección real de CoinEx, la subimos al estado
         if (address && address.trim() !== "") {
           set((state) => ({
             depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: address }
@@ -247,17 +229,16 @@ export const useAppStore = create<AppState>((set, get) => ({
           return;
         }
       }
-      console.warn(`[Wallet] Estructura garantizada en Firestore para tu usuario real. Esperando dirección de ${asset}.`);
     } catch (error) {
-      console.error("Error crítico forzando la estructura financiera en Firestore:", error);
+      console.error("Error gestionando estrucutra financiera:", error);
     }
   },
 
-  // 📤 FUNDADOR ATÓMICO DE RETIROS: Fuerza la creación de la colección withdrawals usando un ID único
+  // 📤 SOLICITUD ATÓMICA DE RETIROS
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") {
-      return { success: false, message: "Operación no permitida o ID de usuario no válido." };
+      return { success: false, message: "Operación no válida." };
     }
 
     try {
@@ -277,23 +258,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
 
       await setDoc(newWithdrawalDocRef, withdrawalRequest);
-      console.log(`[Retiros] Solicitud registrada con éxito. ID Documento: ${newWithdrawalDocRef.id}`);
-      
-      return { 
-        success: true, 
-        txId: newWithdrawalDocRef.id, 
-        message: "Solicitud registrada de forma atómica. El motor de CubaX está procesando el envío." 
-      };
+      return { success: true, txId: newWithdrawalDocRef.id, message: "Solicitud registrada con éxito en la cola." };
     } catch (error: any) {
-      console.error("Error crítico al inyectar retiro en la colección raíz de Firestore:", error);
-      let friendlyMessage = error.message || "Error de red con el proveedor de bases de datos.";
-      if (error.code === "permission-denied") {
-        friendlyMessage = "Escritura denegada. Revisa que tus Reglas de Seguridad permitan escribir en la colección 'withdrawals'.";
-      }
-      return { 
-        success: false, 
-        message: friendlyMessage 
-      };
+      return { success: false, message: error.message || "Error de red con Firebase." };
     }
   },
 
@@ -305,38 +272,36 @@ export const useAppStore = create<AppState>((set, get) => ({
     if (!tradeId) return;
     try {
       const tradeRef = doc(db, "trades", tradeId);
-      await updateDoc(tradeRef, {
-        status,
-        updatedAt: Date.now(),
-      });
-      
-      const currentActive = get().activeTrade;
-      if (currentActive && currentActive.id === tradeId) {
-        set({ activeTrade: { ...currentActive, status, updatedAt: Date.now() } });
-      }
+      await updateDoc(tradeRef, { status, updatedAt: Date.now() });
     } catch (error) {
-      console.error("Error al mutar el estado del trade en Firebase:", error);
+      console.error("Error actualizando estado del trade:", error);
     }
   },
 
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
   addMessage: (message) => set({ tradeMessages: [...get().tradeMessages, message] }),
 
+  // 💬 SINCRO DEL CHAT: Corregido para escuchar la subcolección real ordenada por timestamp
   subscribeToTradeMessages: (tradeId: string) => {
     if (!tradeId) return () => {};
-    const q = query(collection(db, "trades", tradeId, "messages"), orderBy("createdAt", "asc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const q = query(collection(db, "trades", tradeId, "messages"), orderBy("timestamp", "asc"));
+    return onSnapshot(q, (snapshot) => {
       const messagesList: ChatMessage[] = [];
       snapshot.forEach((doc) => {
-        messagesList.push({ id: doc.id, ...doc.data() } as ChatMessage);
+        const data = doc.data();
+        messagesList.push({
+          id: doc.id,
+          senderId: data.senderId,
+          senderName: data.senderName,
+          text: data.message || "", // 🛠️ CORRECCIÓN: Mapea tu propiedad 'message' de Firebase a 'text' para el Store
+          createdAt: data.timestamp || Date.now()
+        } as any);
       });
       set({ tradeMessages: messagesList });
-    }, (error) => {
-      console.error("Error en Snapshot de mensajes P2P:", error);
     });
-    return unsubscribe; 
   },
 
+  // 💬 ENVÍO DEL CHAT: Corregido para inyectar con tu nombre exacto de campo ('message' y 'timestamp')
   sendMessage: async (tradeId: string, text: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || !tradeId || !text.trim()) return;
@@ -344,12 +309,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       const messageData = {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || "Usuario",
-        text: text.trim(),
-        createdAt: Date.now(),
+        message: text.trim(), // 🛠️ ALINEADO: Usa tu propiedad de base de datos
+        timestamp: Date.now(), // 🛠️ ALINEADO: Usa tu propiedad de base de datos
+        type: 'text'
       };
       await addDoc(collection(db, "trades", tradeId, "messages"), messageData);
     } catch (error) {
-      console.error("Error al enviar mensaje P2P:", error);
+      console.error("Error al enviar mensaje:", error);
     }
   },
 
@@ -357,32 +323,39 @@ export const useAppStore = create<AppState>((set, get) => ({
   addProduct: (product) => set({ products: [product, ...get().products] }),
   setNotifications: (notifications) => set({ notifications }),
 
+  // 🔔 NOTIFICACIONES REALES: Corregido para escuchar la colección RAÍZ filtrando por tu campo 'userId'
   subscribeToNotifications: (userId: string) => {
     if (!userId || userId === "invitado") return () => {};
-    const q = query(collection(db, "users", userId, "notifications"), orderBy("createdAt", "desc"));
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    
+    // 🛠️ ALINEADO: Apunta a la raíz '/notifications' usando un filtro where('userId')
+    const q = query(
+      collection(db, "notifications"), 
+      where("userId", "==", userId), 
+      orderBy("createdAt", "desc")
+    );
+    
+    return onSnapshot(q, (snapshot) => {
       const notificationsList: Notification[] = [];
       snapshot.forEach((doc) => {
         notificationsList.push({ id: doc.id, ...doc.data() } as Notification);
       });
       set({ notifications: notificationsList });
     }, (error) => {
-      console.error("Error en Snapshot de notificaciones:", error);
+      console.error("Error en Snapshot de notificaciones raíz:", error);
     });
-    return unsubscribe; 
   },
 
+  // 🔔 MARCAR NOTIFICACIÓN READ: Corregido para mutar directamente la colección raíz
   markNotificationRead: async (id) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") return;
     try {
-      const notifRef = doc(db, "users", currentUser.uid, "notifications", id);
+      // 🛠️ ALINEADO: Modifica directamente en la colección de la raíz
+      const notifRef = doc(db, "notifications", id);
       await updateDoc(notifRef, { read: true });
       set({
         notifications: get().notifications.map((n) => n.id === id ? { ...n, read: true } : n),
       });
     } catch (error) {
-      console.error("Error al marcar notificación como leída en Firebase:", error);
+      console.error("Error al marcar notificación:", error);
     }
   },
 
@@ -391,4 +364,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-  
+    
