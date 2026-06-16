@@ -138,7 +138,7 @@ function AppContent() {
 }
 
 export default function App() {
-  const { theme, login, logout, currentView, isAuthenticated, navigate, setWalletData, subscribeToNotifications } = useAppStore();
+  const { theme, user, login, logout, currentView, isAuthenticated, navigate, setWalletData, subscribeToNotifications } = useAppStore();
   const [authLoading, setAuthLoading] = useState(true);
 
   // 🛡️ CONTROL STRUCTURAL PARA MÓVILES (Fuerza independencia del sistema/modo oscuro)
@@ -205,11 +205,13 @@ export default function App() {
 
   // 2. SINCRONIZACIÓN EN TIEMPO REAL CON FIRESTORE (Balances, Redes CEX y Notificaciones)
   useEffect(() => {
-    // Si no hay sesión iniciada real, no activamos ningún snapshot
-    if (!auth.currentUser || auth.currentUser.uid === "invitado") return;
+    // 🔥 SOLUCIÓN CONTROLADA: Validamos usando el estado sólido del Store en vez de la propiedad global auth.currentUser
+    if (!user?.uid || user.uid === "invitado") return;
 
-    const uid = auth.currentUser.uid;
+    const uid = user.uid;
     const userDocRef = doc(db, "users", uid);
+
+    console.log(`[Firebase Global] Inicializando flujos reactivos para el ID: ${uid}`);
 
     // Escuchador dinámico aislado para el documento del usuario (Balances Estilo Binance)
     const unsubscribeUserDoc = onSnapshot(userDocRef, async (docSnap) => {
@@ -234,9 +236,9 @@ export default function App() {
           // Si el usuario no existe en la DB (Primer registro), creamos su plantilla inicial
           const templateUser = {
             uid: uid,
-            email: auth.currentUser.email || "",
-            displayName: auth.currentUser.displayName || "Usuario",
-            photoURL: auth.currentUser.photoURL || null,
+            email: user.email || "",
+            displayName: user.displayName || "Usuario",
+            photoURL: user.photoURL || null,
             kycStatus: "unverified",
             createdAt: Date.now(),
             totalTrades: 0,
@@ -252,15 +254,16 @@ export default function App() {
       }
     });
 
-    // Escuchador dinámico de notificaciones reales de la subcolección
+    // Escuchador dinámico global de notificaciones reales de la subcolección
     const unsubscribeNotificationsList = subscribeToNotifications(uid);
 
-    // Limpieza atómica total al desmontar o cerrar sesión para liberar memoria
+    // Limpieza atómica total al desmontar o cerrar sesión para liberar memoria en el móvil
     return () => {
+      console.log(`[Firebase Global] Limpiando canales reactivos para el ID: ${uid}`);
       unsubscribeUserDoc();
       unsubscribeNotificationsList();
     };
-  }, [auth.currentUser?.uid, setWalletData, subscribeToNotifications]);
+  }, [user?.uid, setWalletData, subscribeToNotifications]);
 
   // Redirección automática de seguridad para rutas públicas estando logueado
   useEffect(() => {
@@ -285,3 +288,4 @@ export default function App() {
 
   return <AppContent />;
     }
+          
