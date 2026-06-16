@@ -204,43 +204,56 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 📥 REPARADOR AUTOMÁTICO DE USUARIO REAL: Inyecta mapas financieros sin romper el KYC existente
+  // 📥 INYECTOR DE ENERME POTENCIA: Sincroniza y fuerza la existencia de los mapas financieros en el usuario real
   fetchDepositAddress: async (asset, chain) => {
     const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") return;
+    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") {
+      console.warn("[Wallet] ID de usuario no válido para consultar depósitos.");
+      return;
+    }
 
     try {
       const userDocRef = doc(db, "users", currentUser.uid);
+      
+      // 💥 FUSIÓN INTELIGENTE: Nos aseguramos de que existan las propiedades en Firestore
+      // Al usar merge: true, salvaguardamos tu KYC actual, fotos y campos del archivo "1000214218.jpg"
+      await setDoc(userDocRef, {
+        balances: {
+          USDT: 0,
+          USDC: 0,
+          BTC: 0,
+          ETH: 0
+        },
+        depositAddresses: {
+          USDT: "",
+          USDC: "",
+          BTC: "",
+          ETH: ""
+        }
+      }, { merge: true });
+
+      // Leemos el documento actualizado tras garantizar la estructura
       const userSnap = await getDoc(userDocRef);
       
       if (userSnap.exists()) {
         const userData = userSnap.data();
         const address = userData.depositAddresses?.[asset.toUpperCase()];
         
-        // Si el usuario ya tiene la dirección asignada por CoinEx, la actualizamos localmente
-        if (address) {
+        // Si el backend ya le asignó una dirección real de CoinEx, la subimos al estado
+        if (address && address.trim() !== "") {
           set((state) => ({
             depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: address }
           }));
           return;
         }
-
-        // Si el documento existe pero le faltan los mapas financieros esenciales, se los inyectamos de forma segura
-        if (!userData.balances || !userData.depositAddresses) {
-          console.log(`[Firebase] Fusionando esquemas de Wallet en el usuario real: ${currentUser.uid}`);
-          await setDoc(userDocRef, {
-            balances: userData.balances || { USDT: 0, USDC: 0, BTC: 0, ETH: 0 },
-            depositAddresses: userData.depositAddresses || { USDT: "", USDC: "", BTC: "", ETH: "" }
-          }, { merge: true });
-        }
       }
-      console.warn(`[Wallet] Estructura lista en el usuario real. Esperando que Replit procese y asigne la wallet de ${asset}.`);
+      console.warn(`[Wallet] Estructura garantizada en Firestore para tu usuario real. Esperando dirección de ${asset}.`);
     } catch (error) {
-      console.error("Error gestionando el documento del usuario real en Firestore:", error);
+      console.error("Error crítico forzando la estructura financiera en Firestore:", error);
     }
   },
 
-  // 📤 FUNDADOR ATÓMICO DE RETIROS: Fuerza la creación de la colección withdrawals usando un ID personalizado
+  // 📤 FUNDADOR ATÓMICO DE RETIROS: Fuerza la creación de la colección withdrawals usando un ID único
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") {
@@ -248,7 +261,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     try {
-      // Forzamos la creación del documento utilizando setDoc sobre una referencia con ID automático
       const withdrawalCollectionRef = collection(db, "withdrawals");
       const newWithdrawalDocRef = doc(withdrawalCollectionRef); 
 
@@ -264,9 +276,8 @@ export const useAppStore = create<AppState>((set, get) => ({
         createdAt: Date.now()
       };
 
-      // Esto asegura la creación inmediata de la colección en la raíz de Firestore
       await setDoc(newWithdrawalDocRef, withdrawalRequest);
-      console.log(`[Retiros] Solicitud 'pending' enviada con éxito. ID Documento: ${newWithdrawalDocRef.id}`);
+      console.log(`[Retiros] Solicitud registrada con éxito. ID Documento: ${newWithdrawalDocRef.id}`);
       
       return { 
         success: true, 
