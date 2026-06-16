@@ -16,6 +16,9 @@ import type {
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
+// 🚀 ENLACE OFICIAL A TU BACKEND EN REPLIT
+const REPLIT_API_URL = "https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p.worf.replit.dev/api";
+
 interface AppState {
   theme: ThemeMode;
   currentView: AppView;
@@ -176,47 +179,23 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
-  // 🔄 CONEXIÓN INTEGRADA: Consulta de cotizaciones nativas en CoinEx API v2 con salvavidas
+  // 🔄 CONEXIÓN INTEGRADA: Consulta delegando a tu servidor de Replit para ahorrar datos en el móvil
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
-      const response = await fetch(
-        "https://api.coinex.com/v2/market/ticker?market=BTCUSDT,ETHUSDT,USDCUSDT"
-      );
-      if (!response.ok) throw new Error(`Error de CoinEx API`);
+      const response = await fetch(`${REPLIT_API_URL}/coinex/balance`);
+      if (!response.ok) throw new Error(`Error al conectar con Replit API`);
       const json = await response.json();
 
-      if (json.code === 0) {
-        const livePricesMap: Record<string, { price: number; change: number }> = {
-          USDT: { price: 1.00, change: 0 },
-          USDC: { price: 1.00, change: 0 }
-        };
-
-        json.data.forEach((item: any) => {
-          if (item.market === "BTCUSDT") {
-            livePricesMap["BTC"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
-          } else if (item.market === "ETHUSDT") {
-            livePricesMap["ETH"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
-          } else if (item.market === "USDCUSDT") {
-            livePricesMap["USDC"] = { price: parseFloat(item.last), change: parseFloat(item.value_24h_percent) * 100 };
-          }
-        });
-
-        const updatedPrices: CryptoPrice[] = [
-          { id: "1", symbol: "USDT", name: "Tether", priceUSD: livePricesMap["USDT"].price, change24h: livePricesMap["USDT"].change },
-          { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: livePricesMap["USDC"].price, change24h: livePricesMap["USDC"].change },
-          { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: livePricesMap["BTC"]?.price || 67500.00, change24h: livePricesMap["BTC"]?.change || 0 },
-          { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: livePricesMap["ETH"]?.price || 3500.00, change24h: livePricesMap["ETH"]?.change || 0 },
-        ];
-
-        set({ prices: updatedPrices, loadingPrices: false });
+      if (json.prices && Array.isArray(json.prices)) {
+        set({ prices: json.prices, loadingPrices: false });
       } else {
-        throw new Error(json.message);
+        set({ loadingPrices: false });
       }
     } catch (error) {
-      console.error("Fallo al consultar CoinEx v2, aplicando precios de rescate para evitar pantalla blanca:", error);
+      console.error("Fallo al consultar Replit, aplicando precios de rescate para evitar pantalla blanca:", error);
       
-      // 🛡️ CONTROL DE PANTALLA BLANCA: Precios por defecto si falla la red o el servidor está apagado
+      // 🛡️ CONTROL DE PANTALLA BLANCA
       const fallbackPrices: CryptoPrice[] = [
         { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
         { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
@@ -227,7 +206,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 📥 MODIFICADO PARA FIRESTORE REACTIVO: Obtiene la wallet asignada al documento del usuario
+  // 📥 MODIFICADO PARA FIRESTORE REACTIVO
   fetchDepositAddress: async (asset, chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
@@ -253,7 +232,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 📤 MODIFICADO PARA ENCAJAR CON INDEX.TS: Crea el documento 'pending' que activa tu listener de Replit
+  // 📤 SOLICITUD ATÓMICA: Crea el documento 'pending' que activa tu listener de Replit
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") {
@@ -261,19 +240,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     try {
-      // Estructura idéntica a la que destructura tu función 'procesarRetiroCripto' en el backend
       const withdrawalRequest = {
         userId: currentUser.uid,
         asset: asset.toUpperCase(),
         amount: amount,
         destinationAddress: toAddress,
         chain: chain ? chain.toUpperCase() : "TRC20",
-        status: "pending", // 🔥 Activa la cláusula '.where("status", "==", "pending")' del backend
+        status: "pending", // 🔥 Enciende la cláusula de escucha en el Worker
         intentos: 0,
         createdAt: Date.now()
       };
 
-      // Inserción directa en la colección withdrawals
       const docRef = await addDoc(collection(db, "withdrawals"), withdrawalRequest);
       
       return { 
@@ -294,7 +271,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   addOrder: (order) => set({ orders: [order, ...get().orders] }),
   setActiveTrade: (trade) => set({ activeTrade: trade }),
 
-  // 🏦 ACTUALIZACIÓN SÍNCRONIZADA CON FIRESTORE CLOUD
   updateTradeStatus: async (tradeId, status) => {
     if (!tradeId) return;
     try {
