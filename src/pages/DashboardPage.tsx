@@ -23,10 +23,10 @@ import {
   Clock,
   Loader2,
 } from "lucide-react";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 
 export function DashboardPage() {
-  const { user, balances, navigate, notifications } = useAppStore();
+  const { user, balances, navigate, notifications, subscribeToNotifications } = useAppStore();
   const [hideBalance, setHideBalance] = useState(false);
 
   // 🔥 React Query maneja el cache global y el tiempo real pasivo
@@ -42,6 +42,22 @@ export function DashboardPage() {
   const unreadNotifs = useMemo(() => {
     return notifications.filter((n) => !n.read);
   }, [notifications]);
+
+  // 🔥 ENLACE REACTIVO: Levanta la escucha en tiempo real de las notificaciones
+  useEffect(() => {
+    if (user?.uid && user.uid !== "invitado" && typeof subscribeToNotifications === "function") {
+      console.log(`[Firebase] Abriendo canal reactivo para: ${user.uid}`);
+      
+      // Activa el onSnapshot hacia la raíz de la base de datos
+      const unsubscribe = subscribeToNotifications(user.uid);
+      
+      // Limpieza automática al desmontar la pantalla en el móvil
+      return () => {
+        console.log("[Firebase] Cerrando canal de notificaciones.");
+        unsubscribe();
+      };
+    }
+  }, [user?.uid, subscribeToNotifications]);
 
   if (!user) return null;
 
@@ -325,4 +341,5 @@ export function DashboardPage() {
       )}
     </div>
   );
-            }
+           }
+              
