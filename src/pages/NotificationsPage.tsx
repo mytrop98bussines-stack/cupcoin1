@@ -8,9 +8,23 @@ import {
   ShoppingBag,
   CheckCheck,
 } from "lucide-react";
+import { useEffect } from "react";
 
 export function NotificationsPage() {
-  const { notifications, markNotificationRead, navigate } = useAppStore();
+  const { user, notifications, markNotificationRead, navigate, subscribeToNotifications } = useAppStore();
+
+  // 🔥 ENLACE REACTIVO: Mantiene la pantalla de notificaciones sincronizada en vivo
+  useEffect(() => {
+    if (user?.uid && user.uid !== "invitado" && typeof subscribeToNotifications === "function") {
+      console.log(`[Firebase] Escuchando notificaciones en vivo desde la página principal.`);
+      const unsubscribe = subscribeToNotifications(user.uid);
+      
+      return () => {
+        console.log("[Firebase] Desconectando listener de la página de notificaciones.");
+        unsubscribe();
+      };
+    }
+  }, [user?.uid, subscribeToNotifications]);
 
   const sortedNotifications = [...notifications].sort((a, b) => b.createdAt - a.createdAt);
 
@@ -47,8 +61,8 @@ export function NotificationsPage() {
         </h1>
         {notifications.some((n) => !n.read) && (
           <button
-            onClick={() => notifications.forEach((n) => markNotificationRead(n.id))}
-            className="text-xs text-brand-500 font-medium flex items-center gap-1"
+            onClick={() => notifications.forEach((n) => !n.read && markNotificationRead(n.id))}
+            className="text-xs text-brand-500 font-medium flex items-center gap-1 active:opacity-70"
           >
             <CheckCheck className="h-3.5 w-3.5" />
             Marcar todas como leídas
@@ -70,11 +84,14 @@ export function NotificationsPage() {
               key={notif.id}
               hover
               padding="md"
-              className={notif.read ? "opacity-60" : ""}
+              className={notif.read ? "opacity-60" : "border-l-2 border-l-brand-500"}
               onClick={() => {
-                markNotificationRead(notif.id);
+                if (!notif.read) {
+                  markNotificationRead(notif.id);
+                }
                 if (notif.link) {
-                  navigate(notif.link as "trade" | "kyc");
+                  // 🛠️ TIPADO FLEXIBLE: Permite navegar a cualquier vista válida de tu AppView
+                  navigate(notif.link as any);
                 }
               }}
             >
@@ -96,7 +113,7 @@ export function NotificationsPage() {
                   </p>
                 </div>
                 {!notif.read && (
-                  <div className="h-2 w-2 rounded-full bg-brand-500 flex-shrink-0 mt-2" />
+                  <div className="h-2 w-2 rounded-full bg-brand-500 flex-shrink-0 mt-2 animate-pulse" />
                 )}
               </div>
             </Card>
