@@ -17,12 +17,12 @@ import {
 } from "lucide-react";
 
 export function WalletPage() {
-  // Acciones y estados del store global
+  // Acciones y estados mapeados correctamente desde el store centralizado
   const { 
     balances, 
     prices, 
     depositAddresses, 
-    fetchLiveBalancesAndPrices, 
+    fetchPrices, 
     fetchDepositAddress, 
     requestWithdrawal 
   } = useAppStore();
@@ -41,16 +41,16 @@ export function WalletPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
-  // Sincronización en tiempo real (Balances desde Replit + Precios desde CoinEx v2)
+  // 🔄 Sincronización en tiempo real mediante el endpoint centralizado en tu Backend
   useEffect(() => {
-    fetchLiveBalancesAndPrices();
+    fetchPrices();
     
     const interval = setInterval(() => {
-      fetchLiveBalancesAndPrices();
-    }, 5000); // Polling constante cada 5 segundos
+      fetchPrices();
+    }, 5000); // Polling constante cada 5 segundos para mantener cotizaciones frescas
 
     return () => clearInterval(interval);
-  }, [fetchLiveBalancesAndPrices]);
+  }, [fetchPrices]);
 
   // Cálculo del balance neto total sumando el valor en USD de cada activo real
   const totalUSD = balances.reduce((sum, b) => sum + b.usdValue, 0);
@@ -107,7 +107,7 @@ export function WalletPage() {
     setIsSubmitting(false);
     
     if (res.success) {
-      alert(`✅ Retiro procesado con éxito.\nID de retiro: ${res.txId || 'N/A'}`);
+      alert(`✅ Retiro procesado con éxito.\nID de retiro en cola: ${res.txId || 'N/A'}`);
       // Limpiar estados y cerrar panel
       setActiveAction({ type: null, asset: null });
       setWithdrawAddress("");
@@ -293,7 +293,6 @@ export function WalletPage() {
         </h2>
         <div className="space-y-2">
           {balances.map((balance) => {
-            // Buscamos el precio dinámico mapeado por CoinEx en el store
             const tokenPriceInfo = prices.find((p) => p.symbol.toUpperCase() === balance.asset.toUpperCase());
             const change = tokenPriceInfo?.change24h ?? 0;
             const isUp = change >= 0;
@@ -362,4 +361,5 @@ export function WalletPage() {
       </div>
     </div>
   );
-          }
+            }
+              
