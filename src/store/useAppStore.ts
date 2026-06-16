@@ -13,7 +13,7 @@ import type {
 } from "@/types";
 
 // Importaciones de Firebase para la sincronización real
-import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc, setDoc } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
 // 🚀 ENLACE OFICIAL A TU BACKEND EN REPLIT
@@ -179,7 +179,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
-  // 🔄 CONEXIÓN INTEGRADA: Consulta delegando a tu servidor de Replit para ahorrar datos en el móvil
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
@@ -195,7 +194,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     } catch (error) {
       console.error("Fallo al consultar Replit, aplicando precios de rescate para evitar pantalla blanca:", error);
       
-      // 🛡️ CONTROL DE PANTALLA BLANCA
       const fallbackPrices: CryptoPrice[] = [
         { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
         { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
@@ -206,10 +204,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 📥 MODIFICADO PARA FIRESTORE REACTIVO
+  // 📥 REPARADOR AUTOMÁTICO DE USUARIO REAL: Inyecta mapas financieros sin romper el KYC existente
   fetchDepositAddress: async (asset, chain) => {
     const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") return;
+    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") return;
 
     try {
       const userDocRef = doc(db, "users", currentUser.uid);
@@ -219,50 +217,71 @@ export const useAppStore = create<AppState>((set, get) => ({
         const userData = userSnap.data();
         const address = userData.depositAddresses?.[asset.toUpperCase()];
         
+        // Si el usuario ya tiene la dirección asignada por CoinEx, la actualizamos localmente
         if (address) {
           set((state) => ({
             depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: address }
           }));
           return;
         }
+
+        // Si el documento existe pero le faltan los mapas financieros esenciales, se los inyectamos de forma segura
+        if (!userData.balances || !userData.depositAddresses) {
+          console.log(`[Firebase] Fusionando esquemas de Wallet en el usuario real: ${currentUser.uid}`);
+          await setDoc(userDocRef, {
+            balances: userData.balances || { USDT: 0, USDC: 0, BTC: 0, ETH: 0 },
+            depositAddresses: userData.depositAddresses || { USDT: "", USDC: "", BTC: "", ETH: "" }
+          }, { merge: true });
+        }
       }
-      console.warn(`[Wallet] No se localizó una dirección pre-asignada de CoinEx para ${asset} en Firestore.`);
+      console.warn(`[Wallet] Estructura lista en el usuario real. Esperando que Replit procese y asigne la wallet de ${asset}.`);
     } catch (error) {
-      console.error("Error leyendo la dirección de depósito en Firestore:", error);
+      console.error("Error gestionando el documento del usuario real en Firestore:", error);
     }
   },
 
-  // 📤 SOLICITUD ATÓMICA: Crea el documento 'pending' que activa tu listener de Replit
+  // 📤 FUNDADOR ATÓMICO DE RETIROS: Fuerza la creación de la colección withdrawals usando un ID personalizado
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
     const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") {
-      return { success: false, message: "Operación no permitida para usuarios invitados." };
+    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") {
+      return { success: false, message: "Operación no permitida o ID de usuario no válido." };
     }
 
     try {
+      // Forzamos la creación del documento utilizando setDoc sobre una referencia con ID automático
+      const withdrawalCollectionRef = collection(db, "withdrawals");
+      const newWithdrawalDocRef = doc(withdrawalCollectionRef); 
+
       const withdrawalRequest = {
+        id: newWithdrawalDocRef.id,
         userId: currentUser.uid,
         asset: asset.toUpperCase(),
         amount: amount,
         destinationAddress: toAddress,
         chain: chain ? chain.toUpperCase() : "TRC20",
-        status: "pending", // 🔥 Enciende la cláusula de escucha en el Worker
+        status: "pending", 
         intentos: 0,
         createdAt: Date.now()
       };
 
-      const docRef = await addDoc(collection(db, "withdrawals"), withdrawalRequest);
+      // Esto asegura la creación inmediata de la colección en la raíz de Firestore
+      await setDoc(newWithdrawalDocRef, withdrawalRequest);
+      console.log(`[Retiros] Solicitud 'pending' enviada con éxito. ID Documento: ${newWithdrawalDocRef.id}`);
       
       return { 
         success: true, 
-        txId: docRef.id, 
+        txId: newWithdrawalDocRef.id, 
         message: "Solicitud registrada de forma atómica. El motor de CubaX está procesando el envío." 
       };
     } catch (error: any) {
-      console.error("Error al inyectar retiro en la cola de Firestore:", error);
+      console.error("Error crítico al inyectar retiro en la colección raíz de Firestore:", error);
+      let friendlyMessage = error.message || "Error de red con el proveedor de bases de datos.";
+      if (error.code === "permission-denied") {
+        friendlyMessage = "Escritura denegada. Revisa que tus Reglas de Seguridad permitan escribir en la colección 'withdrawals'.";
+      }
       return { 
         success: false, 
-        message: error.message || "Error en la red de bases de datos distribuida." 
+        message: friendlyMessage 
       };
     }
   },
@@ -361,4 +380,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-      
+  
