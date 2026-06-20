@@ -98,10 +98,10 @@ export function WalletPage() {
     if (!currentAddress || currentAddress === "") {
       setIsLoadingAddress(true);
       try {
-        // Apunta directamente al subdominio mapeado del puerto 3001
-        const URL_PUERTO_3001 = "https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p-3001.worf.replit.dev/api/coinex/deposit";
+        // Usamos la URL principal de tu Replit, la que responde por defecto
+        const URL_PRINCIPAL = "https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p.worf.replit.dev/api/coinex/deposit";
 
-        const response = await fetch(URL_PUERTO_3001, {
+        const response = await fetch(URL_PRINCIPAL, {
           method: "GET",
           headers: {
             "Content-Type": "application/json"
@@ -113,12 +113,12 @@ export function WalletPage() {
         if (resData && resData.success && resData.coin_address) {
           user.depositAddresses[asset] = resData.coin_address;
         } else {
-          console.error("Error devuelto por el módulo de CoinEx:", resData);
+          console.error("Error devuelto por el backend:", resData);
           alert(`🚨 Error: ${resData.error || "No se pudo asignar dirección"}`);
         }
       } catch (error) {
-        console.error("Error conectando con la infraestructura del backend:", error);
-        alert("🚨 Error de conexión. Revisa que el proceso de depósitos esté corriendo en Replit.");
+        console.error("Error de conexión:", error);
+        alert("🚨 Error de conexión con el servidor principal de CubaX.");
       } finally {
         setIsLoadingAddress(false);
       }
