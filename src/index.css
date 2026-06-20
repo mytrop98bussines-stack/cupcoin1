@@ -26,6 +26,9 @@
   --color-navy-950: #0c1335;
 }
 
+/* ⚡ CONFIGURACIÓN DE MODO OSCURO PARA TAILWIND V4 */
+@variant dark (&:where(.dark, .dark *));
+
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
@@ -33,7 +36,6 @@
 
   html {
     scroll-behavior: smooth;
-    /* 🍏 Previene saltos bruscos de color de fondo en móviles */
     background-color: #f9fafb; 
   }
 
@@ -41,20 +43,19 @@
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #f9fafb; /* bg-gray-50 */
-    color: #111827; /* text-gray-900 */
+    background-color: #f9fafb; /* bg-gray-50 base */
+    color: #111827; /* text-gray-900 base */
   }
 
-  /* 🛡️ FIX DEFINITIVO PARA EL GRILLADO EN MODO OSCURO */
+  /* 🛡️ FIX DEFINITIVO PARA EL MÓVIL: Apaga el auto-darkening forzado de Android */
   .dark {
-    color-scheme: dark;
+    color-scheme: dark !important;
   }
 
-  /* Forzamos al cuerpo entero a cambiar a un color sólido real sin depender de clases de React */
-  .dark body, 
-  .dark html {
-    background-color: #0c1335 !important; /* Tu color --color-navy-950 exacto */
-    color: #f9fafb !important;
+  /* Cambiamos el fondo del body de forma limpia sin romper las clases de texto individuales */
+  html.dark body {
+    background-color: #0c1335 !important; /* Tu color --color-navy-950 real */
+    color: #f3f4f6; /* Cambia el color de texto por defecto, pero permite que tus clases lo sobrescriban */
   }
 }
 
