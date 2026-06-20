@@ -87,7 +87,7 @@ export function WalletPage() {
   const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 65000;
   const totalBTC = totalUSD / btcPrice;
 
-  // 🔥 CORREGIDO: Llamada directa a la URL absoluta del puerto 3001 generado por Replit
+  // 🔥 LLAMADA DIRECTA A LA URL ABSOLUTA DE TU BACKEND EN RENDER
   const handleOpenDeposit = async (asset: string) => {
     setActiveAction({ type: "deposit", asset });
     
@@ -227,10 +227,10 @@ export function WalletPage() {
             </div>
           ) : activeDepositAddress ? (
             <div className="space-y-3">
-              {/* 🛠️ QR DINÁMICO REGENERADO CON LA API DE GOOGLE CHARTS */}
+              {/* 🛠️ QR DINÁMICO CORREGIDO: Sin prefijos estáticos para evitar fallas de renderizado */}
               <div className="bg-white p-2 rounded-xl mx-auto w-36 h-36 flex flex-col items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
                 <img 
-                  src={`https://chart.googleapis.com/chart?chs=140&cht=qr&chl=${encodeURIComponent(`tron:${activeDepositAddress}`)}&choe=UTF-8`}
+                  src={`https://chart.googleapis.com/chart?chs=140&cht=qr&chl=${encodeURIComponent(activeDepositAddress)}&choe=UTF-8`}
                   alt="QR de Depósito"
                   className="w-full h-full object-contain"
                 />
@@ -391,5 +391,5 @@ export function WalletPage() {
       </div>
     </div>
   );
-          }
-              
+    }
+            
