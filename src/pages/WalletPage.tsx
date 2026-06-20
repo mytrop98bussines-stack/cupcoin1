@@ -24,7 +24,6 @@ export function WalletPage() {
     user,
     prices, 
     fetchPrices, 
-    fetchDepositAddress, 
     requestWithdrawal 
   } = useAppStore();
 
@@ -41,7 +40,7 @@ export function WalletPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
 
-  // 🔄 NUEVO: Estado para capturar la red seleccionada por el usuario
+  // 🔄 Estado para capturar la red seleccionada por el usuario
   const [selectedChain, setSelectedChain] = useState("");
 
   // 🌐 MAPA MULTI-RED OFICIAL DE COINEX V2 (Alineado con tu backend)
@@ -49,7 +48,7 @@ export function WalletPage() {
     USDT: [
       { label: "Tron (TRC-20)", value: "TRC20" },
       { label: "Binance Smart Chain (BEP-20)", value: "BSC" },
-      { label: "Polygon Network", value: "CSC" }, // CoinEx v2 usa su capa EVM compatible para Polygon
+      { label: "Polygon Network", value: "CSC" }, 
     ],
     USDC: [
       { label: "Binance Smart Chain (BEP-20)", value: "BSC" },
@@ -88,16 +87,39 @@ export function WalletPage() {
   const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 65000;
   const totalBTC = totalUSD / btcPrice;
 
+  // 🔥 CORREGIDO: Llamada directa al puerto 3001 usando redirección por Headers de Replit
   const handleOpenDeposit = async (asset: string) => {
     setActiveAction({ type: "deposit", asset });
-    const targetChain = availableChains[asset]?.[0]?.value || "TRC20";
     
-    const currentAddress = user?.depositAddresses?.[asset];
+    if (!user) return;
+    if (!user.depositAddresses) user.depositAddresses = {};
+    const currentAddress = user.depositAddresses[asset];
     
     if (!currentAddress || currentAddress === "") {
       setIsLoadingAddress(true);
-      await fetchDepositAddress(asset, targetChain);
-      setIsLoadingAddress(false);
+      try {
+        const response = await fetch("https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p.worf.replit.dev/api/coinex/deposit", {
+          method: "GET",
+          headers: {
+            "Content-Type": "application/json",
+            "X-Replit-User-Port": "3001" // Redirige el tráfico directamente al proceso deposits.ts
+          }
+        });
+
+        const resData = await response.json();
+
+        if (resData && resData.success && resData.coin_address) {
+          user.depositAddresses[asset] = resData.coin_address;
+        } else {
+          console.error("Error devuelto por el módulo de CoinEx:", resData);
+          alert("🚨 Error: No se pudo asignar una dirección única en CoinEx Core.");
+        }
+      } catch (error) {
+        console.error("Error conectando con la infraestructura del backend:", error);
+        alert("🚨 Error de conexión con el servidor de depósitos.");
+      } finally {
+        setIsLoadingAddress(false);
+      }
     }
   };
 
@@ -110,7 +132,6 @@ export function WalletPage() {
   const handleExecuteWithdrawal = async () => {
     if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !selectedChain) return;
     
-    // Verificación de fondos en caliente antes de enviar a CoinEx
     const disponible = firestoreBalances[activeAction.asset] || 0;
     if (parseFloat(withdrawAmount) > disponible) {
       alert(`🚨 Saldo insuficiente. Tienes ${disponible} ${activeAction.asset} disponibles.`);
@@ -123,7 +144,7 @@ export function WalletPage() {
       activeAction.asset,
       parseFloat(withdrawAmount),
       withdrawAddress,
-      selectedChain // Mandamos la cadena dinámica seleccionada en el menú desplegable
+      selectedChain
     );
 
     setIsSubmitting(false);
@@ -195,13 +216,13 @@ export function WalletPage() {
           </div>
           
           <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
-            Tu dirección única para recibir fondos. Asegúrate de enviar los activos usando la red principal del token.
+            Tu dirección única para recibir fondos. Envía únicamente {activeAction.asset} mediante la red oficial seleccionada.
           </p>
 
-          {isLoadingAddress || activeDepositAddress === "" ? (
+          {isLoadingAddress ? (
             <div className="py-6 flex flex-col items-center justify-center space-y-2 text-center">
               <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-              <div className="text-xs text-brand-500 font-medium animate-pulse">Asignando billetera mediante CoinEx Core...</div>
+              <div className="text-xs text-brand-500 font-medium animate-pulse">Asignando dirección única mediante CoinEx API v2...</div>
             </div>
           ) : activeDepositAddress ? (
             <div className="space-y-3">
@@ -224,7 +245,7 @@ export function WalletPage() {
         </Card>
       )}
 
-      {/* 📤 PANEL DINÁMICO: Formulario de Retiro Multi-Red */}
+      {/* 📤 PANEL DINÁMICO: Formulario de Retiro */}
       {activeAction.type === "withdraw" && activeAction.asset && (
         <Card padding="md" className="border-red-500/20 bg-red-500/[0.01] space-y-3 animate-slide-in">
           <div className="flex justify-between items-center">
@@ -237,7 +258,6 @@ export function WalletPage() {
           </div>
           
           <div className="space-y-3">
-            {/* 🌐 NUEVO SELECTOR DE RED DINÁMICO */}
             <div>
               <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1 flex items-center gap-1">
                 <Network className="h-3 w-3 text-red-500" /> Selecciona la Red de Envío
@@ -366,5 +386,4 @@ export function WalletPage() {
       </div>
     </div>
   );
-            }
-        
+}
