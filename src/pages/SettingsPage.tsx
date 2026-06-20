@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
@@ -21,11 +21,12 @@ import {
   Wallet,
   FileText,
   ExternalLink,
-  Wrench, // Icono para el panel de administración
+  Wrench,
 } from "lucide-react";
 
 export function SettingsPage() {
   const { user, setUser, theme, toggleTheme, navigate, logout } = useAppStore();
+  const [copied, setCopied] = useState(false);
 
   // ==========================================
   // SOLUCIÓN EN CALIENTE PARA EL MODO OSCURO
@@ -81,7 +82,7 @@ export function SettingsPage() {
         {
           icon: <Wallet className="h-4 w-4" />,
           label: "Mi Wallet",
-          subtitle: "Gestionar conexión Web3",
+          subtitle: "Direcciones de depósito y balance", // Corregido: Fuera Web3
           action: () => navigate("wallet"),
         },
         {
@@ -183,7 +184,7 @@ export function SettingsPage() {
       </Card>
 
       {/* ========================================================
-          BLOQUE EXCLUSIVO DE ADMIN: SOLO APRECE SI TU ROL ES 'admin'
+          BLOQUE EXCLUSIVO DE ADMIN: SOLO APARECE SI TU ROL ES 'admin'
          ======================================================== */}
       {user?.role === "admin" && (
         <div className="animate-fade-in">
@@ -213,53 +214,63 @@ export function SettingsPage() {
       )}
 
       {/* Menu Sections */}
-      {menuSections.map((section) => (
-        <div key={section.title}>
-          <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 px-1">
-            {section.title
-              ? section.title === "Actividad" && user.uid === "invitado"
-                ? "" 
-                : section.title
-              : ""}
-          </h3>
-          <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06]">
-            {section.items.map((item) => (
-              <button
-                key={item.label}
-                onClick={item.action}
-                className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors first:rounded-t-2xl last:rounded-b-2xl"
-              >
-                <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500 flex-shrink-0">
-                  {item.icon}
-                </div>
-                <div className="flex-1 text-left min-w-0">
-                  <p className="font-medium text-sm text-gray-900 dark:text-white">
-                    {item.label}
-                  </p>
-                  <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
-                    {item.subtitle}
-                  </p>
-                </div>
-                {"toggle" in item && item.toggle ? (
-                  <div
-                    className={`relative h-6 w-11 rounded-full transition-colors flex items-center ${
-                      theme === "dark" ? "bg-brand-500" : "bg-gray-300"
-                    }`}
-                  >
-                    <div
-                      className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                        theme === "dark" ? "translate-x-5.5" : "translate-x-0.5"
-                      }`}
-                    />
+      {menuSections.map((section) => {
+        // Ocultar sección completa de Actividad si el usuario es un invitado
+        if (section.title === "Actividad" && user.uid === "invitado") {
+          return null;
+        }
+
+        return (
+          <div key={section.title}>
+            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 px-1">
+              {section.title}
+            </h3>
+            <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06]">
+              {section.items.map((item) => (
+                <button
+                  key={item.label}
+                  onClick={item.action}
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                >
+                  <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500 flex-shrink-0">
+                    {item.icon}
                   </div>
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
-                )}
-              </button>
-            ))}
-          </Card>
-        </div>
-      ))}
+                  <div className="flex-1 text-left min-w-0">
+                    <p className="font-medium text-sm text-gray-900 dark:text-white">
+                      {item.label}
+                    </p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
+                      {item.subtitle}
+                    </p>
+                  </div>
+                  {"toggle" in item && item.toggle ? (
+                    <div
+                      className={`relative h-6 w-11 rounded-full transition-colors flex items-center ${
+                        theme === "dark" ? "bg-brand-500" : "bg-gray-300"
+                      }`}
+                    >
+                      <div
+                        className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                          theme === "dark" ? "translate-x-5.5" : "translate-x-0.5"
+                        }`}
+                      />
+                    </div>
+                  ) : (
+                    <div className="flex items-center gap-1.5">
+                      {item.badge && (
+                        <Badge variant={item.badge} size="sm">
+                          {item.subtitle}
+                        </Badge>
+                      )}
+                      <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                    </div>
+                  )}
+                </button>
+              ))}
+            </Card>
+          </div>
+        );
+      })}
 
       {/* Logout */}
       <Button
@@ -279,6 +290,5 @@ export function SettingsPage() {
       </p>
     </div>
   );
-    }
-      
-                  
+        }
+        
