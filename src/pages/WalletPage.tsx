@@ -99,7 +99,7 @@ export function WalletPage() {
       setIsLoadingAddress(true);
       try {
         // Usamos la URL principal de tu Replit, la que responde por defecto
-        const URL_PRINCIPAL = "https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p.worf.replit.dev/api/coinex/deposit";
+        const URL_PRINCIPAL = "https://cubax-backend.onrender.com/api/coinex/deposit";
 
         const response = await fetch(URL_PRINCIPAL, {
           method: "GET",
