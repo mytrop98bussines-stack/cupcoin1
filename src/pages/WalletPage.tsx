@@ -87,7 +87,7 @@ export function WalletPage() {
   const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 65000;
   const totalBTC = totalUSD / btcPrice;
 
-  // 🔥 CORREGIDO: Llamada directa al puerto 3001 usando redirección por Headers de Replit
+  // 🔥 CORREGIDO: Llamada directa a la URL absoluta del puerto 3001 generado por Replit
   const handleOpenDeposit = async (asset: string) => {
     setActiveAction({ type: "deposit", asset });
     
@@ -98,11 +98,13 @@ export function WalletPage() {
     if (!currentAddress || currentAddress === "") {
       setIsLoadingAddress(true);
       try {
-        const response = await fetch("https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p.worf.replit.dev/api/coinex/deposit", {
+        // Apunta directamente al subdominio mapeado del puerto 3001
+        const URL_PUERTO_3001 = "https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p-3001.worf.replit.dev/api/coinex/deposit";
+
+        const response = await fetch(URL_PUERTO_3001, {
           method: "GET",
           headers: {
-            "Content-Type": "application/json",
-            "X-Replit-User-Port": "3001" // Redirige el tráfico directamente al proceso deposits.ts
+            "Content-Type": "application/json"
           }
         });
 
@@ -112,11 +114,11 @@ export function WalletPage() {
           user.depositAddresses[asset] = resData.coin_address;
         } else {
           console.error("Error devuelto por el módulo de CoinEx:", resData);
-          alert("🚨 Error: No se pudo asignar una dirección única en CoinEx Core.");
+          alert(`🚨 Error: ${resData.error || "No se pudo asignar dirección"}`);
         }
       } catch (error) {
         console.error("Error conectando con la infraestructura del backend:", error);
-        alert("🚨 Error de conexión con el servidor de depósitos.");
+        alert("🚨 Error de conexión. Revisa que el proceso de depósitos esté corriendo en Replit.");
       } finally {
         setIsLoadingAddress(false);
       }
@@ -386,4 +388,5 @@ export function WalletPage() {
       </div>
     </div>
   );
-}
+    }
+                  
