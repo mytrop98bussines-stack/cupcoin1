@@ -24,7 +24,9 @@ export function WalletPage() {
     user,
     prices, 
     fetchPrices, 
-    requestWithdrawal 
+    requestWithdrawal,
+    requestDeposit, // 📥 Inyectado correctamente desde Zustand
+    depositAddresses
   } = useAppStore();
 
   const [hideBalances, setHideBalances] = useState(false);
@@ -35,18 +37,13 @@ export function WalletPage() {
     asset: null,
   });
 
-  // Estado para controlar qué moneda se visualiza en el modal de depósito
   const [depositAsset, setDepositAsset] = useState<string>("USDT");
-
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
-
-  // 🔄 Estado para capturar la red seleccionada por el usuario
   const [selectedChain, setSelectedChain] = useState("");
 
-  // 🌐 MAPA MULTI-RED OFICIAL DE COINEX V2 (Alineado con tu backend)
   const availableChains: Record<string, { label: string; value: string }[]> = {
     USDT: [
       { label: "Tron (TRC-20)", value: "TRC20" },
@@ -63,20 +60,23 @@ export function WalletPage() {
 
   useEffect(() => {
     fetchPrices();
+    
+    // 🔥 PING para despertar el servidor de Render apenas entran a la Wallet
+    fetch("https://cubax-backend.onrender.com/api/coinex/balance")
+      .catch(() => console.log("Despertando Render..."));
+
     const interval = setInterval(() => {
       fetchPrices();
     }, 5000);
     return () => clearInterval(interval);
   }, [fetchPrices]);
 
-  // Al cambiar de activo en retiro o depósito, preselecciona la primera red disponible automáticamente
   useEffect(() => {
     if (activeAction.asset && availableChains[activeAction.asset]) {
       setSelectedChain(availableChains[activeAction.asset][0].value);
     }
   }, [activeAction.asset, activeAction.type]);
 
-  // Captura de balances directamente desde tu estructura de mapa en Firestore
   const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
   
   const balancesList = [
@@ -90,45 +90,25 @@ export function WalletPage() {
   const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 65000;
   const totalBTC = totalUSD / btcPrice;
 
-  // 🔥 FUNCIÓN DE DEPÓSITO MEJORADA Y DINÁMICA (POST con UID del usuario)
+  // 🔥 ACCIÓN CENTRALIZADA PARA DEPÓSITOS (Usa el Store de forma asíncrona)
   const handleOpenDeposit = async (asset: string) => {
     setDepositAsset(asset);
     setActiveAction({ type: "deposit", asset });
     
-    if (!user || !user.uid) return;
-    if (!user.depositAddresses) user.depositAddresses = {};
-    const currentAddress = user.depositAddresses[asset];
+    if (!user) return;
     
-    if (!currentAddress || currentAddress === "") {
-      setIsLoadingAddress(true);
-      try {
-        const URL_PRINCIPAL = "https://cubax-backend.onrender.com/api/coinex/deposit";
+    // Si la dirección ya existe localmente en el Store, no la volvemos a pedir a Render
+    const assetUpper = asset.toUpperCase();
+    if (depositAddresses[assetUpper] || user.depositAddresses?.[assetUpper]) {
+      return;
+    }
 
-        const response = await fetch(URL_PRINCIPAL, {
-          method: "POST", // Se usa POST para enviar de forma segura los parámetros del usuario
-          headers: {
-            "Content-Type": "application/json"
-          },
-          body: JSON.stringify({
-            uid: user.uid,
-            asset: asset
-          })
-        });
+    setIsLoadingAddress(true);
+    const res = await requestDeposit(assetUpper);
+    setIsLoadingAddress(false);
 
-        const resData = await response.json();
-
-        if (resData && resData.success && resData.coin_address) {
-          user.depositAddresses[asset] = resData.coin_address;
-        } else {
-          console.error("Error devuelto por el backend:", resData);
-          alert(`🚨 Error: ${resData.error || "No se pudo asignar dirección"}`);
-        }
-      } catch (error) {
-        console.error("Error de conexión:", error);
-        alert("🚨 Error de conexión con el servidor principal de CubaX.");
-      } finally {
-        setIsLoadingAddress(false);
-      }
+    if (!res.success) {
+      alert(`🚨 Error de comunicación: ${res.message}`);
     }
   };
 
@@ -138,7 +118,6 @@ export function WalletPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // 🔥 RESTAURADO: Función original para ejecutar retiros
   const handleExecuteWithdrawal = async () => {
     if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !selectedChain) return;
     
@@ -149,18 +128,16 @@ export function WalletPage() {
     }
 
     setIsSubmitting(true);
-    
     const res = await requestWithdrawal(
       activeAction.asset,
       parseFloat(withdrawAmount),
       withdrawAddress,
       selectedChain
     );
-
     setIsSubmitting(false);
     
     if (res.success) {
-      alert(`✅ Retiro procesado con éxito.\nFondos descontados de tu cuenta.`);
+      alert(`✅ Retiro registrado.\nTu solicitud está en la cola de procesamiento.`);
       setActiveAction({ type: null, asset: null });
       setWithdrawAddress("");
       setWithdrawAmount("");
@@ -169,9 +146,11 @@ export function WalletPage() {
     }
   };
 
+  // Traer dirección resuelta (Prioriza el Store dinámico o el fallback del objeto user)
+  const currentDisplayedAddress = depositAddresses[depositAsset.toUpperCase()] || user?.depositAddresses?.[depositAsset.toUpperCase()];
+
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
-      {/* Encabezado Principal */}
       <div className="flex items-center justify-between">
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Wallet</h1>
         <Badge variant="success" size="sm" className="font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border-0">
@@ -179,7 +158,6 @@ export function WalletPage() {
         </Badge>
       </div>
 
-      {/* Tarjeta de Balance General */}
       <Card padding="lg" className="bg-gradient-to-br from-navy-900 to-navy-950 dark:from-white/[0.06] dark:to-white/[0.02] border-navy-800 dark:border-white/[0.08] text-white relative overflow-hidden">
         <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
           <Wallet className="h-24 w-24" />
@@ -211,7 +189,7 @@ export function WalletPage() {
         </div>
       </Card>
 
-      {/* 📥 PANEL DINÁMICO: Depósito con Selector de Moneda */}
+      {/* 📥 PANEL DE DEPÓSITO */}
       {activeAction.type === "deposit" && (
         <Card padding="md" className="border-brand-500/30 bg-brand-500/[0.02] space-y-3 animate-slide-in">
           <div className="flex justify-between items-center">
@@ -244,34 +222,34 @@ export function WalletPage() {
           {isLoadingAddress ? (
             <div className="py-6 flex flex-col items-center justify-center space-y-2 text-center">
               <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-              <div className="text-xs text-brand-500 font-medium animate-pulse">Asignando dirección única mediante CoinEx API v2...</div>
+              <div className="text-xs text-brand-500 font-medium animate-pulse">Sincronizando dirección desde Render...</div>
             </div>
-          ) : user?.depositAddresses?.[depositAsset] ? (
+          ) : currentDisplayedAddress ? (
             <div className="space-y-3">
               <div className="bg-white p-2 rounded-xl mx-auto w-36 h-36 flex flex-col items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
                 <img 
-                  src={`https://chart.googleapis.com/chart?chs=140&cht=qr&chl=${encodeURIComponent(user.depositAddresses[depositAsset])}&choe=UTF-8`}
+                  src={`https://chart.googleapis.com/chart?chs=140&cht=qr&chl=${encodeURIComponent(currentDisplayedAddress)}&choe=UTF-8`}
                   alt="QR de Depósito"
                   className="w-full h-full object-contain"
                   onError={(e) => (e.currentTarget.style.display = 'none')}
                 />
               </div>
               <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 border border-gray-200 dark:border-white/10">
-                <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">{user.depositAddresses[depositAsset]}</span>
-                <button onClick={() => handleCopyAddress(user.depositAddresses[depositAsset])} className={`p-1.5 rounded transition-colors ${copied ? "bg-emerald-500 text-white" : "hover:bg-gray-200 dark:hover:bg-white/10"}`}>
+                <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">{currentDisplayedAddress}</span>
+                <button onClick={() => handleCopyAddress(currentDisplayedAddress)} className={`p-1.5 rounded transition-colors ${copied ? "bg-emerald-500 text-white" : "hover:bg-gray-200 dark:hover:bg-white/10"}`}>
                   {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 text-gray-500" />}
                 </button>
               </div>
             </div>
           ) : (
             <div className="text-center p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-medium">
-              ⚠️ No se pudo recuperar una dirección. Intenta de nuevo seleccionando el activo.
+              ⚠️ No se pudo recuperar una dirección. Intenta de nuevo cambiando el activo del selector.
             </div>
           )}
         </Card>
       )}
 
-      {/* 📤 RESTAURADO COMPLETAMENTE: Panel Dinámico de Formulario de Retiro */}
+      {/* 📤 PANEL DE RETIRO */}
       {activeAction.type === "withdraw" && activeAction.asset && (
         <Card padding="md" className="border-red-500/20 bg-red-500/[0.01] space-y-3 animate-slide-in">
           <div className="flex justify-between items-center">
@@ -299,9 +277,6 @@ export function WalletPage() {
                   </option>
                 ))}
               </select>
-              <p className="text-[10px] text-amber-500 mt-1 font-medium">
-                ⚠️ Enviar fondos por una red incorrecta puede resultar en la pérdida total del activo.
-              </p>
             </div>
 
             <div>
@@ -312,8 +287,8 @@ export function WalletPage() {
                 type="text" 
                 value={withdrawAddress}
                 onChange={(e) => setWithdrawAddress(e.target.value)}
-                placeholder={`Introduce la billetera destino compatible con la red elegida`}
-                className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-brand-500"
+                placeholder="Introduce la billetera destino compatible con la red"
+                className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none"
               />
             </div>
 
@@ -330,7 +305,7 @@ export function WalletPage() {
                   value={withdrawAmount}
                   onChange={(e) => setWithdrawAmount(e.target.value)}
                   placeholder="0.00"
-                  className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 pr-12 text-gray-900 dark:text-white focus:outline-none focus:border-brand-500"
+                  className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 pr-12 text-gray-900 dark:text-white focus:outline-none"
                 />
                 <span className="absolute right-3 top-2 text-xs font-bold text-gray-400">{activeAction.asset}</span>
               </div>
@@ -343,7 +318,7 @@ export function WalletPage() {
               onClick={handleExecuteWithdrawal}
               className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs"
             >
-              {isSubmitting ? "Procesando con CoinEx Core..." : `Solicitar Retiro por ${selectedChain}`}
+              {isSubmitting ? "Procesando retiro..." : `Solicitar Retiro por ${selectedChain}`}
             </Button>
           </div>
         </Card>
@@ -412,4 +387,5 @@ export function WalletPage() {
       </div>
     </div>
   );
-                      }
+      }
+      
