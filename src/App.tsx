@@ -143,15 +143,14 @@ export default function App() {
 
   // 🛡️ CONTROL STRUCTURAL PARA MÓVILES (Fuerza independencia del sistema/modo oscuro)
   useEffect(() => {
-    const root = document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-      root.style.colorScheme = "dark";
-    } else {
-      root.classList.remove("dark");
-      root.style.colorScheme = "light";
-    }
-  }, [theme]);
+  const root = document.documentElement;
+
+  if (theme === "dark") {
+    root.classList.add("dark");
+  } else {
+    root.classList.remove("dark");
+  }
+}, [theme]);
 
   // 1. GUARDIÁN CENTRAL DE AUTENTICACIÓN INMEDIATA (Sin Snapshots pesados)
   useEffect(() => {
