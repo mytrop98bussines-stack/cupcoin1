@@ -16,8 +16,8 @@ import type {
 import { collection, query, orderBy, onSnapshot, doc, updateDoc, addDoc, getDoc, setDoc, where } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
-// 🚀 ENLACE OFICIAL A TU BACKEND EN REPLIT
-const REPLIT_API_URL = "https://9135d135-ea80-4a99-9924-bbd7c9f38add-00-3lqvjidfldz1p.worf.replit.dev/api";
+// 🚀 ENLACE CORREGIDO Y ACTUALIZADO A TU BACKEND EN RENDER (Cero Replit)
+const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
 interface AppState {
   theme: ThemeMode;
@@ -62,8 +62,9 @@ interface AppState {
   // 🔥 FIRESTORE CORE
   updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
   
-  // 🏦 COINEX GATEWAY OPERATIONS
+  // 🏦 COINEX GATEWAY OPERATIONS (Asíncronas y optimizadas para Render)
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
+  requestDeposit: (asset: string) => Promise<{ success: boolean; address?: string; message: string }>;
   requestWithdrawal: (asset: string, amount: number, toAddress: string, chain: string) => Promise<{ success: boolean; txId?: string; message: string }>;
 
   // 💬 CHAT P2P ALINEADO CON TU COLECION REAL
@@ -75,7 +76,7 @@ interface AppState {
   setProducts: (products: Product[]) => void;
   addProduct: (product: Product) => void;
   
-  // 🔔 NOTIFICACIONES CORREGIDAS (Apunta a la colección raíz de tu BD)
+  // 🔔 NOTIFICACIONES CORREGIDAS
   setNotifications: (notifications: Notification[]) => void;
   subscribeToNotifications: (userId: string) => (() => void);
   markNotificationRead: (id: string) => Promise<void>;
@@ -180,11 +181,12 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
+  // 🔄 FETCH PRICES: Apuntando correctamente a Render con Rescate Automático
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
-      const response = await fetch(`${REPLIT_API_URL}/coinex/balance`);
-      if (!response.ok) throw new Error(`Error al conectar con Replit API`);
+      const response = await fetch(`${RENDER_API_URL}/coinex/balance`);
+      if (!response.ok) throw new Error(`Error al conectar con Render API`);
       const json = await response.json();
 
       if (json.prices && Array.isArray(json.prices)) {
@@ -193,7 +195,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ loadingPrices: false });
       }
     } catch (error) {
-      console.error("Fallo al consultar Replit, aplicando precios de rescate:", error);
+      console.error("Fallo al consultar Render, aplicando precios de rescate:", error);
       const fallbackPrices: CryptoPrice[] = [
         { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1.00, change24h: 0 },
         { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: 1.00, change24h: 0 },
@@ -204,7 +206,53 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // 📥 INYECTOR FINANCIERO CON MERGE DE SEGURIDAD (No daña tus campos de KYC)
+  // 📥 SOLICITUD ASÍNCRONA DE DIRECCIÓN DE DEPÓSITO DESDE RENDER VIA STORE
+  requestDeposit: async (asset: string) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid || currentUser.uid === "invitado") {
+      return { success: false, message: "No hay un usuario autenticado." };
+    }
+
+    try {
+      const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          uid: currentUser.uid,
+          asset: asset.toUpperCase(),
+        }),
+      });
+
+      const resData = await response.json();
+
+      if (resData && resData.success && resData.coin_address) {
+        // Guardamos y actualizamos localmente en el Store la dirección recibida
+        const updatedAddresses = {
+          ...get().depositAddresses,
+          [asset.toUpperCase()]: resData.coin_address,
+        };
+        
+        if (currentUser) {
+          currentUser.depositAddresses = updatedAddresses;
+        }
+
+        set({ 
+          depositAddresses: updatedAddresses,
+          user: currentUser ? { ...currentUser } : null
+        });
+
+        return { success: true, address: resData.coin_address, message: "Dirección obtenida." };
+      } else {
+        return { success: false, message: resData.error || "El servidor de Render no devolvió una dirección." };
+      }
+    } catch (error) {
+      console.error("Error crítico en requestDeposit:", error);
+      return { success: false, message: "Fallo de conexión física con el backend en Render." };
+    }
+  },
+
   fetchDepositAddress: async (asset, chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") return;
@@ -230,7 +278,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         }
       }
     } catch (error) {
-      console.error("Error gestionando estrucutra financiera:", error);
+      console.error("Error gestionando estructura financiera:", error);
     }
   },
 
@@ -281,7 +329,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
   addMessage: (message) => set({ tradeMessages: [...get().tradeMessages, message] }),
 
-  // 💬 SINCRO DEL CHAT: Corregido para escuchar la subcolección real ordenada por timestamp
   subscribeToTradeMessages: (tradeId: string) => {
     if (!tradeId) return () => {};
     const q = query(collection(db, "trades", tradeId, "messages"), orderBy("timestamp", "asc"));
@@ -293,7 +340,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: doc.id,
           senderId: data.senderId,
           senderName: data.senderName,
-          text: data.message || "", // 🛠️ CORRECCIÓN: Mapea tu propiedad 'message' de Firebase a 'text' para el Store
+          text: data.message || "", 
           createdAt: data.timestamp || Date.now()
         } as any);
       });
@@ -301,7 +348,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  // 💬 ENVÍO DEL CHAT: Corregido para inyectar con tu nombre exacto de campo ('message' y 'timestamp')
   sendMessage: async (tradeId: string, text: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || !tradeId || !text.trim()) return;
@@ -309,8 +355,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       const messageData = {
         senderId: currentUser.uid,
         senderName: currentUser.displayName || "Usuario",
-        message: text.trim(), // 🛠️ ALINEADO: Usa tu propiedad de base de datos
-        timestamp: Date.now(), // 🛠️ ALINEADO: Usa tu propiedad de base de datos
+        message: text.trim(), 
+        timestamp: Date.now(), 
         type: 'text'
       };
       await addDoc(collection(db, "trades", tradeId, "messages"), messageData);
@@ -323,11 +369,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   addProduct: (product) => set({ products: [product, ...get().products] }),
   setNotifications: (notifications) => set({ notifications }),
 
-  // 🔔 NOTIFICACIONES REALES: Corregido para escuchar la colección RAÍZ filtrando por tu campo 'userId'
   subscribeToNotifications: (userId: string) => {
     if (!userId || userId === "invitado") return () => {};
     
-    // 🛠️ ALINEADO: Apunta a la raíz '/notifications' usando un filtro where('userId')
     const q = query(
       collection(db, "notifications"), 
       where("userId", "==", userId), 
@@ -345,10 +389,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  // 🔔 MARCAR NOTIFICACIÓN READ: Corregido para mutar directamente la colección raíz
   markNotificationRead: async (id) => {
     try {
-      // 🛠️ ALINEADO: Modifica directamente en la colección de la raíz
       const notifRef = doc(db, "notifications", id);
       await updateDoc(notifRef, { read: true });
       set({
@@ -364,4 +406,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setLoading: (loading) => set({ isLoading: loading }),
   setMobileMenuOpen: (open) => set({ mobileMenuOpen: open }),
 }));
-    
+     
