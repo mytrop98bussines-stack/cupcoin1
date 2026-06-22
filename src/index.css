@@ -2,6 +2,7 @@
 
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+
   --color-brand-50: #fdf8ed;
   --color-brand-100: #f9edcc;
   --color-brand-200: #f3d994;
@@ -13,6 +14,7 @@
   --color-brand-800: #7c4318;
   --color-brand-900: #67381a;
   --color-brand-950: #3c1c0a;
+
   --color-navy-50: #eef4ff;
   --color-navy-100: #dae6ff;
   --color-navy-200: #bdd4ff;
@@ -26,36 +28,48 @@
   --color-navy-950: #0c1335;
 }
 
-/* ⚡ CONFIGURACIÓN DE MODO OSCURO PARA TAILWIND V4 */
 @variant dark (&:where(.dark, .dark *));
 
 @layer base {
   * {
     -webkit-tap-highlight-color: transparent;
+    box-sizing: border-box;
   }
 
   html {
     scroll-behavior: smooth;
-    background-color: #f9fafb; 
+    background-color: #f9fafb;
+    overflow-x: hidden;
   }
 
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-    background-color: #f9fafb; /* bg-gray-50 base */
-    color: #111827; /* text-gray-900 base */
+
+    background-color: #f9fafb;
+    color: #111827;
+
+    overflow-x: hidden;
+    min-height: 100vh;
   }
 
-  /* 🛡️ FIX DEFINITIVO PARA EL MÓVIL: Apaga el auto-darkening forzado de Android */
-  .dark {
-    color-scheme: dark !important;
-  }
-
-  /* Cambiamos el fondo del body de forma limpia sin romper las clases de texto individuales */
   html.dark body {
-    background-color: #0c1335 !important; /* Tu color --color-navy-950 real */
-    color: #f3f4f6; /* Cambia el color de texto por defecto, pero permite que tus clases lo sobrescriban */
+    background:
+      radial-gradient(
+        circle at top right,
+        rgba(54, 102, 252, 0.12),
+        transparent 35%
+      ),
+      #0c1335;
+
+    color: #f3f4f6;
+  }
+
+  img,
+  svg {
+    -webkit-backface-visibility: hidden;
+    backface-visibility: hidden;
   }
 }
 
@@ -64,33 +78,57 @@
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
+
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
 
+  /* Glass Premium */
   .glass {
-    backdrop-filter: blur(16px) saturate(180%);
-    -webkit-backdrop-filter: blur(16px) saturate(180%);
+    background: rgba(255, 255, 255, 0.04);
+
+    border: 1px solid rgba(255, 255, 255, 0.06);
+
+    backdrop-filter: blur(8px);
+    -webkit-backdrop-filter: blur(8px);
+
+    box-shadow:
+      0 8px 32px rgba(0, 0, 0, 0.18);
+  }
+
+  /* Wallet Style Revolut/Wise */
+  .wallet-card {
+    background: linear-gradient(
+      135deg,
+      #1b298e 0%,
+      #15204b 100%
+    );
+
+    border: 1px solid rgba(255, 255, 255, 0.08);
+
+    box-shadow:
+      0 12px 40px rgba(0, 0, 0, 0.28);
   }
 
   .animate-slide-up {
-    animation: slideUp 0.3s ease-out;
+    animation: slideUp 0.25s ease-out;
   }
 
   .animate-fade-in {
-    animation: fadeIn 0.4s ease-out;
+    animation: fadeIn 0.3s ease-out;
   }
 
   .animate-pulse-glow {
-    animation: pulseGlow 2s ease-in-out infinite;
+    animation: pulseGlow 3s ease-in-out infinite;
   }
 }
 
 @keyframes slideUp {
   from {
-    transform: translateY(20px);
+    transform: translateY(12px);
     opacity: 0;
   }
+
   to {
     transform: translateY(0);
     opacity: 1;
@@ -98,15 +136,24 @@
 }
 
 @keyframes fadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+
+  to {
+    opacity: 1;
+  }
 }
 
 @keyframes pulseGlow {
-  0%, 100% {
-    box-shadow: 0 0 5px rgba(228, 171, 52, 0.3);
+  0%,
+  100% {
+    box-shadow:
+      0 0 4px rgba(228, 171, 52, 0.15);
   }
+
   50% {
-    box-shadow: 0 0 20px rgba(228, 171, 52, 0.6);
+    box-shadow:
+      0 0 12px rgba(228, 171, 52, 0.25);
   }
 }
