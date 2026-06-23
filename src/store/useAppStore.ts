@@ -208,79 +208,67 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // 📥 SOLICITUD ASÍNCRONA DE DIRECCIÓN DE DEPÓSITO DESDE RENDER VIA STORE
   requestDeposit: async (asset: string) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") {
-      return { success: false, message: "No hay un usuario autenticado." };
-    }
+  const currentUser = get().user;
+  if (!currentUser?.uid || currentUser.uid === "invitado") {
+    return { success: false, message: "No hay un usuario autenticado." };
+  }
 
-    try {
-      const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
+  const assetKey = asset.toUpperCase();
+
+  // 🧠 CACHE FIRST (evita llamadas duplicadas)
+  const cached = get().depositAddresses[assetKey];
+  if (cached) {
+    return {
+      success: true,
+      address: cached,
+      message: "Dirección desde cache.",
+    };
+  }
+
+  try {
+    const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        uid: currentUser.uid,
+        asset: assetKey,
+      }),
+    });
+
+    const resData = await response.json();
+
+    if (resData?.success && resData?.coin_address) {
+      const updatedAddresses = {
+        ...get().depositAddresses,
+        [assetKey]: resData.coin_address,
+      };
+
+      set({
+        depositAddresses: updatedAddresses,
+        user: {
+          ...currentUser,
+          depositAddresses: updatedAddresses,
         },
-        body: JSON.stringify({
-          uid: currentUser.uid,
-          asset: asset.toUpperCase(),
-        }),
       });
 
-      const resData = await response.json();
-
-      if (resData && resData.success && resData.coin_address) {
-        // Guardamos y actualizamos localmente en el Store la dirección recibida
-        const updatedAddresses = {
-          ...get().depositAddresses,
-          [asset.toUpperCase()]: resData.coin_address,
-        };
-        
-        if (currentUser) {
-          currentUser.depositAddresses = updatedAddresses;
-        }
-
-        set({ 
-          depositAddresses: updatedAddresses,
-          user: currentUser ? { ...currentUser } : null
-        });
-
-        return { success: true, address: resData.coin_address, message: "Dirección obtenida." };
-      } else {
-        return { success: false, message: resData.error || "El servidor de Render no devolvió una dirección." };
-      }
-    } catch (error) {
-      console.error("Error crítico en requestDeposit:", error);
-      return { success: false, message: "Fallo de conexión física con el backend en Render." };
+      return {
+        success: true,
+        address: resData.coin_address,
+        message: "Dirección obtenida.",
+      };
     }
-  },
 
-  fetchDepositAddress: async (asset, chain) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado" || currentUser.uid === "{uid}") return;
-
-    try {
-      const userDocRef = doc(db, "users", currentUser.uid);
-      
-      await setDoc(userDocRef, {
-        balances: { USDT: 0, USDC: 0, BTC: 0, ETH: 0 },
-        depositAddresses: { USDT: "", USDC: "", BTC: "", ETH: "" }
-      }, { merge: true });
-
-      const userSnap = await getDoc(userDocRef);
-      if (userSnap.exists()) {
-        const userData = userSnap.data();
-        const address = userData.depositAddresses?.[asset.toUpperCase()];
-        
-        if (address && address.trim() !== "") {
-          set((state) => ({
-            depositAddresses: { ...state.depositAddresses, [asset.toUpperCase()]: address }
-          }));
-          return;
-        }
-      }
-    } catch (error) {
-      console.error("Error gestionando estructura financiera:", error);
-    }
-  },
+    return {
+      success: false,
+      message: resData?.error || "Error obteniendo dirección.",
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      message: "Error de conexión con backend.",
+    };
+  }
+},
 
   // 📤 SOLICITUD ATÓMICA DE RETIROS
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
