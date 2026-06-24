@@ -131,7 +131,7 @@ export function WalletPage() {
   // ─── Efectos ──────────────────────────────────────────────
   useEffect(() => {
     fetchPrices();
-    fetch("https://cubax-backend.onrender.com/api/coinex/balance").catch(() => {});
+    fetch("https://cubax-backend.onrender.com/health").catch(() => {});
     const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
   }, [fetchPrices]);
