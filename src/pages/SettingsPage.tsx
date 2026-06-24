@@ -30,8 +30,10 @@ import {
 } from "lucide-react";
 
 export function SettingsPage() {
-  const { user, setUser, theme, toggleTheme, navigate, logout } = useAppStore();
-  const [copied, setCopied]           = useState(false);
+  const { user, setUser, theme, toggleTheme, navigate, logout } =
+    useAppStore();
+
+  const [copied, setCopied]                   = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // ─── Modo oscuro ──────────────────────────────────────────
@@ -68,28 +70,28 @@ export function SettingsPage() {
   // ─── KYC config ──────────────────────────────────────────
   const kycStatus = {
     unverified: {
-      label:   "Sin verificar",
-      variant: "warning" as const,
-      color:   "text-amber-500",
-      bg:      "bg-amber-500/10",
+      label:    "Sin verificar",
+      variant:  "warning" as const,
+      color:    "text-amber-500",
+      bg:       "bg-amber-500/10",
     },
     pending_verification: {
-      label:   "En revisión",
-      variant: "info" as const,
-      color:   "text-blue-500",
-      bg:      "bg-blue-500/10",
+      label:    "En revisión",
+      variant:  "info" as const,
+      color:    "text-blue-500",
+      bg:       "bg-blue-500/10",
     },
     verified: {
-      label:   "Verificado ✓",
-      variant: "success" as const,
-      color:   "text-emerald-500",
-      bg:      "bg-emerald-500/10",
+      label:    "Verificado ✓",
+      variant:  "success" as const,
+      color:    "text-emerald-500",
+      bg:       "bg-emerald-500/10",
     },
     rejected: {
-      label:   "Rechazado",
-      variant: "danger" as const,
-      color:   "text-red-500",
-      bg:      "bg-red-500/10",
+      label:    "Rechazado",
+      variant:  "danger" as const,
+      color:    "text-red-500",
+      bg:       "bg-red-500/10",
     },
   };
 
@@ -116,13 +118,21 @@ export function SettingsPage() {
       title: "Cuenta",
       items: [
         {
-          icon:     <Shield className="h-4 w-4" />,
-          label:    "Verificación KYC",
-          subtitle: currentKyc.label,
-          badge:    currentKyc.variant,
-          iconBg:   currentKyc.bg,
+          icon:      <User className="h-4 w-4" />,
+          label:     "Mi Perfil",
+          subtitle:  "Foto, nombre y datos personales",
+          iconBg:    "bg-blue-500/10",
+          iconColor: "text-blue-500",
+          action:    () => navigate("profile"),           // ✅
+        },
+        {
+          icon:      <Shield className="h-4 w-4" />,
+          label:     "Verificación KYC",
+          subtitle:  currentKyc.label,
+          badge:     currentKyc.variant,
+          iconBg:    currentKyc.bg,
           iconColor: currentKyc.color,
-          action:   () => navigate("kyc"),
+          action:    () => navigate("kyc"),
         },
         {
           icon:      <Wallet className="h-4 w-4" />,
@@ -135,18 +145,10 @@ export function SettingsPage() {
         {
           icon:      <Bell className="h-4 w-4" />,
           label:     "Notificaciones",
-          subtitle:  "Gestionar alertas",
+          subtitle:  "Gestionar alertas y preferencias",
           iconBg:    "bg-violet-500/10",
           iconColor: "text-violet-500",
-          action:    () => navigate("notifications"),
-        },
-        {
-          icon:      <User className="h-4 w-4" />,
-          label:     "Mi Perfil",
-          subtitle:  "Foto, nombre y datos",
-          iconBg:    "bg-blue-500/10",
-          iconColor: "text-blue-500",
-          action:    () => {},
+          action:    () => navigate("notification-settings"), // ✅
         },
       ],
     },
@@ -156,7 +158,7 @@ export function SettingsPage() {
         {
           icon:      theme === "dark"
             ? <Moon className="h-4 w-4" />
-            : <Sun className="h-4 w-4" />,
+            : <Sun  className="h-4 w-4" />,
           label:     "Tema",
           subtitle:  theme === "dark" ? "Modo oscuro" : "Modo claro",
           iconBg:    "bg-gray-500/10",
@@ -170,7 +172,7 @@ export function SettingsPage() {
           subtitle:  "Español (Cuba)",
           iconBg:    "bg-emerald-500/10",
           iconColor: "text-emerald-500",
-          action:    () => {},
+          action:    () => navigate("language"),            // ✅
         },
         {
           icon:      <Smartphone className="h-4 w-4" />,
@@ -178,7 +180,7 @@ export function SettingsPage() {
           subtitle:  "Alertas en tiempo real",
           iconBg:    "bg-amber-500/10",
           iconColor: "text-amber-500",
-          action:    () => {},
+          action:    () => navigate("notification-settings"), // ✅
         },
       ],
     },
@@ -191,7 +193,7 @@ export function SettingsPage() {
           subtitle:  `${user.totalTrades || 0} trades completados`,
           iconBg:    "bg-brand-500/10",
           iconColor: "text-brand-500",
-          action:    () => navigate("p2p"),
+          action:    () => navigate("trade-history"),       // ✅
         },
         {
           icon:      <FileText className="h-4 w-4" />,
@@ -199,7 +201,7 @@ export function SettingsPage() {
           subtitle:  "Gestionar órdenes activas",
           iconBg:    "bg-indigo-500/10",
           iconColor: "text-indigo-500",
-          action:    () => navigate("p2p"),
+          action:    () => navigate("my-orders"),           // ✅
         },
       ],
     },
@@ -212,7 +214,7 @@ export function SettingsPage() {
           subtitle:  "FAQ y guías de uso",
           iconBg:    "bg-blue-500/10",
           iconColor: "text-blue-500",
-          action:    () => {},
+          action:    () => navigate("help"),                // ✅
         },
         {
           icon:      <Lock className="h-4 w-4" />,
@@ -220,7 +222,7 @@ export function SettingsPage() {
           subtitle:  "Contraseña y autenticación",
           iconBg:    "bg-red-500/10",
           iconColor: "text-red-500",
-          action:    () => {},
+          action:    () => navigate("security"),            // ✅
         },
         {
           icon:      <ExternalLink className="h-4 w-4" />,
@@ -228,7 +230,7 @@ export function SettingsPage() {
           subtitle:  "Leer política de uso",
           iconBg:    "bg-gray-500/10",
           iconColor: "text-gray-500",
-          action:    () => {},
+          action:    () => navigate("terms"),               // ✅
         },
       ],
     },
@@ -239,17 +241,12 @@ export function SettingsPage() {
 
       {/* ═══ PROFILE CARD ════════════════════════════════════ */}
       <Card padding="lg" className="relative overflow-hidden">
-        {/* Fondo decorativo */}
         <div className="absolute top-0 right-0 h-24 w-24 bg-brand-500/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-4">
+          {/* Avatar con badge verificado */}
           <div className="relative">
-            <Avatar
-              name={user.displayName}
-              src={user.photoURL}
-              size="lg"
-            />
-            {/* Badge verificado sobre avatar */}
+            <Avatar name={user.displayName} src={user.photoURL} size="lg" />
             {user.kycStatus === "verified" && (
               <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center">
                 <Check className="h-2.5 w-2.5 text-white" />
@@ -264,26 +261,18 @@ export function SettingsPage() {
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {user.email}
             </p>
-
             <div className="flex items-center gap-2 mt-2 flex-wrap">
-              {/* Rating */}
               <div className="flex items-center gap-0.5 text-amber-500">
                 <Star className="h-3.5 w-3.5 fill-current" />
                 <span className="text-xs font-bold">
                   {(user as any).rating || "5.0"}
                 </span>
               </div>
-
               <span className="text-[10px] text-gray-300 dark:text-gray-600">•</span>
-
-              {/* Trades */}
               <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">
                 {user.totalTrades || 0} trades
               </span>
-
               <span className="text-[10px] text-gray-300 dark:text-gray-600">•</span>
-
-              {/* KYC badge */}
               <Badge variant={currentKyc.variant} size="sm">
                 {currentKyc.label}
               </Badge>
@@ -305,13 +294,9 @@ export function SettingsPage() {
             }`}
           >
             {copied ? (
-              <>
-                <Check className="h-3 w-3" /> Copiado
-              </>
+              <><Check className="h-3 w-3" /> Copiado</>
             ) : (
-              <>
-                <Copy className="h-3 w-3" /> Copiar
-              </>
+              <><Copy className="h-3 w-3" /> Copiar</>
             )}
           </button>
         </div>
@@ -332,7 +317,7 @@ export function SettingsPage() {
               <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">
                 {user.kycStatus === "pending_verification"
                   ? "Tu solicitud está siendo revisada."
-                  : "Aumenta tus límites operativos verificando tu identidad."}
+                  : "Aumenta tus límites verificando tu identidad."}
               </p>
             </div>
             <ChevronRight className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
