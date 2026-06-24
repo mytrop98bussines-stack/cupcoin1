@@ -1,8 +1,5 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
-import { Badge } from "@/components/ui/Badge";
 import { CRYPTO_ICONS } from "@/data/mock";
 import {
   Wallet,
@@ -17,99 +14,165 @@ import {
   Loader2,
   Check,
   Network,
+  Eye,
+  EyeOff,
+  RefreshCw,
+  ChevronDown,
+  ChevronUp,
+  AlertTriangle,
+  Clock,
+  ExternalLink,
+  X,
+  Sparkles,
+  ArrowRight,
+  Info,
+  CheckCircle2,
 } from "lucide-react";
 
+// ─── Tipos internos ─────────────────────────────────────
+type ActionType = "deposit" | "withdraw" | null;
+
+interface BalanceItem {
+  asset: string;
+  amount: number;
+  usdValue: number;
+  change24h: number;
+  price: number;
+}
+
+// ─── Redes disponibles por activo ────────────────────────
+const CHAIN_OPTIONS: Record<string, { label: string; value: string; icon: string; fee: string; time: string }[]> = {
+  USDT: [
+    { label: "Tron (TRC-20)",      value: "TRC20",  icon: "🔴", fee: "~1 USDT",    time: "~1 min"   },
+    { label: "BSC (BEP-20)",       value: "BSC",    icon: "🟡", fee: "~0.5 USDT",  time: "~30 seg"  },
+    { label: "Ethereum (ERC-20)",  value: "ERC20",  icon: "🔵", fee: "~5-15 USDT", time: "~3-5 min" },
+  ],
+  USDC: [
+    { label: "BSC (BEP-20)",       value: "BSC",    icon: "🟡", fee: "~0.5 USDC",  time: "~30 seg"  },
+    { label: "Ethereum (ERC-20)",  value: "ERC20",  icon: "🔵", fee: "~5-15 USDC", time: "~3-5 min" },
+  ],
+  BTC: [
+    { label: "Bitcoin Network",    value: "BTC",    icon: "🟠", fee: "Variable",   time: "~10-30 min" },
+  ],
+  ETH: [
+    { label: "Ethereum (ERC-20)",  value: "ERC20",  icon: "🔵", fee: "Variable",   time: "~3-5 min" },
+  ],
+};
+
+// ─── Colores por activo ──────────────────────────────────
+const ASSET_COLORS: Record<string, { bg: string; text: string; gradient: string; border: string }> = {
+  USDT: {
+    bg:       "bg-emerald-500/10",
+    text:     "text-emerald-500",
+    gradient: "from-emerald-500/20 to-emerald-600/5",
+    border:   "border-emerald-500/20",
+  },
+  USDC: {
+    bg:       "bg-blue-500/10",
+    text:     "text-blue-500",
+    gradient: "from-blue-500/20 to-blue-600/5",
+    border:   "border-blue-500/20",
+  },
+  BTC: {
+    bg:       "bg-orange-500/10",
+    text:     "text-orange-500",
+    gradient: "from-orange-500/20 to-orange-600/5",
+    border:   "border-orange-500/20",
+  },
+  ETH: {
+    bg:       "bg-violet-500/10",
+    text:     "text-violet-500",
+    gradient: "from-violet-500/20 to-violet-600/5",
+    border:   "border-violet-500/20",
+  },
+};
+
 export function WalletPage() {
-  const { 
+  const {
     user,
-    prices, 
-    fetchPrices, 
+    prices,
+    fetchPrices,
     requestWithdrawal,
-    requestDeposit, // 📥 Inyectado correctamente desde Zustand
-    depositAddresses
+    requestDeposit,
+    depositAddresses,
   } = useAppStore();
 
-  const [hideBalances, setHideBalances] = useState(false);
-  const [copied, setCopied] = useState(false);
-  
-  const [activeAction, setActiveAction] = useState<{ type: "deposit" | "withdraw" | null; asset: string | null }>({
-    type: null,
-    asset: null,
-  });
-
-  const [depositAsset, setDepositAsset] = useState<string>("USDT");
+  // ─── Estados ─────────────────────────────────────────────
+  const [hideBalances, setHideBalances]     = useState(false);
+  const [copied, setCopied]                 = useState(false);
+  const [activeAction, setActiveAction]     = useState<{ type: ActionType; asset: string | null }>({ type: null, asset: null });
+  const [depositAsset, setDepositAsset]     = useState("USDT");
   const [withdrawAddress, setWithdrawAddress] = useState("");
   const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isSubmitting, setIsSubmitting]     = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
-  const [selectedChain, setSelectedChain] = useState("");
+  const [selectedChain, setSelectedChain]   = useState("");
+  const [refreshing, setRefreshing]         = useState(false);
+  const [expandedAsset, setExpandedAsset]   = useState<string | null>(null);
+  const [withdrawStep, setWithdrawStep]     = useState<1 | 2 | 3>(1);
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+  const [withdrawTxId, setWithdrawTxId]     = useState("");
 
-  const availableChains: Record<string, { label: string; value: string }[]> = {
-    USDT: [
-      { label: "Tron (TRC-20)", value: "TRC20" },
-      { label: "Binance Smart Chain (BEP-20)", value: "BSC" },
-      { label: "Polygon Network", value: "CSC" }, 
-    ],
-    USDC: [
-      { label: "Binance Smart Chain (BEP-20)", value: "BSC" },
-      { label: "Ethereum (ERC-20)", value: "ERC20" },
-    ],
-    BTC: [{ label: "Bitcoin Main Network", value: "BTC" }],
-    ETH: [{ label: "Ethereum (ERC-20)", value: "ERC20" }],
-  };
+  // ─── Datos derivados ─────────────────────────────────────
+  const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
 
+  const balancesList: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map((asset) => {
+    const amount   = firestoreBalances[asset] || 0;
+    const priceInfo = prices.find((p) => p.symbol.toUpperCase() === asset);
+    const price    = priceInfo?.priceUSD || (asset === "BTC" ? 67500 : asset === "ETH" ? 3500 : 1);
+    const change   = priceInfo?.change24h || 0;
+    return { asset, amount, usdValue: amount * price, change24h: change, price };
+  });
+
+  const totalUSD = balancesList.reduce((sum, b) => sum + b.usdValue, 0);
+  const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 67500;
+  const totalBTC = totalUSD / btcPrice;
+
+  // ─── Efectos ──────────────────────────────────────────────
   useEffect(() => {
     fetchPrices();
-    
-    // 🔥 PING para despertar el servidor de Render apenas entran a la Wallet
-    fetch("https://cubax-backend.onrender.com/api/coinex/balance")
-      .catch(() => console.log("Despertando Render..."));
-
-    const interval = setInterval(() => {
-      fetchPrices();
-    }, 5000);
+    fetch("https://cubax-backend.onrender.com/api/coinex/balance").catch(() => {});
+    const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
   }, [fetchPrices]);
 
   useEffect(() => {
-    if (activeAction.asset && availableChains[activeAction.asset]) {
-      setSelectedChain(availableChains[activeAction.asset][0].value);
+    if (activeAction.asset && CHAIN_OPTIONS[activeAction.asset]) {
+      setSelectedChain(CHAIN_OPTIONS[activeAction.asset][0].value);
     }
   }, [activeAction.asset, activeAction.type]);
 
-  const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
-  
-  const balancesList = [
-    { asset: "USDT", amount: firestoreBalances.USDT || 0, usdValue: (firestoreBalances.USDT || 0) * (prices.find(p => p.symbol.toUpperCase() === "USDT")?.priceUSD || 1) },
-    { asset: "BTC", amount: firestoreBalances.BTC || 0, usdValue: (firestoreBalances.BTC || 0) * (prices.find(p => p.symbol.toUpperCase() === "BTC")?.priceUSD || 65000) },
-    { asset: "ETH", amount: firestoreBalances.ETH || 0, usdValue: (firestoreBalances.ETH || 0) * (prices.find(p => p.symbol.toUpperCase() === "ETH")?.priceUSD || 3500) },
-    { asset: "USDC", amount: firestoreBalances.USDC || 0, usdValue: (firestoreBalances.USDC || 0) * (prices.find(p => p.symbol.toUpperCase() === "USDC")?.priceUSD || 1) },
-  ];
+  // ─── Handlers ─────────────────────────────────────────────
+  const handleRefresh = useCallback(async () => {
+    setRefreshing(true);
+    await fetchPrices();
+    setTimeout(() => setRefreshing(false), 1000);
+  }, [fetchPrices]);
 
-  const totalUSD = balancesList.reduce((sum, b) => sum + b.usdValue, 0);
-  const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 65000;
-  const totalBTC = totalUSD / btcPrice;
-
-  // 🔥 ACCIÓN CENTRALIZADA PARA DEPÓSITOS (Usa el Store de forma asíncrona)
   const handleOpenDeposit = async (asset: string) => {
-    setDepositAsset(asset);
-    setActiveAction({ type: "deposit", asset });
-    
-    if (!user) return;
-    
-    // Si la dirección ya existe localmente en el Store, no la volvemos a pedir a Render
     const assetUpper = asset.toUpperCase();
-    if (depositAddresses[assetUpper] || user.depositAddresses?.[assetUpper]) {
-      return;
-    }
+    setDepositAsset(assetUpper);
+    setActiveAction({ type: "deposit", asset: assetUpper });
+
+    if (!user) return;
+    if (depositAddresses[assetUpper] || user.depositAddresses?.[assetUpper]) return;
 
     setIsLoadingAddress(true);
     const res = await requestDeposit(assetUpper);
     setIsLoadingAddress(false);
 
     if (!res.success) {
-      alert(`🚨 Error de comunicación: ${res.message}`);
+      console.error("Error obteniendo dirección:", res.message);
     }
+  };
+
+  const handleOpenWithdraw = (asset: string) => {
+    setActiveAction({ type: "withdraw", asset: asset.toUpperCase() });
+    setWithdrawStep(1);
+    setWithdrawSuccess(false);
+    setWithdrawAddress("");
+    setWithdrawAmount("");
+    setWithdrawTxId("");
   };
 
   const handleCopyAddress = (address: string) => {
@@ -118,274 +181,777 @@ export function WalletPage() {
     setTimeout(() => setCopied(false), 2000);
   };
 
-  const handleExecuteWithdrawal = async () => {
-    if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !selectedChain) return;
-    
-    const disponible = firestoreBalances[activeAction.asset] || 0;
-    if (parseFloat(withdrawAmount) > disponible) {
-      alert(`🚨 Saldo insuficiente. Tienes ${disponible} ${activeAction.asset} disponibles.`);
-      return;
-    }
-
-    setIsSubmitting(true);
-    const res = await requestWithdrawal(
-      activeAction.asset,
-      parseFloat(withdrawAmount),
-      withdrawAddress,
-      selectedChain
-    );
-    setIsSubmitting(false);
-    
-    if (res.success) {
-      alert(`✅ Retiro registrado.\nTu solicitud está en la cola de procesamiento.`);
-      setActiveAction({ type: null, asset: null });
-      setWithdrawAddress("");
-      setWithdrawAmount("");
-    } else {
-      alert(`🚨 Error al procesar retiro: ${res.message}`);
+  const handleSetMaxAmount = () => {
+    if (activeAction.asset) {
+      const max = firestoreBalances[activeAction.asset] || 0;
+      setWithdrawAmount(String(max));
     }
   };
 
-  // Traer dirección resuelta (Prioriza el Store dinámico o el fallback del objeto user)
-  const currentDisplayedAddress = depositAddresses[depositAsset.toUpperCase()] || user?.depositAddresses?.[depositAsset.toUpperCase()];
+  const handleExecuteWithdrawal = async () => {
+    if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !selectedChain) return;
 
+    const disponible = firestoreBalances[activeAction.asset] || 0;
+    const monto = parseFloat(withdrawAmount);
+
+    if (monto <= 0) return;
+    if (monto > disponible) return;
+
+    setIsSubmitting(true);
+    const res = await requestWithdrawal(activeAction.asset, monto, withdrawAddress, selectedChain);
+    setIsSubmitting(false);
+
+    if (res.success) {
+      setWithdrawSuccess(true);
+      setWithdrawTxId(res.txId || "");
+      setWithdrawStep(3);
+    } else {
+      alert(`Error: ${res.message}`);
+    }
+  };
+
+  const handleCloseAction = () => {
+    setActiveAction({ type: null, asset: null });
+    setWithdrawStep(1);
+    setWithdrawSuccess(false);
+    setWithdrawAddress("");
+    setWithdrawAmount("");
+  };
+
+  const currentDisplayedAddress =
+    depositAddresses[depositAsset.toUpperCase()] ||
+    user?.depositAddresses?.[depositAsset.toUpperCase()];
+
+  const selectedChainInfo = activeAction.asset
+    ? CHAIN_OPTIONS[activeAction.asset]?.find((c) => c.value === selectedChain)
+    : null;
+
+  // ─── RENDER ──────────────────────────────────────────────
   return (
-    <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
+    <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4 animate-fade-in">
+
+      {/* ═══════════════════════════════════════════════════════
+          HEADER
+      ═══════════════════════════════════════════════════════ */}
       <div className="flex items-center justify-between">
-        <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Wallet</h1>
-        <Badge variant="success" size="sm" className="font-semibold uppercase tracking-wider bg-emerald-500/10 text-emerald-500 border-0">
-          Custodia CubaX
-        </Badge>
+        <div className="flex items-center gap-2">
+          <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
+            <Wallet className="h-4 w-4 text-white" />
+          </div>
+          <div>
+            <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">
+              Mi Wallet
+            </h1>
+            <p className="text-[10px] text-gray-400 font-medium">
+              Custodia segura CubaX
+            </p>
+          </div>
+        </div>
+
+        <button
+          onClick={handleRefresh}
+          className="p-2 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+        >
+          <RefreshCw
+            className={`h-4 w-4 text-gray-500 dark:text-gray-400 ${
+              refreshing ? "animate-spin" : ""
+            }`}
+          />
+        </button>
       </div>
 
-      <Card padding="lg" className="bg-gradient-to-br from-navy-900 to-navy-950 dark:from-white/[0.06] dark:to-white/[0.02] border-navy-800 dark:border-white/[0.08] text-white relative overflow-hidden">
-        <div className="absolute top-0 right-0 p-3 opacity-5 pointer-events-none">
-          <Wallet className="h-24 w-24" />
-        </div>
-        <div className="flex items-center justify-between mb-2">
-          <span className="text-xs text-gray-400 font-medium flex items-center gap-1">
-            <Zap className="h-3 w-3 text-amber-400 fill-amber-400" />
-            Balance Total Estimado
-          </span>
-          <button onClick={() => setHideBalances(!hideBalances)} className="text-xs text-brand-400 hover:text-brand-300 font-semibold focus:outline-none">
-            {hideBalances ? "Mostrar" : "Ocultar"}
-          </button>
-        </div>
-        <div className="text-left mb-4">
-          <p className="text-3xl font-black tracking-tight">
-            {hideBalances ? "•••••" : `$${totalUSD.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-          </p>
-          <p className="text-xs text-emerald-400 font-medium mt-1">
-            ≈ {hideBalances ? "••••" : totalBTC.toFixed(5)} BTC
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <Button size="sm" onClick={() => handleOpenDeposit(depositAsset)} className="flex-1 bg-brand-500 hover:bg-brand-600 text-white border-0 shadow-sm" icon={<ArrowDownLeft className="h-3.5 w-3.5" />}>
-            Depositar
-          </Button>
-          <Button size="sm" onClick={() => setActiveAction({ type: "withdraw", asset: "USDT" })} className="flex-1 bg-white/10 hover:bg-white/15 text-white border-0" icon={<ArrowUpRight className="h-3.5 w-3.5" />}>
-            Retirar
-          </Button>
-        </div>
-      </Card>
+      {/* ═══════════════════════════════════════════════════════
+          CARD PRINCIPAL — BALANCE TOTAL
+      ═══════════════════════════════════════════════════════ */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] p-5 border border-gray-800 dark:border-white/[0.08] shadow-2xl">
+        {/* Decoración de fondo */}
+        <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-brand-500/10 blur-3xl" />
+        <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-violet-500/10 blur-3xl" />
 
-      {/* 📥 PANEL DE DEPÓSITO */}
-      {activeAction.type === "deposit" && (
-        <Card padding="md" className="border-brand-500/30 bg-brand-500/[0.02] space-y-3 animate-slide-in">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-bold uppercase text-brand-500 flex items-center gap-1">
-              <ArrowDownLeft className="h-3.5 w-3.5" /> Depositar Criptomonedas
-            </span>
-            <button onClick={() => setActiveAction({ type: null, asset: null })} className="text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-200">
-              Cerrar
-            </button>
-          </div>
-          
-          <div className="space-y-2">
-            <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase">Selecciona el Activo</label>
-            <select
-              value={depositAsset}
-              onChange={(e) => handleOpenDeposit(e.target.value)}
-              className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-brand-500 h-9"
+        {/* Balance */}
+        <div className="relative z-10">
+          <div className="flex items-center justify-between mb-4">
+            <div className="flex items-center gap-1.5">
+              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+                Balance Total
+              </span>
+            </div>
+            <button
+              onClick={() => setHideBalances(!hideBalances)}
+              className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-white transition-colors"
             >
-              <option value="USDT">USDT</option>
-              <option value="USDC">USDC</option>
-              <option value="BTC">BTC</option>
-              <option value="ETH">ETH</option>
-            </select>
-          </div>
-
-          <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed pt-1">
-            Estás visualizando tu dirección para <strong>{depositAsset}</strong>. Envía únicamente este activo para evitar pérdidas.
-          </p>
-
-          {isLoadingAddress ? (
-            <div className="py-6 flex flex-col items-center justify-center space-y-2 text-center">
-              <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-              <div className="text-xs text-brand-500 font-medium animate-pulse">Sincronizando dirección desde Render...</div>
-            </div>
-          ) : currentDisplayedAddress ? (
-            <div className="space-y-3">
-              <div className="bg-white p-2 rounded-xl mx-auto w-36 h-36 flex flex-col items-center justify-center border border-gray-100 shadow-sm overflow-hidden">
-                <img 
-                  src={`https://chart.googleapis.com/chart?chs=140&cht=qr&chl=${encodeURIComponent(currentDisplayedAddress)}&choe=UTF-8`}
-                  alt="QR de Depósito"
-                  className="w-full h-full object-contain"
-                  onError={(e) => (e.currentTarget.style.display = 'none')}
-                />
-              </div>
-              <div className="flex items-center gap-2 bg-gray-100 dark:bg-white/5 rounded-lg px-3 py-2 border border-gray-200 dark:border-white/10">
-                <span className="text-xs font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">{currentDisplayedAddress}</span>
-                <button onClick={() => handleCopyAddress(currentDisplayedAddress)} className={`p-1.5 rounded transition-colors ${copied ? "bg-emerald-500 text-white" : "hover:bg-gray-200 dark:hover:bg-white/10"}`}>
-                  {copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5 text-gray-500" />}
-                </button>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center p-2 bg-amber-500/10 text-amber-600 dark:text-amber-400 rounded-lg text-xs font-medium">
-              ⚠️ No se pudo recuperar una dirección. Intenta de nuevo cambiando el activo del selector.
-            </div>
-          )}
-        </Card>
-      )}
-
-      {/* 📤 PANEL DE RETIRO */}
-      {activeAction.type === "withdraw" && activeAction.asset && (
-        <Card padding="md" className="border-red-500/20 bg-red-500/[0.01] space-y-3 animate-slide-in">
-          <div className="flex justify-between items-center">
-            <span className="text-xs font-bold uppercase text-red-500 flex items-center gap-1">
-              <ArrowUpRight className="h-3.5 w-3.5" /> Retirar {activeAction.asset} de CubaX
-            </span>
-            <button onClick={() => setActiveAction({ type: null, asset: null })} className="text-xs text-gray-400 hover:text-gray-600">
-              Cerrar
+              {hideBalances ? (
+                <>
+                  <Eye className="h-3.5 w-3.5" /> Mostrar
+                </>
+              ) : (
+                <>
+                  <EyeOff className="h-3.5 w-3.5" /> Ocultar
+                </>
+              )}
             </button>
           </div>
-          
-          <div className="space-y-3">
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1 flex items-center gap-1">
-                <Network className="h-3 w-3 text-red-500" /> Selecciona la Red de Envío
-              </label>
-              <select
-                value={selectedChain}
-                onChange={(e) => setSelectedChain(e.target.value)}
-                className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none focus:border-red-500 h-9"
-              >
-                {availableChains[activeAction.asset]?.map((chain) => (
-                  <option key={chain.value} value={chain.value}>
-                    {chain.label}
-                  </option>
-                ))}
-              </select>
-            </div>
 
-            <div>
-              <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase mb-1">
-                Dirección Externa Destino
-              </label>
-              <input 
-                type="text" 
-                value={withdrawAddress}
-                onChange={(e) => setWithdrawAddress(e.target.value)}
-                placeholder="Introduce la billetera destino compatible con la red"
-                className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 text-gray-900 dark:text-white focus:outline-none"
-              />
-            </div>
+          <div className="mb-5">
+            <p className="text-4xl font-black text-white tracking-tight leading-none">
+              {hideBalances
+                ? "••••••"
+                : `$${totalUSD.toLocaleString("en-US", {
+                    minimumFractionDigits: 2,
+                    maximumFractionDigits: 2,
+                  })}`}
+            </p>
+            <p className="text-sm text-gray-400 mt-1.5 font-medium">
+              ≈{" "}
+              {hideBalances
+                ? "••••"
+                : `${totalBTC.toFixed(6)} BTC`}
+            </p>
+          </div>
 
-            <div>
-              <div className="flex justify-between items-center mb-1">
-                <label className="block text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase">Monto a Enviar</label>
-                <span className="text-[10px] text-gray-400 font-medium">
-                  Disponible: {firestoreBalances[activeAction.asset] || 0} {activeAction.asset}
+          {/* Botones de acción */}
+          <div className="flex gap-2.5">
+            <button
+              onClick={() => handleOpenDeposit("USDT")}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-lg shadow-brand-500/25 active:scale-[0.98]"
+            >
+              <ArrowDownLeft className="h-4 w-4" />
+              Depositar
+            </button>
+            <button
+              onClick={() => handleOpenWithdraw("USDT")}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all backdrop-blur-sm active:scale-[0.98]"
+            >
+              <ArrowUpRight className="h-4 w-4" />
+              Retirar
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          MINI RESUMEN DE ACTIVOS (Horizontal scroll)
+      ═══════════════════════════════════════════════════════ */}
+      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
+        {balancesList.map((b) => {
+          const colors = ASSET_COLORS[b.asset] || ASSET_COLORS.USDT;
+          const isUp   = b.change24h >= 0;
+          return (
+            <div
+              key={b.asset}
+              className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`}
+              onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}
+            >
+              <div className="flex items-center gap-1.5 mb-2">
+                <span className="text-lg">{CRYPTO_ICONS[b.asset] || "🪙"}</span>
+                <span className="text-xs font-bold text-gray-900 dark:text-white">
+                  {b.asset}
                 </span>
               </div>
-              <div className="relative">
-                <input 
-                  type="number" 
-                  value={withdrawAmount}
-                  onChange={(e) => setWithdrawAmount(e.target.value)}
-                  placeholder="0.00"
-                  className="w-full text-xs bg-white dark:bg-navy-900 border border-gray-200 dark:border-white/10 rounded-lg px-3 py-2 pr-12 text-gray-900 dark:text-white focus:outline-none"
-                />
-                <span className="absolute right-3 top-2 text-xs font-bold text-gray-400">{activeAction.asset}</span>
+              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
+                {hideBalances
+                  ? "••••"
+                  : `$${b.usdValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+              </p>
+              <div
+                className={`flex items-center gap-0.5 mt-1 text-[10px] font-semibold ${
+                  isUp ? "text-emerald-500" : "text-red-500"
+                }`}
+              >
+                {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                {Math.abs(b.change24h).toFixed(2)}%
+              </div>
+            </div>
+          );
+        })}
+      </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          MODAL DE DEPÓSITO
+      ═══════════════════════════════════════════════════════ */}
+      {activeAction.type === "deposit" && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`h-8 w-8 rounded-lg ${ASSET_COLORS[depositAsset]?.bg || "bg-brand-500/10"} flex items-center justify-center`}>
+                  <ArrowDownLeft className={`h-4 w-4 ${ASSET_COLORS[depositAsset]?.text || "text-brand-500"}`} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Depositar Cripto
+                  </h3>
+                  <p className="text-[10px] text-gray-400">
+                    Recibe fondos en tu wallet CubaX
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseAction}
+                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              >
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Selector de activo */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                Selecciona el Activo
+              </label>
+              <div className="grid grid-cols-4 gap-2">
+                {["USDT", "USDC", "BTC", "ETH"].map((asset) => {
+                  const colors   = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
+                  const selected = depositAsset === asset;
+                  return (
+                    <button
+                      key={asset}
+                      onClick={() => handleOpenDeposit(asset)}
+                      className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-bold transition-all ${
+                        selected
+                          ? `${colors.bg} ${colors.text} ring-2 ring-current`
+                          : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"
+                      }`}
+                    >
+                      <span className="text-base">{CRYPTO_ICONS[asset] || "🪙"}</span>
+                      {asset}
+                    </button>
+                  );
+                })}
               </div>
             </div>
 
-            <Button 
-              size="sm" 
-              fullWidth 
-              disabled={isSubmitting || !withdrawAddress || !withdrawAmount || !selectedChain}
-              onClick={handleExecuteWithdrawal}
-              className="bg-red-500 hover:bg-red-600 text-white border-0 text-xs"
-            >
-              {isSubmitting ? "Procesando retiro..." : `Solicitar Retiro por ${selectedChain}`}
-            </Button>
+            {/* Dirección o loading */}
+            {isLoadingAddress ? (
+              <div className="py-10 flex flex-col items-center justify-center space-y-3">
+                <div className="relative">
+                  <div className="h-12 w-12 rounded-full border-2 border-brand-500/20 flex items-center justify-center">
+                    <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+                  </div>
+                </div>
+                <p className="text-xs text-gray-400 font-medium animate-pulse">
+                  Generando dirección segura...
+                </p>
+              </div>
+            ) : currentDisplayedAddress ? (
+              <div className="space-y-4">
+                {/* QR */}
+                <div className="flex justify-center">
+                  <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
+                    <img
+                      src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(
+                        currentDisplayedAddress
+                      )}&format=svg`}
+                      alt="QR"
+                      className="w-40 h-40"
+                      onError={(e) => {
+                        (e.target as HTMLImageElement).src = `https://chart.googleapis.com/chart?chs=160x160&cht=qr&chl=${encodeURIComponent(
+                          currentDisplayedAddress
+                        )}&choe=UTF-8`;
+                      }}
+                    />
+                  </div>
+                </div>
+
+                {/* Dirección copiable */}
+                <div className="relative">
+                  <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
+                    <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">
+                      {currentDisplayedAddress}
+                    </span>
+                    <button
+                      onClick={() => handleCopyAddress(currentDisplayedAddress)}
+                      className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${
+                        copied
+                          ? "bg-emerald-500 text-white"
+                          : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300 hover:bg-gray-300 dark:hover:bg-white/15"
+                      }`}
+                    >
+                      {copied ? (
+                        <>
+                          <Check className="h-3 w-3" /> Copiada
+                        </>
+                      ) : (
+                        <>
+                          <Copy className="h-3 w-3" /> Copiar
+                        </>
+                      )}
+                    </button>
+                  </div>
+                </div>
+
+                {/* Warning */}
+                <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                    Envía únicamente <strong>{depositAsset}</strong> a esta
+                    dirección. Enviar otro activo o por una red incorrecta puede
+                    resultar en pérdida permanente de fondos.
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <div className="py-8 text-center">
+                <div className="h-12 w-12 rounded-full bg-red-500/10 flex items-center justify-center mx-auto mb-3">
+                  <AlertTriangle className="h-5 w-5 text-red-500" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
+                  No se pudo obtener dirección
+                </p>
+                <p className="text-xs text-gray-400 mb-3">
+                  Intenta nuevamente o selecciona otro activo
+                </p>
+                <button
+                  onClick={() => handleOpenDeposit(depositAsset)}
+                  className="text-xs font-bold text-brand-500 hover:text-brand-400"
+                >
+                  Reintentar →
+                </button>
+              </div>
+            )}
           </div>
-        </Card>
+        </div>
       )}
 
-      {/* Info Banner */}
-      <Card padding="sm" className="border-blue-500/20 bg-blue-50 dark:bg-blue-500/5">
-        <div className="flex items-start gap-2">
-          <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-            Los fondos internos operan bajo un modelo atómico *off-chain*. Esto permite transacciones instantáneas y libres de comisiones para movimientos internos dentro de CubaX.
-          </p>
-        </div>
-      </Card>
+      {/* ═══════════════════════════════════════════════════════
+          MODAL DE RETIRO — MULTI-STEP
+      ═══════════════════════════════════════════════════════ */}
+      {activeAction.type === "withdraw" && activeAction.asset && (
+        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
+                  <ArrowUpRight className="h-4 w-4 text-red-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Retirar {activeAction.asset}
+                  </h3>
+                  <p className="text-[10px] text-gray-400">
+                    Enviar fondos a wallet externa
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseAction}
+                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              >
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
 
-      {/* Lista de Saldos Reactiva */}
+            {/* Steps indicator */}
+            {!withdrawSuccess && (
+              <div className="flex items-center gap-2">
+                {[1, 2].map((step) => (
+                  <div key={step} className="flex items-center gap-2 flex-1">
+                    <div
+                      className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                        withdrawStep >= step
+                          ? "bg-red-500 text-white"
+                          : "bg-gray-100 dark:bg-white/5 text-gray-400"
+                      }`}
+                    >
+                      {step}
+                    </div>
+                    <span
+                      className={`text-[10px] font-semibold ${
+                        withdrawStep >= step
+                          ? "text-gray-900 dark:text-white"
+                          : "text-gray-400"
+                      }`}
+                    >
+                      {step === 1 ? "Red y Dirección" : "Monto"}
+                    </span>
+                    {step < 2 && (
+                      <div
+                        className={`flex-1 h-0.5 rounded-full ${
+                          withdrawStep > step
+                            ? "bg-red-500"
+                            : "bg-gray-200 dark:bg-white/10"
+                        }`}
+                      />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ─── STEP 1: Red + Dirección ──────────────────── */}
+            {withdrawStep === 1 && (
+              <div className="space-y-4">
+                {/* Selector de red */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                    Red de envío
+                  </label>
+                  <div className="space-y-2">
+                    {CHAIN_OPTIONS[activeAction.asset]?.map((chain) => (
+                      <button
+                        key={chain.value}
+                        onClick={() => setSelectedChain(chain.value)}
+                        className={`w-full flex items-center justify-between p-3 rounded-xl border transition-all ${
+                          selectedChain === chain.value
+                            ? "border-red-500 bg-red-500/5 dark:bg-red-500/10"
+                            : "border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20"
+                        }`}
+                      >
+                        <div className="flex items-center gap-2.5">
+                          <span className="text-lg">{chain.icon}</span>
+                          <div className="text-left">
+                            <p className="text-xs font-bold text-gray-900 dark:text-white">
+                              {chain.label}
+                            </p>
+                            <p className="text-[10px] text-gray-400">
+                              Comisión: {chain.fee}
+                            </p>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <Clock className="h-3 w-3 text-gray-400" />
+                          <span className="text-[10px] text-gray-400 font-medium">
+                            {chain.time}
+                          </span>
+                          {selectedChain === chain.value && (
+                            <CheckCircle2 className="h-4 w-4 text-red-500 ml-1" />
+                          )}
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Dirección destino */}
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                    Dirección de destino
+                  </label>
+                  <input
+                    type="text"
+                    value={withdrawAddress}
+                    onChange={(e) => setWithdrawAddress(e.target.value)}
+                    placeholder="Pega la dirección de la wallet destino"
+                    className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 transition-all"
+                  />
+                </div>
+
+                <button
+                  disabled={!withdrawAddress || !selectedChain}
+                  onClick={() => setWithdrawStep(2)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 hover:bg-gray-800 dark:hover:bg-white/15 text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                >
+                  Continuar
+                  <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* ─── STEP 2: Monto ────────────────────────────── */}
+            {withdrawStep === 2 && (
+              <div className="space-y-4">
+                {/* Resumen red seleccionada */}
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200 dark:border-white/10">
+                  <span className="text-lg">{selectedChainInfo?.icon}</span>
+                  <div className="flex-1">
+                    <p className="text-[11px] font-bold text-gray-900 dark:text-white">
+                      {selectedChainInfo?.label}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-mono truncate">
+                      {withdrawAddress}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setWithdrawStep(1)}
+                    className="text-[10px] text-brand-500 font-bold"
+                  >
+                    Editar
+                  </button>
+                </div>
+
+                {/* Input monto */}
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Monto a enviar
+                    </label>
+                    <button
+                      onClick={handleSetMaxAmount}
+                      className="text-[10px] font-bold text-red-500 hover:text-red-400"
+                    >
+                      MAX: {firestoreBalances[activeAction.asset] || 0}{" "}
+                      {activeAction.asset}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full text-2xl font-bold bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-4 pr-20 text-gray-900 dark:text-white placeholder:text-gray-300 dark:placeholder:text-gray-600 focus:outline-none focus:ring-2 focus:ring-red-500/30 focus:border-red-500 transition-all"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">
+                      {activeAction.asset}
+                    </span>
+                  </div>
+
+                  {/* Valor en USD */}
+                  {withdrawAmount && parseFloat(withdrawAmount) > 0 && (
+                    <p className="text-[11px] text-gray-400 mt-1.5 pl-1">
+                      ≈ $
+                      {(
+                        parseFloat(withdrawAmount) *
+                        (balancesList.find((b) => b.asset === activeAction.asset)
+                          ?.price || 1)
+                      ).toLocaleString("en-US", { maximumFractionDigits: 2 })}
+                      {" USD"}
+                    </p>
+                  )}
+
+                  {/* Validación */}
+                  {withdrawAmount &&
+                    parseFloat(withdrawAmount) >
+                      (firestoreBalances[activeAction.asset] || 0) && (
+                      <div className="flex items-center gap-1.5 mt-2 text-red-500">
+                        <AlertTriangle className="h-3 w-3" />
+                        <span className="text-[10px] font-semibold">
+                          Saldo insuficiente
+                        </span>
+                      </div>
+                    )}
+                </div>
+
+                {/* Resumen de comisión */}
+                <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 space-y-2 border border-gray-200 dark:border-white/10">
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-400">Comisión de red</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {selectedChainInfo?.fee || "~1 USDT"}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-[11px]">
+                    <span className="text-gray-400">Tiempo estimado</span>
+                    <span className="font-semibold text-gray-900 dark:text-white">
+                      {selectedChainInfo?.time || "~1 min"}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Botones */}
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWithdrawStep(1)}
+                    className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-xs font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    disabled={
+                      isSubmitting ||
+                      !withdrawAmount ||
+                      parseFloat(withdrawAmount) <= 0 ||
+                      parseFloat(withdrawAmount) >
+                        (firestoreBalances[activeAction.asset] || 0)
+                    }
+                    onClick={handleExecuteWithdrawal}
+                    className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 hover:bg-red-600 text-white text-xs font-bold transition-all disabled:opacity-40 disabled:cursor-not-allowed shadow-lg shadow-red-500/20"
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Procesando...
+                      </>
+                    ) : (
+                      <>
+                        <Shield className="h-3.5 w-3.5" />
+                        Confirmar Retiro
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ─── STEP 3: Éxito ────────────────────────────── */}
+            {withdrawStep === 3 && withdrawSuccess && (
+              <div className="py-6 text-center space-y-4">
+                <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white">
+                    ¡Retiro Registrado!
+                  </h3>
+                  <p className="text-xs text-gray-400 mt-1 max-w-xs mx-auto">
+                    Tu solicitud ha sido añadida a la cola de procesamiento.
+                    Recibirás una notificación cuando se complete.
+                  </p>
+                </div>
+
+                {withdrawTxId && (
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200 dark:border-white/10">
+                    <p className="text-[10px] text-gray-400 mb-1">
+                      ID de transacción
+                    </p>
+                    <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 truncate">
+                      {withdrawTxId}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2 pt-2">
+                  <button
+                    onClick={handleCloseAction}
+                    className="flex-1 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold hover:bg-gray-800 dark:hover:bg-white/15 transition-all"
+                  >
+                    Volver a Wallet
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══════════════════════════════════════════════════════
+          LISTA DE SALDOS
+      ═══════════════════════════════════════════════════════ */}
       <div>
-        <h2 className="text-sm font-semibold text-gray-900 dark:text-white mb-3">Saldos por Criptomoneda</h2>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+            Mis Activos
+          </h2>
+          <span className="text-[10px] text-gray-400 font-medium">
+            {balancesList.length} activos
+          </span>
+        </div>
+
         <div className="space-y-2">
           {balancesList.map((balance) => {
-            const tokenPriceInfo = prices.find((p) => p.symbol.toUpperCase() === balance.asset.toUpperCase());
-            const change = tokenPriceInfo?.change24h ?? 0;
-            const isUp = change >= 0;
+            const colors     = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
+            const isUp       = balance.change24h >= 0;
+            const isExpanded = expandedAsset === balance.asset;
 
             return (
-              <Card key={balance.asset} padding="md" className="border-gray-100 dark:border-white/[0.04]">
-                <div className="flex items-center justify-between">
+              <div
+                key={balance.asset}
+                className={`rounded-2xl border transition-all ${
+                  isExpanded
+                    ? `${colors.border} bg-gradient-to-r ${colors.gradient}`
+                    : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"
+                }`}
+              >
+                {/* Fila principal */}
+                <button
+                  onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)}
+                  className="w-full flex items-center justify-between p-4"
+                >
                   <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-lg">
+                    <div
+                      className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center text-xl`}
+                    >
                       {CRYPTO_ICONS[balance.asset] || "🪙"}
                     </div>
-                    <div>
-                      <div className="font-semibold text-sm text-gray-900 dark:text-white">{balance.asset}</div>
-                      <div className="text-xs text-gray-500 dark:text-gray-400">
-                        {hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 5 : balance.asset === "ETH" ? 4 : 2)} ${balance.asset}`}
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {balance.asset}
+                      </p>
+                      <p className="text-[11px] text-gray-400">
+                        {hideBalances
+                          ? "••••"
+                          : `${balance.amount.toFixed(
+                              balance.asset === "BTC"
+                                ? 6
+                                : balance.asset === "ETH"
+                                ? 4
+                                : 2
+                            )} ${balance.asset}`}
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {hideBalances
+                          ? "••••"
+                          : `$${balance.usdValue.toLocaleString("en-US", {
+                              minimumFractionDigits: 2,
+                            })}`}
+                      </p>
+                      <div
+                        className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${
+                          isUp ? "text-emerald-500" : "text-red-500"
+                        }`}
+                      >
+                        {isUp ? (
+                          <TrendingUp className="h-2.5 w-2.5" />
+                        ) : (
+                          <TrendingDown className="h-2.5 w-2.5" />
+                        )}
+                        {Math.abs(balance.change24h).toFixed(2)}%
                       </div>
                     </div>
+                    {isExpanded ? (
+                      <ChevronUp className="h-4 w-4 text-gray-400" />
+                    ) : (
+                      <ChevronDown className="h-4 w-4 text-gray-400" />
+                    )}
                   </div>
-                  
-                  <div className="text-right">
-                    <div className="font-semibold text-sm text-gray-900 dark:text-white">
-                      {hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
-                    </div>
-                    <div className={`text-xs font-medium flex items-center gap-0.5 justify-end ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                      {isUp ? <TrendingUp className="h-3 w-3" /> : <TrendingDown className="h-3 w-3" />}
-                      {Math.abs(change).toFixed(2)}%
-                    </div>
-                  </div>
-                </div>
+                </button>
 
-                <div className="flex gap-2 mt-3 pt-2 border-t border-gray-100 dark:border-white/[0.05]">
-                  <button onClick={() => handleOpenDeposit(balance.asset)} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
-                    <ArrowDownLeft className="h-3 w-3" /> Depositar
-                  </button>
-                  <button onClick={() => setActiveAction({ type: "withdraw", asset: balance.asset })} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
-                    <ArrowUpRight className="h-3 w-3" /> Retirar
-                  </button>
-                  <button onClick={() => handleOpenDeposit(balance.asset)} className="flex-1 flex items-center justify-center gap-1 py-1.5 text-xs font-medium text-gray-500 dark:text-gray-400 hover:text-brand-500 transition-colors rounded-lg hover:bg-brand-500/5">
-                    <QrCode className="h-3 w-3" /> Mi QR
-                  </button>
-                </div>
-              </Card>
+                {/* Acciones expandidas */}
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
+                    <button
+                      onClick={() => handleOpenDeposit(balance.asset)}
+                      className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-bold transition-all ${colors.bg} ${colors.text} hover:opacity-80`}
+                    >
+                      <ArrowDownLeft className="h-3.5 w-3.5" />
+                      Depositar
+                    </button>
+                    <button
+                      onClick={() => handleOpenWithdraw(balance.asset)}
+                      className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                    >
+                      <ArrowUpRight className="h-3.5 w-3.5" />
+                      Retirar
+                    </button>
+                    <button
+                      onClick={() => handleOpenDeposit(balance.asset)}
+                      className="flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+                    >
+                      <QrCode className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+              </div>
             );
           })}
         </div>
       </div>
+
+      {/* ═══════════════════════════════════════════════════════
+          INFO BANNER
+      ═══════════════════════════════════════════════════════ */}
+      <div className="flex items-start gap-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] rounded-2xl p-4">
+        <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
+          <Info className="h-4 w-4 text-blue-500" />
+        </div>
+        <div>
+          <p className="text-[11px] font-bold text-gray-900 dark:text-white mb-0.5">
+            Transferencias internas gratuitas
+          </p>
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            Los movimientos entre usuarios de CubaX son instantáneos y sin
+            comisiones. Solo se cobran fees de red para retiros externos.
+          </p>
+        </div>
+      </div>
     </div>
   );
-      }
-      
+}
