@@ -19,25 +19,73 @@ export function BottomNav() {
   const { currentView, navigate } = useAppStore();
 
   const items: NavItem[] = [
-    { view: "dashboard", label: "Inicio", icon: <LayoutDashboard className="h-5 w-5" /> },
-    { view: "p2p", label: "P2P", icon: <ArrowLeftRight className="h-5 w-5" /> },
-    { view: "marketplace", label: "Tienda", icon: <ShoppingBag className="h-5 w-5" /> },
-    { view: "wallet", label: "Wallet", icon: <Wallet className="h-5 w-5" /> },
-    { view: "settings", label: "Perfil", icon: <User className="h-5 w-5" /> },
+    {
+      view: "dashboard",
+      label: "Inicio",
+      icon: <LayoutDashboard className="h-5 w-5" />,
+    },
+    {
+      view: "p2p",
+      label: "P2P",
+      icon: <ArrowLeftRight className="h-5 w-5" />,
+    },
+    {
+      view: "marketplace",
+      label: "Tienda",
+      icon: <ShoppingBag className="h-5 w-5" />,
+    },
+    {
+      view: "wallet",
+      label: "Wallet",
+      icon: <Wallet className="h-5 w-5" />,
+    },
+    {
+      view: "settings",
+      label: "Perfil",
+      icon: <User className="h-5 w-5" />,
+    },
   ];
 
   const isActive = (view: AppView) => {
-    if (view === "p2p" && ["create-order", "trade"].includes(currentView)) return true;
-    if (view === "marketplace" && ["product-detail", "create-product"].includes(currentView)) return true;
-    if (view === "settings" && ["kyc", "notifications"].includes(currentView)) return true;
+    if (view === "p2p" && [
+      "create-order",
+      "trade",
+      "trade-history",
+      "my-orders",
+    ].includes(currentView)) {
+      return true;
+    }
+
+    if (view === "marketplace" && [
+      "product-detail",
+      "create-product",
+    ].includes(currentView)) {
+      return true;
+    }
+
+    if (view === "settings" && [
+      "kyc",
+      "notifications",
+      "profile",
+      "security",
+      "help",
+      "terms",
+      "language",
+      "notification-settings",
+      "admin-kyc",
+    ].includes(currentView)) {
+      return true;
+    }
+
     return currentView === view;
   };
 
   return (
-    <nav className="fixed bottom-0 left-0 right-0 z-50 glass bg-white/90 dark:bg-navy-950/90 border-t border-gray-100 dark:border-white/[0.06] safe-area-bottom">
+    <nav className="fixed bottom-0 left-0 right-0 z-40 glass bg-white/90 dark:bg-navy-950/90 border-t border-gray-100 dark:border-white/[0.06] pb-[max(env(safe-area-inset-bottom),0px)] backdrop-blur-md">
       <div className="max-w-lg mx-auto flex items-center justify-around px-2 h-16">
         {items.map((item) => {
           const active = isActive(item.view);
+
           return (
             <button
               key={item.view}
@@ -57,6 +105,7 @@ export function BottomNav() {
               >
                 {item.icon}
               </div>
+
               <span
                 className={cn(
                   "text-[10px] font-medium",
@@ -65,6 +114,7 @@ export function BottomNav() {
               >
                 {item.label}
               </span>
+
               {active && (
                 <div className="absolute -bottom-0.5 h-1 w-5 rounded-full bg-brand-500" />
               )}

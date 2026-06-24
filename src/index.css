@@ -3,7 +3,7 @@
 @theme {
   --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
 
-  --color-brand-50: #fdf8ed;
+  --color-brand-50:  #fdf8ed;
   --color-brand-100: #f9edcc;
   --color-brand-200: #f3d994;
   --color-brand-300: #ecc15c;
@@ -15,7 +15,7 @@
   --color-brand-900: #67381a;
   --color-brand-950: #3c1c0a;
 
-  --color-navy-50: #eef4ff;
+  --color-navy-50:  #eef4ff;
   --color-navy-100: #dae6ff;
   --color-navy-200: #bdd4ff;
   --color-navy-300: #90b8ff;
@@ -40,18 +40,22 @@
     scroll-behavior: smooth;
     background-color: #f9fafb;
     overflow-x: hidden;
+    /* ✅ Safe area para móviles con notch */
+    padding-top: env(safe-area-inset-top);
+    padding-left: env(safe-area-inset-left);
+    padding-right: env(safe-area-inset-right);
   }
 
   body {
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
-
     background-color: #f9fafb;
     color: #111827;
-
     overflow-x: hidden;
     min-height: 100vh;
+    /* ✅ Evita el rebote elástico en iOS */
+    overscroll-behavior: none;
   }
 
   html.dark body {
@@ -62,7 +66,6 @@
         transparent 35%
       ),
       #0c1335;
-
     color: #f3f4f6;
   }
 
@@ -74,42 +77,45 @@
 }
 
 @layer utilities {
+
+  /* ─── Scrollbar oculta ───────────────────────────────── */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
   }
-
   .scrollbar-hide::-webkit-scrollbar {
     display: none;
   }
 
-  /* Glass Premium */
+  /* ─── Glass Premium ──────────────────────────────────── */
   .glass {
     background: rgba(255, 255, 255, 0.04);
-
     border: 1px solid rgba(255, 255, 255, 0.06);
-
     backdrop-filter: blur(8px);
     -webkit-backdrop-filter: blur(8px);
-
-    box-shadow:
-      0 8px 32px rgba(0, 0, 0, 0.18);
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
   }
 
-  /* Wallet Style Revolut/Wise */
+  /* ─── Wallet Style Revolut/Wise ──────────────────────── */
   .wallet-card {
-    background: linear-gradient(
-      135deg,
-      #1b298e 0%,
-      #15204b 100%
-    );
-
+    background: linear-gradient(135deg, #1b298e 0%, #15204b 100%);
     border: 1px solid rgba(255, 255, 255, 0.08);
-
-    box-shadow:
-      0 12px 40px rgba(0, 0, 0, 0.28);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
   }
 
+  /* ─── ✅ Safe Bottom ─────────────────────────────────── */
+  /* Empuja el contenido del modal por encima del BottomNav */
+  .safe-bottom {
+    padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 5rem));
+  }
+
+  /* ─── ✅ Safe Area para el BottomNav ─────────────────── */
+  /* Agrega espacio en el fondo del nav para dispositivos con home bar */
+  .safe-area-bottom {
+    padding-bottom: env(safe-area-inset-bottom, 0px);
+  }
+
+  /* ─── Animaciones ────────────────────────────────────── */
   .animate-slide-up {
     animation: slideUp 0.25s ease-out;
   }
@@ -121,6 +127,11 @@
   .animate-pulse-glow {
     animation: pulseGlow 3s ease-in-out infinite;
   }
+
+  /* ─── ✅ Animación slide-down (para modales que bajan) ── */
+  .animate-slide-down {
+    animation: slideDown 0.25s ease-out;
+  }
 }
 
 @keyframes slideUp {
@@ -128,7 +139,17 @@
     transform: translateY(12px);
     opacity: 0;
   }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
 
+@keyframes slideDown {
+  from {
+    transform: translateY(-12px);
+    opacity: 0;
+  }
   to {
     transform: translateY(0);
     opacity: 1;
@@ -139,7 +160,6 @@
   from {
     opacity: 0;
   }
-
   to {
     opacity: 1;
   }
@@ -148,12 +168,9 @@
 @keyframes pulseGlow {
   0%,
   100% {
-    box-shadow:
-      0 0 4px rgba(228, 171, 52, 0.15);
+    box-shadow: 0 0 4px rgba(228, 171, 52, 0.15);
   }
-
   50% {
-    box-shadow:
-      0 0 12px rgba(228, 171, 52, 0.25);
+    box-shadow: 0 0 12px rgba(228, 171, 52, 0.25);
   }
 }

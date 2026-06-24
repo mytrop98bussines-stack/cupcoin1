@@ -95,6 +95,7 @@ export function WalletPage() {
     requestWithdrawal,
     requestDeposit,
     depositAddresses,
+    setModalOpen
   } = useAppStore();
 
   // ─── Estados ─────────────────────────────────────────────
@@ -141,6 +142,15 @@ export function WalletPage() {
       setSelectedChain(CHAIN_OPTIONS[activeAction.asset][0].value);
     }
   }, [activeAction.asset, activeAction.type]);
+  
+  useEffect(() => {
+  const isOpen = activeAction.type !== null;
+  setModalOpen(isOpen);
+
+  return () => {
+    setModalOpen(false);
+  };
+}, [activeAction.type, setModalOpen]);
 
   // ─── Handlers ─────────────────────────────────────────────
   const handleRefresh = useCallback(async () => {

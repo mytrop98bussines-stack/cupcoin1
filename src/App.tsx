@@ -4,23 +4,23 @@ import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 
 // ─── Páginas públicas ─────────────────────────────────────
-import { LandingPage }    from "@/pages/LandingPage";
-import { AuthPage }       from "@/pages/AuthPage";
+import { LandingPage } from "@/pages/LandingPage";
+import { AuthPage }    from "@/pages/AuthPage";
 
 // ─── Páginas principales ──────────────────────────────────
-import { DashboardPage }      from "@/pages/DashboardPage";
-import { P2PPage }            from "@/pages/P2PPage";
-import { CreateOrderPage }    from "@/pages/CreateOrderPage";
-import { TradePage }          from "@/pages/TradePage";
-import { KYCPage }            from "@/pages/KYCPage";
-import { MarketplacePage }    from "@/pages/MarketplacePage";
-import { ProductDetailPage }  from "@/pages/ProductDetailPage";
-import { CreateProductPage }  from "@/pages/CreateProductPage";
-import { WalletPage }         from "@/pages/WalletPage";
-import { SettingsPage }       from "@/pages/SettingsPage";
-import { NotificationsPage }  from "@/pages/NotificationsPage";
+import { DashboardPage }     from "@/pages/DashboardPage";
+import { P2PPage }           from "@/pages/P2PPage";
+import { CreateOrderPage }   from "@/pages/CreateOrderPage";
+import { TradePage }         from "@/pages/TradePage";
+import { KYCPage }           from "@/pages/KYCPage";
+import { MarketplacePage }   from "@/pages/MarketplacePage";
+import { ProductDetailPage } from "@/pages/ProductDetailPage";
+import { CreateProductPage } from "@/pages/CreateProductPage";
+import { WalletPage }        from "@/pages/WalletPage";
+import { SettingsPage }      from "@/pages/SettingsPage";
+import { NotificationsPage } from "@/pages/NotificationsPage";
 
-// ─── Páginas de configuración (NUEVAS) ───────────────────
+// ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
 import { SecurityPage }             from "@/pages/SecurityPage";
 import { HelpPage }                 from "@/pages/HelpPage";
@@ -34,7 +34,7 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // ─── Firebase ─────────────────────────────────────────────
-import { auth, db }          from "@/lib/firebase/config";
+import { auth, db }           from "@/lib/firebase/config";
 import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import {
@@ -42,7 +42,7 @@ import {
   onForegroundMessage,
 } from "@/lib/firebase/messaging";
 
-import { MOCK_USER }      from "@/data/mock";
+import { MOCK_USER }        from "@/data/mock";
 import type { User as AppUser } from "@/types";
 
 // =========================================================
@@ -61,7 +61,6 @@ const VIEW_TITLES: Record<string, string> = {
   settings:                "Ajustes",
   notifications:           "Notificaciones",
   "admin-kyc":             "Panel KYC Admin",
-  // ✅ Nuevas páginas
   profile:                 "Mi Perfil",
   security:                "Seguridad",
   help:                    "Centro de ayuda",
@@ -80,7 +79,6 @@ const SHOW_BACK_VIEWS = [
   "create-product",
   "notifications",
   "admin-kyc",
-  // ✅ Nuevas páginas
   "profile",
   "security",
   "help",
@@ -104,7 +102,6 @@ const AUTHENTICATED_VIEWS = [
   "settings",
   "notifications",
   "admin-kyc",
-  // ✅ Nuevas páginas
   "profile",
   "security",
   "help",
@@ -119,27 +116,31 @@ const AUTHENTICATED_VIEWS = [
 // APP CONTENT
 // =========================================================
 function AppContent() {
-  const { currentView, user, navigate } = useAppStore();
+  const {
+    currentView,
+    user,
+    navigate,
+    modalOpen, // ✅ NUEVO
+  } = useAppStore();
 
-  // ─── Seguridad: solo admin puede ver panel admin ─────────
+  // ─── Seguridad: solo admin ────────────────────────────────
   useEffect(() => {
     if (currentView === "admin-kyc" && user?.role !== "admin") {
       navigate("dashboard");
     }
   }, [currentView, user, navigate]);
 
-  // ─── Notificaciones push en primer plano ─────────────────
+  // ─── Push en primer plano ─────────────────────────────────
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("📬 Push en primer plano:", payload);
-      // Puedes mostrar un toast aquí en vez de un alert
     });
     return () => {
       if (unsubscribe) unsubscribe();
     };
   }, []);
 
-  // ─── Loading si vista requiere auth pero no hay usuario ──
+  // ─── Loading si requiere auth ─────────────────────────────
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950">
@@ -168,27 +169,27 @@ function AppContent() {
       <main className="flex-1 min-h-[calc(100vh-3.5rem-4rem)]">
 
         {/* ─── Páginas principales ──────────────────────── */}
-        {currentView === "dashboard"       && <DashboardPage />}
-        {currentView === "p2p"             && <P2PPage />}
-        {currentView === "create-order"    && <CreateOrderPage />}
-        {currentView === "trade"           && <TradePage />}
-        {currentView === "kyc"             && <KYCPage />}
-        {currentView === "marketplace"     && <MarketplacePage />}
-        {currentView === "product-detail"  && <ProductDetailPage />}
-        {currentView === "create-product"  && <CreateProductPage />}
-        {currentView === "wallet"          && <WalletPage />}
-        {currentView === "settings"        && <SettingsPage />}
-        {currentView === "notifications"   && <NotificationsPage />}
+        {currentView === "dashboard"      && <DashboardPage />}
+        {currentView === "p2p"            && <P2PPage />}
+        {currentView === "create-order"   && <CreateOrderPage />}
+        {currentView === "trade"          && <TradePage />}
+        {currentView === "kyc"            && <KYCPage />}
+        {currentView === "marketplace"    && <MarketplacePage />}
+        {currentView === "product-detail" && <ProductDetailPage />}
+        {currentView === "create-product" && <CreateProductPage />}
+        {currentView === "wallet"         && <WalletPage />}
+        {currentView === "settings"       && <SettingsPage />}
+        {currentView === "notifications"  && <NotificationsPage />}
 
-        {/* ─── Páginas de configuración (NUEVAS) ───────── */}
-        {currentView === "profile"                 && <ProfilePage />}
-        {currentView === "security"                && <SecurityPage />}
-        {currentView === "help"                    && <HelpPage />}
-        {currentView === "terms"                   && <TermsPage />}
-        {currentView === "language"                && <LanguagePage />}
-        {currentView === "notification-settings"   && <NotificationSettingsPage />}
-        {currentView === "trade-history"           && <TradeHistoryPage />}
-        {currentView === "my-orders"               && <MyOrdersPage />}
+        {/* ─── Páginas de configuración ─────────────────── */}
+        {currentView === "profile"                && <ProfilePage />}
+        {currentView === "security"               && <SecurityPage />}
+        {currentView === "help"                   && <HelpPage />}
+        {currentView === "terms"                  && <TermsPage />}
+        {currentView === "language"               && <LanguagePage />}
+        {currentView === "notification-settings"  && <NotificationSettingsPage />}
+        {currentView === "trade-history"          && <TradeHistoryPage />}
+        {currentView === "my-orders"              && <MyOrdersPage />}
 
         {/* ─── Admin ───────────────────────────────────── */}
         {currentView === "admin-kyc" && user?.role === "admin" && (
@@ -196,7 +197,8 @@ function AppContent() {
         )}
       </main>
 
-      {showBottomNav && <BottomNav />}
+      {/* ✅ BottomNav se oculta cuando hay un modal abierto */}
+      {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
 }
@@ -231,61 +233,62 @@ export default function App() {
 
   // ─── Guardián de autenticación ────────────────────────────
   useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(auth, async (firebaseUser) => {
-      try {
-        if (firebaseUser) {
-          const initialUserData: AppUser = {
-            uid:          firebaseUser.uid,
-            email:        firebaseUser.email        || "",
-            displayName:  firebaseUser.displayName  || "Usuario",
-            photoURL:     firebaseUser.photoURL     || null,
-            kycStatus:    "unverified",
-            createdAt:    Date.now(),
-            totalTrades:  0,
-            rating:       5.0,
-            walletAddress: null,
-            role:         "user",
-          };
+    const unsubscribeAuth = onAuthStateChanged(
+      auth,
+      async (firebaseUser) => {
+        try {
+          if (firebaseUser) {
+            const initialUserData: AppUser = {
+              uid:           firebaseUser.uid,
+              email:         firebaseUser.email       || "",
+              displayName:   firebaseUser.displayName || "Usuario",
+              photoURL:      firebaseUser.photoURL    || null,
+              kycStatus:     "unverified",
+              createdAt:     Date.now(),
+              totalTrades:   0,
+              rating:        5.0,
+              walletAddress: null,
+              role:          "user",
+            };
 
-          // Login rápido para desbloquear UI inmediatamente
-          login(initialUserData);
+            login(initialUserData);
 
-          // Token push de forma pasiva y sin bloquear
-          if (firebaseUser.uid !== "invitado") {
-            setTimeout(() => {
-              requestNotificationPermission(firebaseUser.uid).catch((err) =>
-                console.warn("Push silenciado:", err)
-              );
-            }, 1000);
+            if (firebaseUser.uid !== "invitado") {
+              setTimeout(() => {
+                requestNotificationPermission(firebaseUser.uid).catch(
+                  (err) => console.warn("Push silenciado:", err)
+                );
+              }, 1000);
+            }
+          } else {
+            logout();
+            if (
+              AUTHENTICATED_VIEWS.includes(currentView) ||
+              !currentView
+            ) {
+              navigate("landing");
+            }
           }
-        } else {
-          logout();
-          if (
-            AUTHENTICATED_VIEWS.includes(currentView) ||
-            !currentView
-          ) {
-            navigate("landing");
-          }
+        } catch (error) {
+          console.error("Error en guardián de auth:", error);
+          navigate("landing");
+        } finally {
+          setAuthLoading(false);
         }
-      } catch (error) {
-        console.error("Error en guardián de auth:", error);
-        navigate("landing");
-      } finally {
-        setAuthLoading(false);
       }
-    });
+    );
 
     return () => unsubscribeAuth();
   }, [login, logout]);
 
-  // ─── Sincronización en tiempo real con Firestore ──────────
+  // ─── Sincronización Firestore ─────────────────────────────
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
 
     const uid        = user.uid;
     const userDocRef = doc(db, "users", uid);
 
-    console.log(`[Firebase] Iniciando streams reactivos para: ${uid}`);
+    console.log(`[Firebase] Iniciando streams para: ${uid}`);
 
     const unsubscribeUserDoc = onSnapshot(
       userDocRef,
@@ -294,7 +297,6 @@ export default function App() {
           if (docSnap.exists()) {
             const fullUserData = docSnap.data() as AppUser;
 
-            // Actualizar store con datos completos de Firestore
             useAppStore.setState({ user: fullUserData });
 
             if (MOCK_USER) {
@@ -304,24 +306,27 @@ export default function App() {
               Object.assign(MOCK_USER, fullUserData);
             }
 
-            // Sincronizar balances y direcciones
-            const firestoreBalances  = (fullUserData as any).balances         || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
-            const depositAddresses   = (fullUserData as any).depositAddresses || {};
+            const firestoreBalances =
+              (fullUserData as any).balances || {
+                USDT: 0, BTC: 0, ETH: 0, USDC: 0,
+              };
+            const depositAddresses =
+              (fullUserData as any).depositAddresses || {};
+
             setWalletData(firestoreBalances, depositAddresses);
 
           } else {
-            // Primer registro: crear documento inicial
             const templateUser = {
-              uid:             uid,
-              email:           user.email        || "",
-              displayName:     user.displayName  || "Usuario",
-              photoURL:        user.photoURL      || null,
-              kycStatus:       "unverified",
-              createdAt:       Date.now(),
-              totalTrades:     0,
-              rating:          5.0,
-              role:            "user",
-              balances:        { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
+              uid:              uid,
+              email:            user.email       || "",
+              displayName:      user.displayName || "Usuario",
+              photoURL:         user.photoURL    || null,
+              kycStatus:        "unverified",
+              createdAt:        Date.now(),
+              totalTrades:      0,
+              rating:           5.0,
+              role:             "user",
+              balances:         { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
               depositAddresses: {},
               notifPrefs: {
                 trades:      true,
@@ -332,7 +337,9 @@ export default function App() {
               },
             };
             await setDoc(userDocRef, templateUser);
-            console.log(`[Firebase] Documento creado para nuevo usuario: ${uid}`);
+            console.log(
+              `[Firebase] Documento creado para nuevo usuario: ${uid}`
+            );
           }
         } catch (err) {
           console.error("Error en snapshot de usuario:", err);
@@ -343,7 +350,6 @@ export default function App() {
       }
     );
 
-    // Escuchar notificaciones globales
     const unsubscribeNotifications = subscribeToNotifications(uid);
 
     return () => {
@@ -353,7 +359,7 @@ export default function App() {
     };
   }, [user?.uid, setWalletData, subscribeToNotifications]);
 
-  // ─── Redirección si ya está autenticado ──────────────────
+  // ─── Redirección si ya autenticado ───────────────────────
   useEffect(() => {
     if (
       isAuthenticated &&

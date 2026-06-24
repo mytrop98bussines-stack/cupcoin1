@@ -25,7 +25,6 @@ import {
 } from "firebase/firestore";
 import { db } from "@/lib/firebase/config";
 
-// ✅ URL base del backend en Render
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
 interface AppState {
@@ -41,15 +40,13 @@ interface AppState {
   tradeMessages: ChatMessage[];
   products: Product[];
   notifications: Notification[];
-
-  // 🏦 MODELO COINEX
   depositAddresses: Record<string, string>;
-
   selectedTradeId: string | null;
   selectedProductId: string | null;
   isLoading: boolean;
   mobileMenuOpen: boolean;
   loadingPrices: boolean;
+  modalOpen: boolean; // ✅ NUEVO
 
   setTheme: (theme: ThemeMode) => void;
   toggleTheme: () => void;
@@ -59,7 +56,6 @@ interface AppState {
   login: (user: User) => void;
   logout: () => void;
 
-  // 🔄 MAPEADOR CENTRAL
   setWalletData: (
     firestoreBalances: Record<string, number>,
     depositAddresses?: Record<string, string>
@@ -71,13 +67,11 @@ interface AppState {
   addOrder: (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
 
-  // 🔥 FIRESTORE CORE
   updateTradeStatus: (
     tradeId: string,
     status: Trade["status"]
   ) => Promise<void>;
 
-  // 🏦 COINEX GATEWAY OPERATIONS
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
   requestDeposit: (asset: string) => Promise<{
     success: boolean;
@@ -91,19 +85,16 @@ interface AppState {
     chain: string
   ) => Promise<{ success: boolean; txId?: string; message: string }>;
 
-  // 💬 CHAT P2P
   setTradeMessages: (messages: ChatMessage[]) => void;
   addMessage: (message: ChatMessage) => void;
   subscribeToTradeMessages: (tradeId: string) => () => void;
   sendMessage: (tradeId: string, text: string) => Promise<void>;
 
-  // 🛍️ PRODUCTOS
   setProducts: (products: Product[]) => void;
   addProduct: (product: Product) => void;
-  deleteProduct: (productId: string) => void;           // ✅ NUEVO
-  subscribeToProducts: () => (() => void);              // ✅ NUEVO
+  deleteProduct: (productId: string) => void;
+  subscribeToProducts: () => () => void;
 
-  // 🔔 NOTIFICACIONES
   setNotifications: (notifications: Notification[]) => void;
   subscribeToNotifications: (userId: string) => () => void;
   markNotificationRead: (id: string) => Promise<void>;
@@ -112,6 +103,7 @@ interface AppState {
   setSelectedProductId: (id: string | null) => void;
   setLoading: (loading: boolean) => void;
   setMobileMenuOpen: (open: boolean) => void;
+  setModalOpen: (open: boolean) => void; // ✅ NUEVO
 }
 
 const getInitialTheme = (): ThemeMode => {
@@ -133,6 +125,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   isAuthenticated: false,
   balances: [],
   depositAddresses: {},
+  modalOpen: false, // ✅ NUEVO
 
   prices: [
     { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
@@ -195,6 +188,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeTrade:      null,
       tradeMessages:    [],
       products:         [],
+      modalOpen:        false, // ✅ RESET
     }),
 
   // ─── WALLET DATA ─────────────────────────────────────────
@@ -318,7 +312,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         console.warn(`⚠️ [fetchDepositAddress] Sin dirección para ${assetKey}:`, data?.error);
       }
     } catch (error) {
-      console.error("❌ [fetchDepositAddress] Error de conexión:", error);
+      console.error("❌ [fetchDepositAddress] Error:", error);
     }
   },
 
@@ -483,14 +477,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProducts: (products) => set({ products }),
   addProduct:  (product)  => set({ products: [product, ...get().products] }),
 
-  // ✅ NUEVO — Eliminar producto del store local
   deleteProduct: (productId: string) => {
     set({
       products: get().products.filter((p) => p.id !== productId),
     });
   },
 
-  // ✅ NUEVO — Suscripción en tiempo real a productos de Firestore
   subscribeToProducts: () => {
     const q = query(
       collection(db, "products"),
@@ -566,4 +558,5 @@ export const useAppStore = create<AppState>((set, get) => ({
   setSelectedProductId: (id)      => set({ selectedProductId: id }),
   setLoading:           (loading) => set({ isLoading: loading }),
   setMobileMenuOpen:    (open)    => set({ mobileMenuOpen: open }),
+  setModalOpen:         (open)    => set({ modalOpen: open }), // ✅ NUEVO
 }));
