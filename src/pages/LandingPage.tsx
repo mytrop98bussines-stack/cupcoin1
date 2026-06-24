@@ -1,10 +1,7 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
-
-// 🔄 Inyectamos el hook de React Query conectado a CoinGecko
 import { useCryptoPrices } from "@/lib/coingecko/prices";
 import { CRYPTO_ICONS } from "@/data/mock";
-
 import {
   Shield,
   ArrowLeftRight,
@@ -16,107 +13,138 @@ import {
   Star,
   TrendingUp,
   TrendingDown,
+  CheckCircle2,
 } from "lucide-react";
 
 export function LandingPage() {
   const { navigate } = useAppStore();
-
-  // 🔥 CONEXIÓN EN TIEMPO REAL DESDE LA LANDING
   const { data: cryptoPrices, isLoading: loadingPrices } = useCryptoPrices();
 
   const features = [
     {
-      icon: <ArrowLeftRight className="h-6 w-6" />,
+      icon:  <ArrowLeftRight className="h-6 w-6" />,
       title: "P2P Sin Límites",
-      desc: "Compra y vende cripto con Transfermóvil, EnZona y efectivo",
+      desc:  "Compra y vende cripto con Transfermóvil, EnZona y efectivo",
+      color: "bg-brand-500/10 text-brand-500",
     },
     {
-      icon: <Shield className="h-6 w-6" />,
+      icon:  <Shield className="h-6 w-6" />,
       title: "Escrow Seguro",
-      desc: "Fondos protegidos en contrato inteligente durante el trade",
+      desc:  "Fondos protegidos en contrato inteligente durante el trade",
+      color: "bg-emerald-500/10 text-emerald-500",
     },
     {
-      icon: <ShoppingBag className="h-6 w-6" />,
+      icon:  <ShoppingBag className="h-6 w-6" />,
       title: "Marketplace",
-      desc: "Compra productos reales pagando con criptomonedas",
+      desc:  "Compra productos reales pagando con criptomonedas",
+      color: "bg-violet-500/10 text-violet-500",
     },
     {
-      icon: <Zap className="h-6 w-6" />,
+      icon:  <Zap className="h-6 w-6" />,
       title: "Ultra Rápido",
-      desc: "Optimizado para redes 3G/4G del mercado cubano",
+      desc:  "Optimizado para redes 3G/4G del mercado cubano",
+      color: "bg-amber-500/10 text-amber-500",
     },
     {
-      icon: <Globe className="h-6 w-6" />,
+      icon:  <Globe className="h-6 w-6" />,
       title: "Precios en Tiempo Real",
-      desc: "Cotizaciones globales de CoinGecko actualizadas al instante",
+      desc:  "Cotizaciones globales de CoinGecko actualizadas al instante",
+      color: "bg-blue-500/10 text-blue-500",
     },
     {
-      icon: <Lock className="h-6 w-6" />,
+      icon:  <Lock className="h-6 w-6" />,
       title: "Verificación KYC",
-      desc: "Sistema de identidad seguro para operar sin restricciones",
+      desc:  "Sistema de identidad seguro para operar sin restricciones",
+      color: "bg-red-500/10 text-red-500",
     },
   ];
 
   const stats = [
     { value: "5,200+", label: "Usuarios activos" },
-    { value: "$2.4M", label: "Vol. mensual" },
-    { value: "99.8%", label: "Trades exitosos" },
-    { value: "<3min", label: "Tiempo promedio" },
+    { value: "$2.4M",  label: "Vol. mensual"     },
+    { value: "99.8%",  label: "Trades exitosos"  },
+    { value: "<3min",  label: "Tiempo promedio"  },
+  ];
+
+  const trustBadges = [
+    "Transacciones cifradas",
+    "Escrow automático",
+    "Soporte 24/7",
   ];
 
   return (
     <div className="min-h-screen bg-white dark:bg-navy-950 text-gray-900 dark:text-white">
-      {/* Header */}
-      <header className="sticky top-0 z-50 glass bg-white/80 dark:bg-navy-950/80 border-b border-gray-100 dark:border-white/[0.06]">
+
+      {/* ═══ HEADER ══════════════════════════════════════════ */}
+      <header className="sticky top-0 z-50 bg-white/80 dark:bg-navy-950/80 backdrop-blur-md border-b border-gray-100 dark:border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-1.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
+            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
               <span className="text-white font-black text-sm">CX</span>
             </div>
             <span className="font-bold text-lg tracking-tight">
               Cuba<span className="text-brand-500">X</span>
             </span>
           </div>
-          <Button
-            size="sm"
-            onClick={() => navigate("login")}
-          >
+          <Button size="sm" onClick={() => navigate("login")}>
             Iniciar Sesión
           </Button>
         </div>
       </header>
 
-      {/* Hero */}
+      {/* ═══ HERO ════════════════════════════════════════════ */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-brand-500/5 via-transparent to-transparent dark:from-brand-500/10" />
+        {/* Fondo decorativo */}
+        <div className="absolute inset-0 bg-gradient-to-b from-brand-500/5 via-transparent to-transparent dark:from-brand-500/10 pointer-events-none" />
+        <div className="absolute top-0 right-0 h-64 w-64 bg-brand-500/5 rounded-full blur-3xl pointer-events-none" />
+        <div className="absolute bottom-0 left-0 h-48 w-48 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
+
         <div className="relative max-w-lg mx-auto px-4 pt-12 pb-8 text-center">
-          <div className="inline-flex items-center gap-1.5 bg-brand-500/10 text-brand-600 dark:text-brand-400 px-3 py-1.5 rounded-full text-xs font-semibold mb-6">
+          {/* Badge */}
+          <div className="inline-flex items-center gap-1.5 bg-brand-500/10 text-brand-600 dark:text-brand-400 px-3 py-1.5 rounded-full text-xs font-bold mb-6 border border-brand-500/20">
             <Star className="h-3.5 w-3.5 fill-current" />
             #1 Plataforma P2P en Cuba
           </div>
 
+          {/* Título */}
           <h1 className="text-3xl sm:text-4xl font-black leading-tight mb-4">
             Cripto para{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-600">
               Cuba
             </span>
             , sin{" "}
-            <span className="text-transparent bg-clip-text bg-gradient-to-r from-navy-400 to-navy-600">
+            <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-violet-600">
               fronteras
             </span>
           </h1>
 
-          <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-8 max-w-xs mx-auto">
+          {/* Descripción */}
+          <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-6 max-w-xs mx-auto">
             Compra, vende e intercambia criptomonedas de forma segura con
             métodos de pago cubanos. Todo protegido por contratos inteligentes.
           </p>
 
+          {/* Trust badges */}
+          <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
+            {trustBadges.map((badge) => (
+              <div
+                key={badge}
+                className="flex items-center gap-1 text-[11px] font-semibold text-gray-500 dark:text-gray-400"
+              >
+                <CheckCircle2 className="h-3 w-3 text-emerald-500" />
+                {badge}
+              </div>
+            ))}
+          </div>
+
+          {/* CTAs */}
           <div className="flex flex-col sm:flex-row gap-3 justify-center">
             <Button
               size="lg"
               fullWidth
               onClick={() => navigate("register")}
               icon={<ChevronRight className="h-4 w-4" />}
+              className="shadow-lg shadow-brand-500/20"
             >
               Crear cuenta gratis
             </Button>
@@ -132,74 +160,97 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* Stats */}
+      {/* ═══ STATS ═══════════════════════════════════════════ */}
       <section className="max-w-lg mx-auto px-4 py-6">
         <div className="grid grid-cols-4 gap-2">
           {stats.map((stat) => (
-              <div
-                key={stat.label}
-                className="text-center p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06]"
-              >
-                <div className="text-lg font-bold text-brand-500">{stat.value}</div>
-                <div className="text-[10px] text-gray-500 dark:text-gray-400 font-medium mt-0.5">
-                  {stat.label}
-                </div>
+            <div
+              key={stat.label}
+              className="text-center p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-colors"
+            >
+              <div className="text-base font-black text-brand-500">
+                {stat.value}
               </div>
+              <div className="text-[9px] text-gray-500 dark:text-gray-400 font-semibold mt-0.5 leading-tight">
+                {stat.label}
+              </div>
+            </div>
           ))}
         </div>
       </section>
 
-      {/* Live Prices Preview (🔴 REAL Y ARREGLADO CON CSS NATIVO) */}
+      {/* ═══ PRECIOS EN VIVO ═════════════════════════════════ */}
       <section className="max-w-lg mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide flex items-center gap-1.5">
+          <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
             Precios en vivo
             {loadingPrices && (
               <div className="h-3 w-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
             )}
           </h2>
-          <span className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">via CoinGecko</span>
+          <div className="flex items-center gap-1">
+            <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
+            <span className="text-[10px] text-gray-400 font-medium">
+              via CoinGecko
+            </span>
+          </div>
         </div>
 
+        {/* Skeleton loading */}
         {loadingPrices && !cryptoPrices ? (
           <div className="space-y-2">
             {[1, 2, 3].map((i) => (
-              <div key={i} className="h-14 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] animate-pulse rounded-xl" />
+              <div
+                key={i}
+                className="h-16 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] animate-pulse rounded-xl"
+              />
             ))}
           </div>
         ) : (
           <div className="space-y-2">
-            {cryptoPrices?.slice(0, 3).map((coin) => {
+            {cryptoPrices?.slice(0, 4).map((coin) => {
               const symbolUpper = coin.symbol.toUpperCase();
-              const isUp = coin.price_change_percentage_24h >= 0;
+              const isUp        = coin.price_change_percentage_24h >= 0;
 
               return (
                 <div
                   key={coin.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-colors"
+                  className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-all"
                 >
                   <div className="flex items-center gap-3">
-                    <div className="h-9 w-9 rounded-full bg-brand-500/10 flex items-center justify-center text-brand-500 font-bold text-sm">
+                    <div className="h-9 w-9 rounded-full bg-brand-500/10 flex items-center justify-center text-xl">
                       {(CRYPTO_ICONS as any)[symbolUpper] || symbolUpper.charAt(0)}
                     </div>
                     <div>
-                      <div className="font-semibold text-sm font-mono">{symbolUpper}</div>
-                      <div className="text-[11px] text-gray-500 dark:text-gray-400">{coin.name}</div>
+                      <div className="font-bold text-sm text-gray-900 dark:text-white">
+                        {symbolUpper}
+                      </div>
+                      <div className="text-[10px] text-gray-400">
+                        {coin.name}
+                      </div>
                     </div>
                   </div>
+
                   <div className="text-right">
-                    <div className="font-semibold text-sm font-mono">
-                      ${coin.current_price >= 1
-                        ? coin.current_price.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })
-                        : coin.current_price.toFixed(4)
-                      }
+                    <div className="font-bold text-sm text-gray-900 dark:text-white font-mono">
+                      $
+                      {coin.current_price >= 1
+                        ? coin.current_price.toLocaleString("en-US", {
+                            minimumFractionDigits: 2,
+                            maximumFractionDigits: 2,
+                          })
+                        : coin.current_price.toFixed(4)}
                     </div>
                     <div
-                      className={`text-[11px] font-mono font-bold flex items-center justify-end gap-0.5 ${
+                      className={`text-[11px] font-bold flex items-center justify-end gap-0.5 ${
                         isUp ? "text-emerald-500" : "text-red-500"
                       }`}
                     >
-                      {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                      {isUp ? (
+                        <TrendingUp className="h-2.5 w-2.5" />
+                      ) : (
+                        <TrendingDown className="h-2.5 w-2.5" />
+                      )}
                       {Math.abs(coin.price_change_percentage_24h).toFixed(2)}%
                     </div>
                   </div>
@@ -210,21 +261,31 @@ export function LandingPage() {
         )}
       </section>
 
-      {/* Features */}
+      {/* ═══ FEATURES ════════════════════════════════════════ */}
       <section className="max-w-lg mx-auto px-4 py-8">
-        <h2 className="text-xl font-bold text-center mb-6">
-          Todo lo que necesitas
-        </h2>
+        <div className="text-center mb-6">
+          <h2 className="text-xl font-black mb-1">
+            Todo lo que necesitas
+          </h2>
+          <p className="text-xs text-gray-400">
+            Una plataforma completa para el mercado cubano
+          </p>
+        </div>
+
         <div className="grid grid-cols-2 gap-3">
           {features.map((feature) => (
             <div
               key={feature.title}
-              className="p-4 rounded-2xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] transition-all hover:border-brand-500/30"
+              className="p-4 rounded-2xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-all hover:shadow-sm"
             >
-              <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center text-brand-500 mb-3">
+              <div
+                className={`h-10 w-10 rounded-xl ${feature.color} flex items-center justify-center mb-3`}
+              >
                 {feature.icon}
               </div>
-              <h3 className="font-semibold text-sm mb-1">{feature.title}</h3>
+              <h3 className="font-bold text-sm mb-1 text-gray-900 dark:text-white">
+                {feature.title}
+              </h3>
               <p className="text-[11px] text-gray-500 dark:text-gray-400 leading-relaxed">
                 {feature.desc}
               </p>
@@ -233,29 +294,53 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* CTA */}
+      {/* ═══ CTA FINAL ═══════════════════════════════════════ */}
       <section className="max-w-lg mx-auto px-4 py-8 pb-12">
-        <div className="p-6 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white text-center">
-          <h2 className="text-xl font-bold mb-2">
-            Empieza a operar hoy
-          </h2>
-          <p className="text-sm text-white/70 mb-5">
-            Regístrate en menos de 2 minutos y únete a miles de cubanos que
-            ya usan CubaX.
-          </p>
-          <Button
-            variant="secondary"
-            size="lg"
-            fullWidth
-            onClick={() => navigate("register")}
-            className="bg-white text-brand-600 hover:bg-gray-100"
-          >
-            Crear cuenta gratis
-          </Button>
+        <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white text-center">
+          {/* Decoración */}
+          <div className="absolute -top-8 -right-8 h-32 w-32 bg-white/5 rounded-full" />
+          <div className="absolute -bottom-6 -left-6 h-24 w-24 bg-white/5 rounded-full" />
+
+          <div className="relative z-10">
+            <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-xs font-bold mb-4">
+              <Zap className="h-3 w-3 fill-current" />
+              Registro en 2 minutos
+            </div>
+
+            <h2 className="text-xl font-black mb-2">
+              Empieza a operar hoy
+            </h2>
+            <p className="text-sm text-white/70 mb-5 max-w-xs mx-auto">
+              Únete a miles de cubanos que ya usan CubaX para manejar su
+              cripto con seguridad.
+            </p>
+
+            {/* Trust en CTA */}
+            <div className="flex items-center justify-center gap-4 mb-5">
+              {trustBadges.map((badge) => (
+                <div
+                  key={badge}
+                  className="flex items-center gap-1 text-[10px] font-semibold text-white/70"
+                >
+                  <CheckCircle2 className="h-3 w-3 text-white/50" />
+                  {badge}
+                </div>
+              ))}
+            </div>
+
+            <Button
+              size="lg"
+              fullWidth
+              onClick={() => navigate("register")}
+              className="bg-white text-brand-600 hover:bg-gray-50 font-bold shadow-lg"
+            >
+              Crear cuenta gratis
+            </Button>
+          </div>
         </div>
       </section>
 
-      {/* Footer */}
+      {/* ═══ FOOTER ══════════════════════════════════════════ */}
       <footer className="border-t border-gray-100 dark:border-white/[0.06] py-6">
         <div className="max-w-lg mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-2">
@@ -269,9 +354,18 @@ export function LandingPage() {
           <p className="text-[11px] text-gray-400 dark:text-gray-500">
             © 2026 CubaX. Plataforma P2P & Crypto para Cuba.
           </p>
+          <div className="flex items-center justify-center gap-3 mt-2">
+            {["Términos", "Privacidad", "Soporte"].map((link) => (
+              <button
+                key={link}
+                className="text-[10px] text-gray-400 hover:text-brand-500 transition-colors font-medium"
+              >
+                {link}
+              </button>
+            ))}
+          </div>
         </div>
       </footer>
     </div>
   );
-              }
-                
+}

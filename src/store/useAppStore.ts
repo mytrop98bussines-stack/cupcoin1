@@ -97,8 +97,11 @@ interface AppState {
   subscribeToTradeMessages: (tradeId: string) => () => void;
   sendMessage: (tradeId: string, text: string) => Promise<void>;
 
+  // 🛍️ PRODUCTOS
   setProducts: (products: Product[]) => void;
   addProduct: (product: Product) => void;
+  deleteProduct: (productId: string) => void;           // ✅ NUEVO
+  subscribeToProducts: () => (() => void);              // ✅ NUEVO
 
   // 🔔 NOTIFICACIONES
   setNotifications: (notifications: Notification[]) => void;
@@ -132,8 +135,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   depositAddresses: {},
 
   prices: [
-    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,    change24h: 0 },
-    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,    change24h: 0 },
+    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
+    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,     change24h: 0 },
     { id: "3", symbol: "BTC",  name: "Bitcoin",   priceUSD: 67500.00, change24h: 0 },
     { id: "4", symbol: "ETH",  name: "Ethereum",  priceUSD: 3500.00,  change24h: 0 },
   ],
@@ -165,7 +168,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   navigate: (view) => {
     set({
       previousView: get().currentView,
-      currentView: view,
+      currentView:  view,
       mobileMenuOpen: false,
     });
   },
@@ -183,14 +186,15 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   logout: () =>
     set({
-      user: null,
-      isAuthenticated: false,
-      currentView: "landing",
-      balances: [],
+      user:             null,
+      isAuthenticated:  false,
+      currentView:      "landing",
+      balances:         [],
       depositAddresses: {},
-      notifications: [],
-      activeTrade: null,
-      tradeMessages: [],
+      notifications:    [],
+      activeTrade:      null,
+      tradeMessages:    [],
+      products:         [],
     }),
 
   // ─── WALLET DATA ─────────────────────────────────────────
@@ -218,7 +222,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
-  // ─── ✅ FETCH PRICES CORREGIDO — USA COINGECKO ────────────
+  // ─── FETCH PRICES — COINGECKO ─────────────────────────────
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
@@ -235,30 +239,30 @@ export const useAppStore = create<AppState>((set, get) => ({
 
       const prices: CryptoPrice[] = [
         {
-          id:       "1",
-          symbol:   "USDT",
-          name:     "Tether",
+          id:        "1",
+          symbol:    "USDT",
+          name:      "Tether",
           priceUSD:  data.tether?.usd            ?? 1.00,
           change24h: data.tether?.usd_24h_change ?? 0,
         },
         {
-          id:       "2",
-          symbol:   "USDC",
-          name:     "USD Coin",
+          id:        "2",
+          symbol:    "USDC",
+          name:      "USD Coin",
           priceUSD:  data["usd-coin"]?.usd            ?? 1.00,
           change24h: data["usd-coin"]?.usd_24h_change ?? 0,
         },
         {
-          id:       "3",
-          symbol:   "BTC",
-          name:     "Bitcoin",
+          id:        "3",
+          symbol:    "BTC",
+          name:      "Bitcoin",
           priceUSD:  data.bitcoin?.usd            ?? 67500,
           change24h: data.bitcoin?.usd_24h_change ?? 0,
         },
         {
-          id:       "4",
-          symbol:   "ETH",
-          name:     "Ethereum",
+          id:        "4",
+          symbol:    "ETH",
+          name:      "Ethereum",
           priceUSD:  data.ethereum?.usd            ?? 3500,
           change24h: data.ethereum?.usd_24h_change ?? 0,
         },
@@ -281,19 +285,17 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── ✅ FETCH DEPOSIT ADDRESS IMPLEMENTADO ────────────────
+  // ─── FETCH DEPOSIT ADDRESS ────────────────────────────────
   fetchDepositAddress: async (asset: string, chain: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
 
     const assetKey = asset.toUpperCase();
-
-    // Cache first — evita llamadas duplicadas
     if (get().depositAddresses[assetKey]) return;
 
     try {
       const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uid:   currentUser.uid,
@@ -328,20 +330,15 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     const assetKey = asset.toUpperCase();
+    const cached   = get().depositAddresses[assetKey];
 
-    // Cache first
-    const cached = get().depositAddresses[assetKey];
     if (cached) {
-      return {
-        success: true,
-        address: cached,
-        message: "Dirección desde cache.",
-      };
+      return { success: true, address: cached, message: "Dirección desde cache." };
     }
 
     try {
       const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
-        method: "POST",
+        method:  "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           uid:   currentUser.uid,
@@ -377,10 +374,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         message: resData?.error || "Error obteniendo dirección.",
       };
     } catch (error: any) {
-      return {
-        success: false,
-        message: "Error de conexión con backend.",
-      };
+      return { success: false, message: "Error de conexión con backend." };
     }
   },
 
@@ -431,7 +425,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   addOrder:       (order)  => set({ orders: [order, ...get().orders] }),
   setActiveTrade: (trade)  => set({ activeTrade: trade }),
 
-  // ─── TRADE STATUS ─────────────────────────────────────────
+  // ─── TRADE STATUS ────────────────────────────────────────
   updateTradeStatus: async (tradeId, status) => {
     if (!tradeId) return;
     try {
@@ -442,7 +436,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── CHAT P2P ─────────────────────────────────────────────
+  // ─── CHAT P2P ────────────────────────────────────────────
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
   addMessage: (message) =>
     set({ tradeMessages: [...get().tradeMessages, message] }),
@@ -485,9 +479,43 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── PRODUCTOS ────────────────────────────────────────────
+  // ─── PRODUCTOS ───────────────────────────────────────────
   setProducts: (products) => set({ products }),
   addProduct:  (product)  => set({ products: [product, ...get().products] }),
+
+  // ✅ NUEVO — Eliminar producto del store local
+  deleteProduct: (productId: string) => {
+    set({
+      products: get().products.filter((p) => p.id !== productId),
+    });
+  },
+
+  // ✅ NUEVO — Suscripción en tiempo real a productos de Firestore
+  subscribeToProducts: () => {
+    const q = query(
+      collection(db, "products"),
+      where("status", "==", "active"),
+      orderBy("createdAt", "desc")
+    );
+
+    return onSnapshot(
+      q,
+      (snapshot) => {
+        const productsList: Product[] = [];
+        snapshot.forEach((docSnap) => {
+          productsList.push({
+            id: docSnap.id,
+            ...docSnap.data(),
+          } as Product);
+        });
+        set({ products: productsList });
+        console.log(`✅ [Products] ${productsList.length} productos en tiempo real`);
+      },
+      (error) => {
+        console.error("❌ [Products] Error en snapshot:", error);
+      }
+    );
+  },
 
   // ─── NOTIFICACIONES ──────────────────────────────────────
   setNotifications: (notifications) => set({ notifications }),
@@ -534,8 +562,8 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ─── UTILIDADES ──────────────────────────────────────────
-  setSelectedTradeId:  (id)     => set({ selectedTradeId: id }),
-  setSelectedProductId: (id)    => set({ selectedProductId: id }),
-  setLoading:          (loading) => set({ isLoading: loading }),
-  setMobileMenuOpen:   (open)   => set({ mobileMenuOpen: open }),
+  setSelectedTradeId:   (id)      => set({ selectedTradeId: id }),
+  setSelectedProductId: (id)      => set({ selectedProductId: id }),
+  setLoading:           (loading) => set({ isLoading: loading }),
+  setMobileMenuOpen:    (open)    => set({ mobileMenuOpen: open }),
 }));

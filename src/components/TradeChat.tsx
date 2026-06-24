@@ -1,94 +1,165 @@
 import { useEffect, useRef, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
-import { Send, Zap, ShieldAlert, User2 } from "lucide-react";
+import {
+  Send,
+  Zap,
+  ShieldAlert,
+  User2,
+  CheckCheck,
+} from "lucide-react";
 
 interface TradeChatProps {
   tradeId: string;
 }
 
-export function TradeChat({ tradeId }: TradeChatProps) {
-  const { user, tradeMessages, subscribeToTradeMessages, sendMessage } = useAppStore();
-  const [newMessage, setNewMessage] = useState("");
-  const chatEndRef = useRef<HTMLDivElement>(null);
+// ─── Mensajes del sistema (distinguibles visualmente) ────
+const isSystemMessage = (senderId: string) => senderId === "SYSTEM";
 
-  // Plantillas de respuesta rápida comunes en Binance P2P
+export function TradeChat({ tradeId }: TradeChatProps) {
+  const {
+    user,
+    tradeMessages,
+    subscribeToTradeMessages,
+    sendMessage,
+  } = useAppStore();
+
+  const [newMessage, setNewMessage] = useState("");
+  const [sending, setSending]       = useState(false);
+  const chatEndRef                  = useRef<HTMLDivElement>(null);
+  const inputRef                    = useRef<HTMLInputElement>(null);
+
+  // ─── Plantillas de respuesta rápida ──────────────────────
   const quickReplies = [
-    "Hola, buenas. Procedo a realizar la transferencia.",
-    "Listo, ya realicé el pago. Por favor revise y libere.",
-    "Buenas, su pago aún no se refleja. ¿Podría enviarme el comprobante?",
-    "Gracias por el comercio. ¡Feliz día!",
+    "Hola, procedo a realizar la transferencia.",
+    "Ya realicé el pago. Por favor revise y libere.",
+    "Su pago aún no se refleja. ¿Puede enviarme el comprobante?",
+    "¿Cuál es su número de Transfermóvil?",
+    "Gracias por el comercio. ¡Feliz día! 🤝",
   ];
 
-  // 🔄 Conexión en vivo con el canal del trade
+  // ─── Suscripción en tiempo real al chat ──────────────────
   useEffect(() => {
     if (!tradeId) return;
-    const unsubscribeChat = subscribeToTradeMessages(tradeId);
-    return () => unsubscribeChat();
+    const unsubscribe = subscribeToTradeMessages(tradeId);
+    return () => unsubscribe();
   }, [tradeId, subscribeToTradeMessages]);
 
-  // 📜 Autoscroll para mantener el último mensaje siempre a la vista
+  // ─── Autoscroll al último mensaje ────────────────────────
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [tradeMessages]);
 
+  // ─── Enviar mensaje ───────────────────────────────────────
   const handleSend = async (e?: React.FormEvent) => {
     e?.preventDefault();
-    if (!newMessage.trim()) return;
-    await sendMessage(tradeId, newMessage);
+    const text = newMessage.trim();
+    if (!text || sending) return;
+
+    setSending(true);
     setNewMessage("");
+    await sendMessage(tradeId, text);
+    setSending(false);
+    inputRef.current?.focus();
   };
 
   const handleQuickReply = async (reply: string) => {
+    if (sending) return;
+    setSending(true);
     await sendMessage(tradeId, reply);
+    setSending(false);
   };
+
+  // ─── Formatear hora ───────────────────────────────────────
+  const formatTime = (timestamp: number) =>
+    new Date(timestamp).toLocaleTimeString([], {
+      hour:   "2-digit",
+      minute: "2-digit",
+    });
 
   if (!user) return null;
 
   return (
-    <Card padding="none" className="flex flex-col h-[500px] border-gray-100 dark:border-white/[0.06] overflow-hidden bg-white dark:bg-navy-900 shadow-sm rounded-2xl">
-      {/* Cabecera del Chat */}
+    <Card
+      padding="none"
+      className="flex flex-col h-[520px] border-gray-100 dark:border-white/[0.06] overflow-hidden bg-white dark:bg-navy-900 shadow-sm rounded-2xl"
+    >
+      {/* ═══ CABECERA ════════════════════════════════════════ */}
       <div className="px-4 py-2.5 bg-gray-50 dark:bg-white/[0.02] border-b border-gray-100 dark:border-white/[0.06] flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
           <span className="text-xs font-bold text-gray-700 dark:text-gray-300 uppercase tracking-wider">
-            Chat de la Orden
+            Chat del Trade
           </span>
         </div>
-        <span className="text-[10px] text-gray-400 font-mono">ID: {tradeId.slice(0, 8)}...</span>
+        <span className="text-[10px] text-gray-400 font-mono bg-gray-100 dark:bg-white/5 px-2 py-0.5 rounded-full">
+          #{tradeId.slice(-8)}
+        </span>
       </div>
 
-      {/* Alerta de Seguridad Estilo Binance */}
+      {/* ═══ ALERTA DE SEGURIDAD ═════════════════════════════ */}
       <div className="bg-amber-500/10 border-b border-amber-500/10 px-4 py-2 flex items-start gap-2">
         <ShieldAlert className="h-3.5 w-3.5 text-amber-500 flex-shrink-0 mt-0.5" />
         <p className="text-[10px] text-amber-600 dark:text-amber-400 leading-tight">
-          <b>Atención:</b> Nunca liberes criptomonedas antes de confirmar que el dinero real está disponible en tu cuenta bancaria (Enzona, Transfermóvil). CubaX nunca te pedirá contraseñas por aquí.
+          <strong>Importante:</strong> Nunca liberes cripto antes de confirmar
+          el dinero en tu cuenta real. CubaX jamás te pedirá contraseñas por
+          este chat.
         </p>
       </div>
 
-      {/* Cuerpo del Chat (Mensajes) */}
+      {/* ═══ MENSAJES ════════════════════════════════════════ */}
       <div className="flex-1 overflow-y-auto p-4 space-y-3 scrollbar-none">
         {tradeMessages.length === 0 ? (
           <div className="h-full flex flex-col items-center justify-center text-center p-4">
-            <User2 className="h-8 w-8 text-gray-300 dark:text-gray-600 mb-2 animate-pulse" />
-            <p className="text-xs font-medium text-gray-400">El chat está vacío. Escribe un mensaje para iniciar el contacto con la contraparte.</p>
+            <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center mb-3">
+              <User2 className="h-6 w-6 text-gray-300 dark:text-gray-600" />
+            </div>
+            <p className="text-xs font-semibold text-gray-400 mb-1">
+              Chat vacío
+            </p>
+            <p className="text-[11px] text-gray-400 max-w-[200px] leading-relaxed">
+              Escribe un mensaje para iniciar el contacto con la contraparte.
+            </p>
           </div>
         ) : (
           tradeMessages.map((msg) => {
-            const isMe = msg.senderId === user.uid;
+            const isMe     = msg.senderId === user.uid;
+            const isSystem = isSystemMessage(msg.senderId);
+
+            // ─── Mensaje del sistema ──────────────────────
+            if (isSystem) {
+              return (
+                <div
+                  key={msg.id || msg.createdAt}
+                  className="flex justify-center"
+                >
+                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-100 dark:bg-white/5 border border-gray-200 dark:border-white/10 max-w-[90%]">
+                    <Zap className="h-3 w-3 text-brand-500 flex-shrink-0" />
+                    <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 text-center leading-tight">
+                      {msg.text}
+                    </p>
+                  </div>
+                </div>
+              );
+            }
+
+            // ─── Mensaje normal ───────────────────────────
             return (
               <div
                 key={msg.id || msg.createdAt}
                 className={`flex flex-col ${isMe ? "items-end" : "items-start"}`}
               >
+                {/* Nombre y hora */}
                 <div className="flex items-center gap-1.5 mb-0.5 px-1">
                   <span className="text-[10px] font-bold text-gray-400 dark:text-gray-500">
                     {isMe ? "Tú" : msg.senderName}
                   </span>
-                  <span className="text-[9px] text-gray-400 font-mono">
-                    {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                  <span className="text-[9px] text-gray-300 dark:text-gray-600 font-mono">
+                    {formatTime(msg.createdAt as number)}
                   </span>
                 </div>
+
+                {/* Burbuja */}
                 <div
                   className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs font-medium leading-relaxed shadow-sm ${
                     isMe
@@ -98,6 +169,16 @@ export function TradeChat({ tradeId }: TradeChatProps) {
                 >
                   {msg.text}
                 </div>
+
+                {/* Doble check para mensajes propios */}
+                {isMe && (
+                  <div className="flex items-center gap-0.5 mt-0.5 px-1">
+                    <CheckCheck className="h-2.5 w-2.5 text-brand-400" />
+                    <span className="text-[9px] text-gray-300 dark:text-gray-600">
+                      Enviado
+                    </span>
+                  </div>
+                )}
               </div>
             );
           })
@@ -105,41 +186,43 @@ export function TradeChat({ tradeId }: TradeChatProps) {
         <div ref={chatEndRef} />
       </div>
 
-      {/* Respuestas Rápidas (Scroll Horizontal) */}
+      {/* ═══ RESPUESTAS RÁPIDAS ══════════════════════════════ */}
       <div className="px-3 py-1.5 bg-gray-50/50 dark:bg-white/[0.01] border-t border-gray-100 dark:border-white/[0.04] flex gap-1.5 overflow-x-auto scrollbar-none whitespace-nowrap">
         {quickReplies.map((reply, index) => (
           <button
             key={index}
             onClick={() => handleQuickReply(reply)}
-            className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-navy-950 hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-300 rounded-full text-[11px] font-medium border border-gray-200 dark:border-white/10 transition-colors"
+            disabled={sending}
+            className="flex items-center gap-1 px-2.5 py-1 bg-white dark:bg-navy-950 hover:bg-gray-100 dark:hover:bg-white/5 text-gray-600 dark:text-gray-300 rounded-full text-[11px] font-medium border border-gray-200 dark:border-white/10 transition-colors disabled:opacity-40 flex-shrink-0"
           >
-            <Zap className="h-3 w-3 text-amber-500 fill-amber-500" />
+            <Zap className="h-3 w-3 text-amber-500 fill-amber-500 flex-shrink-0" />
             {reply}
           </button>
         ))}
       </div>
 
-      {/* Input de Envío */}
+      {/* ═══ INPUT DE ENVÍO ══════════════════════════════════ */}
       <form
         onSubmit={handleSend}
         className="p-3 bg-white dark:bg-navy-900 border-t border-gray-100 dark:border-white/[0.06] flex items-center gap-2"
       >
         <input
+          ref={inputRef}
           type="text"
           value={newMessage}
           onChange={(e) => setNewMessage(e.target.value)}
-          placeholder="Escribe un mensaje de comercio..."
-          className="flex-1 bg-gray-50 dark:bg-navy-950 border border-gray-200 dark:border-white/10 rounded-xl px-3.5 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-brand-500 transition-colors"
+          placeholder="Escribe un mensaje..."
+          disabled={sending}
+          className="flex-1 bg-gray-50 dark:bg-navy-950 border border-gray-200 dark:border-white/10 rounded-xl px-3.5 py-2 text-xs text-gray-900 dark:text-white placeholder-gray-400 focus:outline-none focus:border-brand-500 transition-colors disabled:opacity-50"
         />
         <button
           type="submit"
-          disabled={!newMessage.trim()}
-          className="h-8 w-8 rounded-xl bg-brand-500 text-white flex items-center justify-center hover:bg-brand-600 disabled:opacity-40 disabled:hover:bg-brand-500 transition-all flex-shrink-0"
+          disabled={!newMessage.trim() || sending}
+          className="h-8 w-8 rounded-xl bg-brand-500 text-white flex items-center justify-center hover:bg-brand-600 disabled:opacity-40 transition-all flex-shrink-0 active:scale-95"
         >
           <Send className="h-3.5 w-3.5" />
         </button>
       </form>
     </Card>
   );
-      }
-
+}

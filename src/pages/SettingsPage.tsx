@@ -22,15 +22,19 @@ import {
   FileText,
   ExternalLink,
   Wrench,
+  Copy,
+  Check,
+  User,
+  AlertTriangle,
+  Smartphone,
 } from "lucide-react";
 
 export function SettingsPage() {
   const { user, setUser, theme, toggleTheme, navigate, logout } = useAppStore();
-  const [copied, setCopied] = useState(false);
+  const [copied, setCopied]           = useState(false);
+  const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
-  // ==========================================
-  // SOLUCIÓN EN CALIENTE PARA EL MODO OSCURO
-  // ==========================================
+  // ─── Modo oscuro ──────────────────────────────────────────
   useEffect(() => {
     const root = window.document.documentElement;
     if (theme === "dark") {
@@ -40,56 +44,109 @@ export function SettingsPage() {
     }
   }, [theme]);
 
-  // ==========================================
-  // ESCUCHADOR EN TIEMPO REAL DEL PERFIL (FIRESTORE)
-  // ==========================================
+  // ─── Listener perfil en tiempo real ──────────────────────
   useEffect(() => {
-    if (!user?.uid) return;
+    if (!user?.uid || user.uid === "invitado") return;
 
-    const unsubscribe = onSnapshot(doc(db, "users", user.uid), (docSnap) => {
-      if (docSnap.exists()) {
-        setUser({ ...user, ...docSnap.data() });
+    const unsubscribe = onSnapshot(
+      doc(db, "users", user.uid),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          setUser({ ...user, ...docSnap.data() });
+        }
+      },
+      (error) => {
+        console.error("Error sincronizando perfil:", error);
       }
-    }, (error) => {
-      console.error("Error sincronizando perfil con Firestore:", error);
-    });
+    );
 
     return () => unsubscribe();
-  }, [user?.uid, setUser]);
+  }, [user?.uid]);
 
   if (!user) return null;
 
+  // ─── KYC config ──────────────────────────────────────────
   const kycStatus = {
-    unverified: { label: "Sin verificar", variant: "warning" as const },
-    pending_verification: { label: "En revisión", variant: "info" as const },
-    verified: { label: "Verificado", variant: "success" as const },
-    rejected: { label: "Rechazado", variant: "danger" as const },
+    unverified: {
+      label:   "Sin verificar",
+      variant: "warning" as const,
+      color:   "text-amber-500",
+      bg:      "bg-amber-500/10",
+    },
+    pending_verification: {
+      label:   "En revisión",
+      variant: "info" as const,
+      color:   "text-blue-500",
+      bg:      "bg-blue-500/10",
+    },
+    verified: {
+      label:   "Verificado ✓",
+      variant: "success" as const,
+      color:   "text-emerald-500",
+      bg:      "bg-emerald-500/10",
+    },
+    rejected: {
+      label:   "Rechazado",
+      variant: "danger" as const,
+      color:   "text-red-500",
+      bg:      "bg-red-500/10",
+    },
   };
 
-  const currentKyc = kycStatus[user.kycStatus as keyof typeof kycStatus] || kycStatus.unverified;
+  const currentKyc =
+    kycStatus[user.kycStatus as keyof typeof kycStatus] ||
+    kycStatus.unverified;
 
+  // ─── Copiar UID ───────────────────────────────────────────
+  const handleCopyUID = () => {
+    navigator.clipboard.writeText(user.uid);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
+
+  // ─── Cerrar sesión ────────────────────────────────────────
+  const handleLogout = () => {
+    logout();
+    navigate("landing");
+  };
+
+  // ─── Secciones del menú ───────────────────────────────────
   const menuSections = [
     {
       title: "Cuenta",
       items: [
         {
-          icon: <Shield className="h-4 w-4" />,
-          label: "Verificación KYC",
+          icon:     <Shield className="h-4 w-4" />,
+          label:    "Verificación KYC",
           subtitle: currentKyc.label,
-          badge: currentKyc.variant,
-          action: () => navigate("kyc"),
+          badge:    currentKyc.variant,
+          iconBg:   currentKyc.bg,
+          iconColor: currentKyc.color,
+          action:   () => navigate("kyc"),
         },
         {
-          icon: <Wallet className="h-4 w-4" />,
-          label: "Mi Wallet",
-          subtitle: "Direcciones de depósito y balance", // Corregido: Fuera Web3
-          action: () => navigate("wallet"),
+          icon:      <Wallet className="h-4 w-4" />,
+          label:     "Mi Wallet",
+          subtitle:  "Depósitos, retiros y balance",
+          iconBg:    "bg-brand-500/10",
+          iconColor: "text-brand-500",
+          action:    () => navigate("wallet"),
         },
         {
-          icon: <Bell className="h-4 w-4" />,
-          label: "Notificaciones",
-          subtitle: "Gestionar alertas",
-          action: () => navigate("notifications"),
+          icon:      <Bell className="h-4 w-4" />,
+          label:     "Notificaciones",
+          subtitle:  "Gestionar alertas",
+          iconBg:    "bg-violet-500/10",
+          iconColor: "text-violet-500",
+          action:    () => navigate("notifications"),
+        },
+        {
+          icon:      <User className="h-4 w-4" />,
+          label:     "Mi Perfil",
+          subtitle:  "Foto, nombre y datos",
+          iconBg:    "bg-blue-500/10",
+          iconColor: "text-blue-500",
+          action:    () => {},
         },
       ],
     },
@@ -97,17 +154,31 @@ export function SettingsPage() {
       title: "Preferencias",
       items: [
         {
-          icon: theme === "dark" ? <Moon className="h-4 w-4" /> : <Sun className="h-4 w-4" />,
-          label: "Tema",
-          subtitle: theme === "dark" ? "Modo oscuro" : "Modo claro",
-          action: toggleTheme,
-          toggle: true,
+          icon:      theme === "dark"
+            ? <Moon className="h-4 w-4" />
+            : <Sun className="h-4 w-4" />,
+          label:     "Tema",
+          subtitle:  theme === "dark" ? "Modo oscuro" : "Modo claro",
+          iconBg:    "bg-gray-500/10",
+          iconColor: "text-gray-500",
+          action:    toggleTheme,
+          toggle:    true,
         },
         {
-          icon: <Globe className="h-4 w-4" />,
-          label: "Idioma",
-          subtitle: "Español (Cuba)",
-          action: () => {},
+          icon:      <Globe className="h-4 w-4" />,
+          label:     "Idioma",
+          subtitle:  "Español (Cuba)",
+          iconBg:    "bg-emerald-500/10",
+          iconColor: "text-emerald-500",
+          action:    () => {},
+        },
+        {
+          icon:      <Smartphone className="h-4 w-4" />,
+          label:     "Notificaciones push",
+          subtitle:  "Alertas en tiempo real",
+          iconBg:    "bg-amber-500/10",
+          iconColor: "text-amber-500",
+          action:    () => {},
         },
       ],
     },
@@ -115,39 +186,49 @@ export function SettingsPage() {
       title: "Actividad",
       items: [
         {
-          icon: <ArrowLeftRight className="h-4 w-4" />,
-          label: "Historial de trades",
-          subtitle: `${user.totalTrades || 0} trades completados`,
-          action: () => navigate("p2p"),
+          icon:      <ArrowLeftRight className="h-4 w-4" />,
+          label:     "Historial de trades",
+          subtitle:  `${user.totalTrades || 0} trades completados`,
+          iconBg:    "bg-brand-500/10",
+          iconColor: "text-brand-500",
+          action:    () => navigate("p2p"),
         },
         {
-          icon: <FileText className="h-4 w-4" />,
-          label: "Mis anuncios",
-          subtitle: "Gestionar ofertas P2P",
-          action: () => navigate("p2p"),
+          icon:      <FileText className="h-4 w-4" />,
+          label:     "Mis anuncios P2P",
+          subtitle:  "Gestionar órdenes activas",
+          iconBg:    "bg-indigo-500/10",
+          iconColor: "text-indigo-500",
+          action:    () => navigate("p2p"),
         },
       ],
     },
     {
-      title: "Soporte",
+      title: "Soporte y Legal",
       items: [
         {
-          icon: <HelpCircle className="h-4 w-4" />,
-          label: "Centro de ayuda",
-          subtitle: "FAQ y guías",
-          action: () => {},
+          icon:      <HelpCircle className="h-4 w-4" />,
+          label:     "Centro de ayuda",
+          subtitle:  "FAQ y guías de uso",
+          iconBg:    "bg-blue-500/10",
+          iconColor: "text-blue-500",
+          action:    () => {},
         },
         {
-          icon: <Lock className="h-4 w-4" />,
-          label: "Seguridad",
-          subtitle: "Contraseña y 2FA",
-          action: () => {},
+          icon:      <Lock className="h-4 w-4" />,
+          label:     "Seguridad",
+          subtitle:  "Contraseña y autenticación",
+          iconBg:    "bg-red-500/10",
+          iconColor: "text-red-500",
+          action:    () => {},
         },
         {
-          icon: <ExternalLink className="h-4 w-4" />,
-          label: "Términos y condiciones",
-          subtitle: "Política de privacidad",
-          action: () => {},
+          icon:      <ExternalLink className="h-4 w-4" />,
+          label:     "Términos y privacidad",
+          subtitle:  "Leer política de uso",
+          iconBg:    "bg-gray-500/10",
+          iconColor: "text-gray-500",
+          action:    () => {},
         },
       ],
     },
@@ -155,56 +236,134 @@ export function SettingsPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-5 animate-fade-in">
-      {/* Profile Card */}
-      <Card padding="lg">
+
+      {/* ═══ PROFILE CARD ════════════════════════════════════ */}
+      <Card padding="lg" className="relative overflow-hidden">
+        {/* Fondo decorativo */}
+        <div className="absolute top-0 right-0 h-24 w-24 bg-brand-500/5 rounded-full blur-2xl pointer-events-none" />
+
         <div className="flex items-center gap-4">
-          <Avatar name={user.displayName} src={user.photoURL} size="lg" />
+          <div className="relative">
+            <Avatar
+              name={user.displayName}
+              src={user.photoURL}
+              size="lg"
+            />
+            {/* Badge verificado sobre avatar */}
+            {user.kycStatus === "verified" && (
+              <div className="absolute -bottom-1 -right-1 h-5 w-5 rounded-full bg-emerald-500 border-2 border-white dark:border-gray-900 flex items-center justify-center">
+                <Check className="h-2.5 w-2.5 text-white" />
+              </div>
+            )}
+          </div>
+
           <div className="flex-1 min-w-0">
-            <h2 className="font-bold text-lg text-gray-900 dark:text-white truncate">
+            <h2 className="font-bold text-lg text-gray-900 dark:text-white truncate leading-tight">
               {user.displayName}
             </h2>
             <p className="text-xs text-gray-500 dark:text-gray-400 truncate">
               {user.email}
             </p>
-            <div className="flex items-center gap-2 mt-1.5">
+
+            <div className="flex items-center gap-2 mt-2 flex-wrap">
+              {/* Rating */}
               <div className="flex items-center gap-0.5 text-amber-500">
                 <Star className="h-3.5 w-3.5 fill-current" />
-                <span className="text-xs font-semibold">{user.rating || "5.0"}</span>
+                <span className="text-xs font-bold">
+                  {(user as any).rating || "5.0"}
+                </span>
               </div>
-              <span className="text-[10px] text-gray-400">•</span>
-              <span className="text-[10px] text-gray-500 dark:text-gray-400">
+
+              <span className="text-[10px] text-gray-300 dark:text-gray-600">•</span>
+
+              {/* Trades */}
+              <span className="text-[10px] font-semibold text-gray-500 dark:text-gray-400">
                 {user.totalTrades || 0} trades
               </span>
+
+              <span className="text-[10px] text-gray-300 dark:text-gray-600">•</span>
+
+              {/* KYC badge */}
               <Badge variant={currentKyc.variant} size="sm">
                 {currentKyc.label}
               </Badge>
             </div>
           </div>
         </div>
+
+        {/* UID copiable */}
+        <div className="mt-4 flex items-center gap-2 p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
+          <p className="text-[10px] text-gray-400 flex-1 font-mono truncate">
+            ID: {user.uid}
+          </p>
+          <button
+            onClick={handleCopyUID}
+            className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
+              copied
+                ? "bg-emerald-500 text-white"
+                : "bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/15"
+            }`}
+          >
+            {copied ? (
+              <>
+                <Check className="h-3 w-3" /> Copiado
+              </>
+            ) : (
+              <>
+                <Copy className="h-3 w-3" /> Copiar
+              </>
+            )}
+          </button>
+        </div>
+
+        {/* Banner KYC si no está verificado */}
+        {user.kycStatus !== "verified" && (
+          <button
+            onClick={() => navigate("kyc")}
+            className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/15 transition-colors text-left"
+          >
+            <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
+                {user.kycStatus === "pending_verification"
+                  ? "Verificación en proceso"
+                  : "Completa tu verificación KYC"}
+              </p>
+              <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">
+                {user.kycStatus === "pending_verification"
+                  ? "Tu solicitud está siendo revisada."
+                  : "Aumenta tus límites operativos verificando tu identidad."}
+              </p>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+          </button>
+        )}
       </Card>
 
-      {/* ========================================================
-          BLOQUE EXCLUSIVO DE ADMIN: SOLO APARECE SI TU ROL ES 'admin'
-         ======================================================== */}
+      {/* ═══ PANEL ADMIN ═════════════════════════════════════ */}
       {user?.role === "admin" && (
         <div className="animate-fade-in">
-          <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wide mb-2 px-1 flex items-center gap-1.5">
-            <Wrench className="h-3 w-3" /> Configuración Interna
+          <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-2 px-1 flex items-center gap-1.5">
+            <Wrench className="h-3 w-3" />
+            Administración
           </h3>
-          <Card padding="none" className="border border-amber-500/20 dark:border-amber-500/10 bg-amber-500/[0.01]">
+          <Card
+            padding="none"
+            className="border border-amber-500/20 dark:border-amber-500/10 bg-amber-500/[0.01]"
+          >
             <button
               onClick={() => navigate("admin-kyc")}
-              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-500/[0.04] transition-colors rounded-2xl"
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-500/5 transition-colors rounded-2xl"
             >
-              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center text-amber-500 flex-shrink-0">
-                <Wrench className="h-4 w-4" />
+              <div className="h-8 w-8 rounded-lg bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+                <Wrench className="h-4 w-4 text-amber-500" />
               </div>
               <div className="flex-1 text-left min-w-0">
                 <p className="font-bold text-sm text-gray-900 dark:text-white">
-                  Panel de Control KYC
+                  Panel KYC Admin
                 </p>
-                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium truncate">
-                  Revisar y aprobar solicitudes de usuarios pendientes
+                <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+                  Revisar y aprobar solicitudes pendientes
                 </p>
               </div>
               <ChevronRight className="h-4 w-4 text-amber-500/60 flex-shrink-0" />
@@ -213,56 +372,68 @@ export function SettingsPage() {
         </div>
       )}
 
-      {/* Menu Sections */}
+      {/* ═══ SECCIONES DEL MENÚ ══════════════════════════════ */}
       {menuSections.map((section) => {
-        // Ocultar sección completa de Actividad si el usuario es un invitado
+        // Ocultar Actividad para invitados
         if (section.title === "Actividad" && user.uid === "invitado") {
           return null;
         }
 
         return (
           <div key={section.title}>
-            <h3 className="text-xs font-semibold text-gray-500 dark:text-gray-400 uppercase tracking-wide mb-2 px-1">
+            <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
               {section.title}
             </h3>
-            <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06]">
+            <Card
+              padding="none"
+              className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden"
+            >
               {section.items.map((item) => (
                 <button
                   key={item.label}
                   onClick={item.action}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors first:rounded-t-2xl last:rounded-b-2xl"
+                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors first:rounded-t-2xl last:rounded-b-2xl text-left"
                 >
-                  <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center text-brand-500 flex-shrink-0">
+                  {/* Icono */}
+                  <div
+                    className={`h-8 w-8 rounded-lg ${item.iconBg} flex items-center justify-center ${item.iconColor} flex-shrink-0`}
+                  >
                     {item.icon}
                   </div>
-                  <div className="flex-1 text-left min-w-0">
-                    <p className="font-medium text-sm text-gray-900 dark:text-white">
+
+                  {/* Texto */}
+                  <div className="flex-1 min-w-0">
+                    <p className="font-semibold text-sm text-gray-900 dark:text-white">
                       {item.label}
                     </p>
                     <p className="text-[11px] text-gray-500 dark:text-gray-400 truncate">
                       {item.subtitle}
                     </p>
                   </div>
+
+                  {/* Toggle o chevron */}
                   {"toggle" in item && item.toggle ? (
                     <div
-                      className={`relative h-6 w-11 rounded-full transition-colors flex items-center ${
+                      className={`relative h-6 w-11 rounded-full transition-colors flex items-center flex-shrink-0 ${
                         theme === "dark" ? "bg-brand-500" : "bg-gray-300"
                       }`}
                     >
                       <div
                         className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                          theme === "dark" ? "translate-x-5.5" : "translate-x-0.5"
+                          theme === "dark"
+                            ? "translate-x-[22px]"
+                            : "translate-x-0.5"
                         }`}
                       />
                     </div>
                   ) : (
-                    <div className="flex items-center gap-1.5">
-                      {item.badge && (
+                    <div className="flex items-center gap-1.5 flex-shrink-0">
+                      {"badge" in item && item.badge && !("toggle" in item) && (
                         <Badge variant={item.badge} size="sm">
                           {item.subtitle}
                         </Badge>
                       )}
-                      <ChevronRight className="h-4 w-4 text-gray-400 flex-shrink-0" />
+                      <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
                     </div>
                   )}
                 </button>
@@ -272,23 +443,50 @@ export function SettingsPage() {
         );
       })}
 
-      {/* Logout */}
-      <Button
-        variant="ghost"
-        size="lg"
-        fullWidth
-        onClick={logout}
-        icon={<LogOut className="h-4 w-4" />}
-        className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5 hover:text-red-600"
-      >
-        Cerrar sesión
-      </Button>
+      {/* ═══ BOTÓN CERRAR SESIÓN ═════════════════════════════ */}
+      {!showLogoutConfirm ? (
+        <button
+          onClick={() => setShowLogoutConfirm(true)}
+          className="w-full flex items-center justify-center gap-2 py-3 rounded-xl border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5 transition-all text-sm font-bold"
+        >
+          <LogOut className="h-4 w-4" />
+          Cerrar sesión
+        </button>
+      ) : (
+        <Card padding="md" className="border-red-200 dark:border-red-500/20 bg-red-50 dark:bg-red-500/5">
+          <p className="text-sm font-bold text-gray-900 dark:text-white mb-1 text-center">
+            ¿Cerrar sesión?
+          </p>
+          <p className="text-xs text-gray-500 dark:text-gray-400 text-center mb-3">
+            Tendrás que volver a iniciar sesión para acceder a tu cuenta.
+          </p>
+          <div className="flex gap-2">
+            <button
+              onClick={() => setShowLogoutConfirm(false)}
+              className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+            >
+              Cancelar
+            </button>
+            <button
+              onClick={handleLogout}
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all"
+            >
+              <LogOut className="h-3.5 w-3.5" />
+              Sí, salir
+            </button>
+          </div>
+        </Card>
+      )}
 
-      {/* Version */}
-      <p className="text-center text-[10px] text-gray-400 dark:text-gray-500">
-        CubaX v1.0.0 • Build 2026.06
-      </p>
+      {/* ═══ VERSIÓN ═════════════════════════════════════════ */}
+      <div className="text-center space-y-1 pb-2">
+        <p className="text-[10px] text-gray-400 dark:text-gray-500 font-medium">
+          CubaX v1.0.0 • Build 2026.06
+        </p>
+        <p className="text-[10px] text-gray-300 dark:text-gray-600">
+          Hecho con ❤️ para Cuba
+        </p>
+      </div>
     </div>
   );
-        }
-        
+}
