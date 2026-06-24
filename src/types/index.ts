@@ -147,13 +147,22 @@ export type AppView =
   | "login"
   | "register"
   | "dashboard"
-  | "kyc"
   | "p2p"
-  | "create-order"
   | "trade"
+  | "wallet"
   | "marketplace"
   | "product-detail"
   | "create-product"
-  | "wallet"
+  | "create-order"
+  | "notifications"
   | "settings"
-  | "notifications";
+  | "profile"                  // ✅
+  | "security"                 // ✅
+  | "help"                     // ✅
+  | "terms"                    // ✅
+  | "language"                 // ✅
+  | "notification-settings"    // ✅
+  | "trade-history"            // ✅
+  | "my-orders"                // ✅
+  | "kyc"
+  | "admin-kyc";
