@@ -3,15 +3,17 @@ name: Deploy to Firebase Hosting
 on:
   push:
     branches:
-      - main # O master, según tu rama principal
+      - main
 
 jobs:
   build_and_deploy:
     runs-on: ubuntu-latest
+
     steps:
       - name: Checkout repo
         uses: actions/checkout@v4
 
+      # ✅ Bun solo para instalar dependencias y compilar
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -20,17 +22,24 @@ jobs:
       - name: Install dependencies
         run: bun install
 
-      - name: Force Firebase Install
-        run: bun add firebase firebase-tools
-
       - name: Build Project
         run: bun run --bun vite build
 
-      # Paso de verificación para asegurar que 'dist' existe con su index.html
+      # ✅ Verificar que el build se generó correctamente
       - name: Verify Build Directory
-        run: ls -la dist
+        run: |
+          echo "Contenido de dist:"
+          ls -la dist
+          echo "Verificando index.html:"
+          test -f dist/index.html && echo "✅ index.html existe" || echo "❌ index.html NO existe"
 
-      # Despliegue usando la acción oficial de Firebase que maneja cuentas de servicio nativamente
+      # ✅ Node separado solo para el deploy con Firebase
+      - name: Setup Node.js (para Firebase deploy)
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # ✅ Deploy con la acción oficial
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
@@ -38,4 +47,3 @@ jobs:
           firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CUPCOIN_B2B4F }}
           projectId: cupcoin-b2b4f
           channelId: live
-          
