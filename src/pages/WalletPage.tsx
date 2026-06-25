@@ -21,7 +21,6 @@ import {
   ChevronUp,
   AlertTriangle,
   Clock,
-  ExternalLink,
   X,
   Sparkles,
   ArrowRight,
@@ -29,7 +28,6 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-// ─── Tipos internos ─────────────────────────────────────
 type ActionType = "deposit" | "withdraw" | null;
 
 interface BalanceItem {
@@ -40,50 +38,54 @@ interface BalanceItem {
   price: number;
 }
 
-// ─── Redes disponibles por activo ────────────────────────
-const CHAIN_OPTIONS: Record<string, { label: string; value: string; icon: string; fee: string; time: string }[]> = {
+const CHAIN_OPTIONS: Record<
+  string,
+  { label: string; value: string; icon: string; fee: string; time: string }[]
+> = {
   USDT: [
-    { label: "Tron (TRC-20)",      value: "TRC20",  icon: "🔴", fee: "~1 USDT",    time: "~1 min"   },
-    { label: "BSC (BEP-20)",       value: "BSC",    icon: "🟡", fee: "~0.5 USDT",  time: "~30 seg"  },
-    { label: "Ethereum (ERC-20)",  value: "ERC20",  icon: "🔵", fee: "~5-15 USDT", time: "~3-5 min" },
+    { label: "Tron (TRC-20)",     value: "TRC20", icon: "🔴", fee: "~1 USDT",    time: "~1 min" },
+    { label: "BSC (BEP-20)",      value: "BSC",   icon: "🟡", fee: "~0.5 USDT",  time: "~30 seg" },
+    { label: "Ethereum (ERC-20)", value: "ERC20", icon: "🔵", fee: "~5-15 USDT", time: "~3-5 min" },
   ],
   USDC: [
-    { label: "BSC (BEP-20)",       value: "BSC",    icon: "🟡", fee: "~0.5 USDC",  time: "~30 seg"  },
-    { label: "Ethereum (ERC-20)",  value: "ERC20",  icon: "🔵", fee: "~5-15 USDC", time: "~3-5 min" },
+    { label: "BSC (BEP-20)",      value: "BSC",   icon: "🟡", fee: "~0.5 USDC",  time: "~30 seg" },
+    { label: "Ethereum (ERC-20)", value: "ERC20", icon: "🔵", fee: "~5-15 USDC", time: "~3-5 min" },
   ],
   BTC: [
-    { label: "Bitcoin Network",    value: "BTC",    icon: "🟠", fee: "Variable",   time: "~10-30 min" },
+    { label: "Bitcoin Network",   value: "BTC",   icon: "🟠", fee: "Variable",   time: "~10-30 min" },
   ],
   ETH: [
-    { label: "Ethereum (ERC-20)",  value: "ERC20",  icon: "🔵", fee: "Variable",   time: "~3-5 min" },
+    { label: "Ethereum (ERC-20)", value: "ERC20", icon: "🔵", fee: "Variable",   time: "~3-5 min" },
   ],
 };
 
-// ─── Colores por activo ──────────────────────────────────
-const ASSET_COLORS: Record<string, { bg: string; text: string; gradient: string; border: string }> = {
+const ASSET_COLORS: Record<
+  string,
+  { bg: string; text: string; gradient: string; border: string }
+> = {
   USDT: {
-    bg:       "bg-emerald-500/10",
-    text:     "text-emerald-500",
+    bg: "bg-emerald-500/10",
+    text: "text-emerald-500",
     gradient: "from-emerald-500/20 to-emerald-600/5",
-    border:   "border-emerald-500/20",
+    border: "border-emerald-500/20",
   },
   USDC: {
-    bg:       "bg-blue-500/10",
-    text:     "text-blue-500",
+    bg: "bg-blue-500/10",
+    text: "text-blue-500",
     gradient: "from-blue-500/20 to-blue-600/5",
-    border:   "border-blue-500/20",
+    border: "border-blue-500/20",
   },
   BTC: {
-    bg:       "bg-orange-500/10",
-    text:     "text-orange-500",
+    bg: "bg-orange-500/10",
+    text: "text-orange-500",
     gradient: "from-orange-500/20 to-orange-600/5",
-    border:   "border-orange-500/20",
+    border: "border-orange-500/20",
   },
   ETH: {
-    bg:       "bg-violet-500/10",
-    text:     "text-violet-500",
+    bg: "bg-violet-500/10",
+    text: "text-violet-500",
     gradient: "from-violet-500/20 to-violet-600/5",
-    border:   "border-violet-500/20",
+    border: "border-violet-500/20",
   },
 };
 
@@ -95,53 +97,67 @@ export function WalletPage() {
     requestWithdrawal,
     requestDeposit,
     depositAddresses,
-    setModalOpen
+    setModalOpen,
   } = useAppStore();
 
-  // ─── Estados ─────────────────────────────────────────────
-  const [hideBalances, setHideBalances]     = useState(false);
-  const [copied, setCopied]                 = useState(false);
-  const [activeAction, setActiveAction]     = useState<{ type: ActionType; asset: string | null }>({ type: null, asset: null });
-  const [depositAsset, setDepositAsset]     = useState("USDT");
-  const [withdrawAddress, setWithdrawAddress] = useState("");
-  const [withdrawAmount, setWithdrawAmount] = useState("");
-  const [isSubmitting, setIsSubmitting]     = useState(false);
-  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
-  const [selectedChain, setSelectedChain]   = useState("");
-  const [refreshing, setRefreshing]         = useState(false);
-  const [expandedAsset, setExpandedAsset]   = useState<string | null>(null);
-  const [withdrawStep, setWithdrawStep]     = useState<1 | 2 | 3>(1);
-  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
-  const [withdrawTxId, setWithdrawTxId]     = useState("");
-
-  // ─── Datos derivados ─────────────────────────────────────
-  const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
-
-  const balancesList: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map((asset) => {
-    const amount   = firestoreBalances[asset] || 0;
-    const priceInfo = prices.find((p) => p.symbol.toUpperCase() === asset);
-    const price    = priceInfo?.priceUSD || (asset === "BTC" ? 67500 : asset === "ETH" ? 3500 : 1);
-    const change   = priceInfo?.change24h || 0;
-    return { asset, amount, usdValue: amount * price, change24h: change, price };
+  const [hideBalances, setHideBalances] = useState(false);
+  const [copied, setCopied] = useState(false);
+  const [activeAction, setActiveAction] = useState<{
+    type: ActionType;
+    asset: string | null;
+  }>({
+    type: null,
+    asset: null,
   });
 
+  const [depositAsset, setDepositAsset] = useState("USDT");
+  const [withdrawAddress, setWithdrawAddress] = useState("");
+  const [withdrawAmount, setWithdrawAmount] = useState("");
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isLoadingAddress, setIsLoadingAddress] = useState(false);
+  const [selectedChain, setSelectedChain] = useState("");
+  const [refreshing, setRefreshing] = useState(false);
+  const [expandedAsset, setExpandedAsset] = useState<string | null>(null);
+  const [withdrawStep, setWithdrawStep] = useState<1 | 2 | 3>(1);
+  const [withdrawSuccess, setWithdrawSuccess] = useState(false);
+  const [withdrawTxId, setWithdrawTxId] = useState("");
+
+  const firestoreBalances = (user as any)?.balances || {
+    USDT: 0,
+    BTC: 0,
+    ETH: 0,
+    USDC: 0,
+  };
+
+  const balancesList: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map(
+    (asset) => {
+      const amount = firestoreBalances[asset] || 0;
+      const priceInfo = prices.find((p) => p.symbol.toUpperCase() === asset);
+      const price =
+        priceInfo?.priceUSD ||
+        (asset === "BTC" ? 67500 : asset === "ETH" ? 3500 : 1);
+      const change = priceInfo?.change24h || 0;
+      return {
+        asset,
+        amount,
+        usdValue: amount * price,
+        change24h: change,
+        price,
+      };
+    }
+  );
+
   const totalUSD = balancesList.reduce((sum, b) => sum + b.usdValue, 0);
-  const btcPrice = prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 67500;
+  const btcPrice =
+    prices.find((p) => p.symbol.toLowerCase() === "btc")?.priceUSD || 67500;
   const totalBTC = totalUSD / btcPrice;
 
-  // ─── Efectos ──────────────────────────────────────────────
   useEffect(() => {
     fetchPrices();
     fetch("https://cubax-backend.onrender.com/health").catch(() => {});
     const interval = setInterval(fetchPrices, 30000);
     return () => clearInterval(interval);
   }, [fetchPrices]);
-
-  useEffect(() => {
-    if (activeAction.asset && CHAIN_OPTIONS[activeAction.asset]) {
-      setSelectedChain(CHAIN_OPTIONS[activeAction.asset][0].value);
-    }
-  }, [activeAction.asset, activeAction.type]);
   
   useEffect(() => {
   const isOpen = activeAction.type !== null;
@@ -152,7 +168,12 @@ export function WalletPage() {
   };
 }, [activeAction.type, setModalOpen]);
 
-  // ─── Handlers ─────────────────────────────────────────────
+  useEffect(() => {
+    if (activeAction.asset && CHAIN_OPTIONS[activeAction.asset]) {
+      setSelectedChain(CHAIN_OPTIONS[activeAction.asset][0].value);
+    }
+  }, [activeAction.asset, activeAction.type]);
+
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPrices();
@@ -199,7 +220,9 @@ export function WalletPage() {
   };
 
   const handleExecuteWithdrawal = async () => {
-    if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !selectedChain) return;
+    if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !selectedChain) {
+      return;
+    }
 
     const disponible = firestoreBalances[activeAction.asset] || 0;
     const monto = parseFloat(withdrawAmount);
@@ -208,7 +231,12 @@ export function WalletPage() {
     if (monto > disponible) return;
 
     setIsSubmitting(true);
-    const res = await requestWithdrawal(activeAction.asset, monto, withdrawAddress, selectedChain);
+    const res = await requestWithdrawal(
+      activeAction.asset,
+      monto,
+      withdrawAddress,
+      selectedChain
+    );
     setIsSubmitting(false);
 
     if (res.success) {
@@ -236,13 +264,9 @@ export function WalletPage() {
     ? CHAIN_OPTIONS[activeAction.asset]?.find((c) => c.value === selectedChain)
     : null;
 
-  // ─── RENDER ──────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4 animate-fade-in">
-
-      {/* ═══════════════════════════════════════════════════════
-          HEADER
-      ═══════════════════════════════════════════════════════ */}
+      {/* HEADER */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <div className="h-8 w-8 rounded-xl bg-gradient-to-br from-brand-500 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
@@ -270,15 +294,11 @@ export function WalletPage() {
         </button>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-          CARD PRINCIPAL — BALANCE TOTAL
-      ═══════════════════════════════════════════════════════ */}
+      {/* BALANCE CARD */}
       <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] p-5 border border-gray-800 dark:border-white/[0.08] shadow-2xl">
-        {/* Decoración de fondo */}
         <div className="absolute -top-12 -right-12 h-40 w-40 rounded-full bg-brand-500/10 blur-3xl" />
         <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-violet-500/10 blur-3xl" />
 
-        {/* Balance */}
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1.5">
@@ -313,14 +333,10 @@ export function WalletPage() {
                   })}`}
             </p>
             <p className="text-sm text-gray-400 mt-1.5 font-medium">
-              ≈{" "}
-              {hideBalances
-                ? "••••"
-                : `${totalBTC.toFixed(6)} BTC`}
+              ≈ {hideBalances ? "••••" : `${totalBTC.toFixed(6)} BTC`}
             </p>
           </div>
 
-          {/* Botones de acción */}
           <div className="flex gap-2.5">
             <button
               onClick={() => handleOpenDeposit("USDT")}
@@ -340,18 +356,18 @@ export function WalletPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-          MINI RESUMEN DE ACTIVOS (Horizontal scroll)
-      ═══════════════════════════════════════════════════════ */}
+      {/* MINI RESUMEN */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
         {balancesList.map((b) => {
           const colors = ASSET_COLORS[b.asset] || ASSET_COLORS.USDT;
-          const isUp   = b.change24h >= 0;
+          const isUp = b.change24h >= 0;
           return (
             <div
               key={b.asset}
               className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`}
-              onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}
+              onClick={() =>
+                setExpandedAsset(expandedAsset === b.asset ? null : b.asset)
+              }
             >
               <div className="flex items-center gap-1.5 mb-2">
                 <span className="text-lg">{CRYPTO_ICONS[b.asset] || "🪙"}</span>
@@ -362,14 +378,20 @@ export function WalletPage() {
               <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
                 {hideBalances
                   ? "••••"
-                  : `$${b.usdValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
+                  : `$${b.usdValue.toLocaleString("en-US", {
+                      maximumFractionDigits: 2,
+                    })}`}
               </p>
               <div
                 className={`flex items-center gap-0.5 mt-1 text-[10px] font-semibold ${
                   isUp ? "text-emerald-500" : "text-red-500"
                 }`}
               >
-                {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                {isUp ? (
+                  <TrendingUp className="h-2.5 w-2.5" />
+                ) : (
+                  <TrendingDown className="h-2.5 w-2.5" />
+                )}
                 {Math.abs(b.change24h).toFixed(2)}%
               </div>
             </div>
@@ -377,17 +399,22 @@ export function WalletPage() {
         })}
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-          MODAL DE DEPÓSITO
-      ═══════════════════════════════════════════════════════ */}
+      {/* MODAL DEPÓSITO */}
       {activeAction.type === "deposit" && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
-            {/* Header */}
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className={`h-8 w-8 rounded-lg ${ASSET_COLORS[depositAsset]?.bg || "bg-brand-500/10"} flex items-center justify-center`}>
-                  <ArrowDownLeft className={`h-4 w-4 ${ASSET_COLORS[depositAsset]?.text || "text-brand-500"}`} />
+                <div
+                  className={`h-8 w-8 rounded-lg ${
+                    ASSET_COLORS[depositAsset]?.bg || "bg-brand-500/10"
+                  } flex items-center justify-center`}
+                >
+                  <ArrowDownLeft
+                    className={`h-4 w-4 ${
+                      ASSET_COLORS[depositAsset]?.text || "text-brand-500"
+                    }`}
+                  />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -406,14 +433,13 @@ export function WalletPage() {
               </button>
             </div>
 
-            {/* Selector de activo */}
             <div>
               <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
                 Selecciona el Activo
               </label>
               <div className="grid grid-cols-4 gap-2">
                 {["USDT", "USDC", "BTC", "ETH"].map((asset) => {
-                  const colors   = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
+                  const colors = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
                   const selected = depositAsset === asset;
                   return (
                     <button
@@ -425,7 +451,9 @@ export function WalletPage() {
                           : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400 hover:bg-gray-100 dark:hover:bg-white/10"
                       }`}
                     >
-                      <span className="text-base">{CRYPTO_ICONS[asset] || "🪙"}</span>
+                      <span className="text-base">
+                        {CRYPTO_ICONS[asset] || "🪙"}
+                      </span>
                       {asset}
                     </button>
                   );
@@ -433,13 +461,10 @@ export function WalletPage() {
               </div>
             </div>
 
-            {/* Dirección o loading */}
             {isLoadingAddress ? (
               <div className="py-10 flex flex-col items-center justify-center space-y-3">
-                <div className="relative">
-                  <div className="h-12 w-12 rounded-full border-2 border-brand-500/20 flex items-center justify-center">
-                    <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
-                  </div>
+                <div className="h-12 w-12 rounded-full border-2 border-brand-500/20 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
                 </div>
                 <p className="text-xs text-gray-400 font-medium animate-pulse">
                   Generando dirección segura...
@@ -447,7 +472,6 @@ export function WalletPage() {
               </div>
             ) : currentDisplayedAddress ? (
               <div className="space-y-4">
-                {/* QR */}
                 <div className="flex justify-center">
                   <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
                     <img
@@ -457,15 +481,15 @@ export function WalletPage() {
                       alt="QR"
                       className="w-40 h-40"
                       onError={(e) => {
-                        (e.target as HTMLImageElement).src = `https://chart.googleapis.com/chart?chs=160x160&cht=qr&chl=${encodeURIComponent(
-                          currentDisplayedAddress
-                        )}&choe=UTF-8`;
+                        (e.target as HTMLImageElement).src =
+                          `https://chart.googleapis.com/chart?chs=160x160&cht=qr&chl=${encodeURIComponent(
+                            currentDisplayedAddress
+                          )}&choe=UTF-8`;
                       }}
                     />
                   </div>
                 </div>
 
-                {/* Dirección copiable */}
                 <div className="relative">
                   <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
                     <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">
@@ -492,7 +516,6 @@ export function WalletPage() {
                   </div>
                 </div>
 
-                {/* Warning */}
                 <div className="flex items-start gap-2 bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20 rounded-xl p-3">
                   <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
                   <p className="text-[11px] text-amber-700 dark:text-amber-400 leading-relaxed">
@@ -525,13 +548,10 @@ export function WalletPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════
-          MODAL DE RETIRO — MULTI-STEP
-      ═══════════════════════════════════════════════════════ */}
+      {/* MODAL RETIRO */}
       {activeAction.type === "withdraw" && activeAction.asset && (
-        <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl">
-            {/* Header */}
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
@@ -554,7 +574,6 @@ export function WalletPage() {
               </button>
             </div>
 
-            {/* Steps indicator */}
             {!withdrawSuccess && (
               <div className="flex items-center gap-2">
                 {[1, 2].map((step) => (
@@ -591,10 +610,8 @@ export function WalletPage() {
               </div>
             )}
 
-            {/* ─── STEP 1: Red + Dirección ──────────────────── */}
             {withdrawStep === 1 && (
               <div className="space-y-4">
-                {/* Selector de red */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                     Red de envío
@@ -635,7 +652,6 @@ export function WalletPage() {
                   </div>
                 </div>
 
-                {/* Dirección destino */}
                 <div>
                   <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
                     Dirección de destino
@@ -660,10 +676,8 @@ export function WalletPage() {
               </div>
             )}
 
-            {/* ─── STEP 2: Monto ────────────────────────────── */}
             {withdrawStep === 2 && (
               <div className="space-y-4">
-                {/* Resumen red seleccionada */}
                 <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200 dark:border-white/10">
                   <span className="text-lg">{selectedChainInfo?.icon}</span>
                   <div className="flex-1">
@@ -682,7 +696,6 @@ export function WalletPage() {
                   </button>
                 </div>
 
-                {/* Input monto */}
                 <div>
                   <div className="flex justify-between items-center mb-1.5">
                     <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -709,7 +722,6 @@ export function WalletPage() {
                     </span>
                   </div>
 
-                  {/* Valor en USD */}
                   {withdrawAmount && parseFloat(withdrawAmount) > 0 && (
                     <p className="text-[11px] text-gray-400 mt-1.5 pl-1">
                       ≈ $
@@ -717,12 +729,13 @@ export function WalletPage() {
                         parseFloat(withdrawAmount) *
                         (balancesList.find((b) => b.asset === activeAction.asset)
                           ?.price || 1)
-                      ).toLocaleString("en-US", { maximumFractionDigits: 2 })}
-                      {" USD"}
+                      ).toLocaleString("en-US", {
+                        maximumFractionDigits: 2,
+                      })}{" "}
+                      USD
                     </p>
                   )}
 
-                  {/* Validación */}
                   {withdrawAmount &&
                     parseFloat(withdrawAmount) >
                       (firestoreBalances[activeAction.asset] || 0) && (
@@ -735,7 +748,6 @@ export function WalletPage() {
                     )}
                 </div>
 
-                {/* Resumen de comisión */}
                 <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 space-y-2 border border-gray-200 dark:border-white/10">
                   <div className="flex justify-between text-[11px]">
                     <span className="text-gray-400">Comisión de red</span>
@@ -751,7 +763,6 @@ export function WalletPage() {
                   </div>
                 </div>
 
-                {/* Botones */}
                 <div className="flex gap-2">
                   <button
                     onClick={() => setWithdrawStep(1)}
@@ -786,7 +797,6 @@ export function WalletPage() {
               </div>
             )}
 
-            {/* ─── STEP 3: Éxito ────────────────────────────── */}
             {withdrawStep === 3 && withdrawSuccess && (
               <div className="py-6 text-center space-y-4">
                 <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
@@ -827,9 +837,7 @@ export function WalletPage() {
         </div>
       )}
 
-      {/* ═══════════════════════════════════════════════════════
-          LISTA DE SALDOS
-      ═══════════════════════════════════════════════════════ */}
+      {/* LISTA DE SALDOS */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -842,8 +850,8 @@ export function WalletPage() {
 
         <div className="space-y-2">
           {balancesList.map((balance) => {
-            const colors     = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
-            const isUp       = balance.change24h >= 0;
+            const colors = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
+            const isUp = balance.change24h >= 0;
             const isExpanded = expandedAsset === balance.asset;
 
             return (
@@ -855,9 +863,10 @@ export function WalletPage() {
                     : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"
                 }`}
               >
-                {/* Fila principal */}
                 <button
-                  onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)}
+                  onClick={() =>
+                    setExpandedAsset(isExpanded ? null : balance.asset)
+                  }
                   className="w-full flex items-center justify-between p-4"
                 >
                   <div className="flex items-center gap-3">
@@ -914,7 +923,6 @@ export function WalletPage() {
                   </div>
                 </button>
 
-                {/* Acciones expandidas */}
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
                     <button
@@ -945,9 +953,7 @@ export function WalletPage() {
         </div>
       </div>
 
-      {/* ═══════════════════════════════════════════════════════
-          INFO BANNER
-      ═══════════════════════════════════════════════════════ */}
+      {/* INFO BANNER */}
       <div className="flex items-start gap-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] rounded-2xl p-4">
         <div className="h-8 w-8 rounded-lg bg-blue-500/10 flex items-center justify-center flex-shrink-0">
           <Info className="h-4 w-4 text-blue-500" />
