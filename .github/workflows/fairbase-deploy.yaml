@@ -13,7 +13,6 @@ jobs:
       - name: Checkout repo
         uses: actions/checkout@v4
 
-      # ✅ Bun solo para instalar dependencias y compilar
       - name: Setup Bun
         uses: oven-sh/setup-bun@v2
         with:
@@ -22,24 +21,24 @@ jobs:
       - name: Install dependencies
         run: bun install
 
+      # ✅ Añadir firebase si no está en package.json
+      - name: Install Firebase SDK
+        run: bun add firebase
+
       - name: Build Project
         run: bun run --bun vite build
 
-      # ✅ Verificar que el build se generó correctamente
       - name: Verify Build Directory
         run: |
           echo "Contenido de dist:"
           ls -la dist
-          echo "Verificando index.html:"
           test -f dist/index.html && echo "✅ index.html existe" || echo "❌ index.html NO existe"
 
-      # ✅ Node separado solo para el deploy con Firebase
       - name: Setup Node.js (para Firebase deploy)
         uses: actions/setup-node@v4
         with:
           node-version: 20
 
-      # ✅ Deploy con la acción oficial
       - name: Deploy to Firebase Hosting
         uses: FirebaseExtended/action-hosting-deploy@v0
         with:
