@@ -34,15 +34,15 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // ─── Firebase ─────────────────────────────────────────────
-import { auth, db }           from "@/lib/firebase/config";
-import { onAuthStateChanged } from "firebase/auth";
-import { doc, onSnapshot, setDoc } from "firebase/firestore";
+import { auth, db }                    from "@/lib/firebase/config";
+import { onAuthStateChanged }          from "firebase/auth";
+import { doc, onSnapshot, setDoc }     from "firebase/firestore";
 import {
   requestNotificationPermission,
   onForegroundMessage,
 } from "@/lib/firebase/messaging";
 
-import { MOCK_USER }        from "@/data/mock";
+import { MOCK_USER }            from "@/data/mock";
 import type { User as AppUser } from "@/types";
 
 // =========================================================
@@ -120,7 +120,7 @@ function AppContent() {
     currentView,
     user,
     navigate,
-    modalOpen, // ✅ NUEVO
+    modalOpen,
   } = useAppStore();
 
   // ─── Seguridad: solo admin ────────────────────────────────
@@ -160,13 +160,23 @@ function AppContent() {
 
   // ─── Layout principal ─────────────────────────────────────
   return (
-    <div className="flex flex-col min-h-screen bg-gray-50 dark:bg-navy-950">
+    // ✅ Contenedor fijo a la pantalla, sin overflow propio
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950">
+
       <Header
         title={VIEW_TITLES[currentView] || ""}
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
       />
 
-      <main className="flex-1 min-h-[calc(100vh-3.5rem-4rem)]">
+      {/*
+        ✅ main con scroll real:
+        - flex-1       → ocupa el espacio restante entre Header y BottomNav
+        - min-h-0      → sin esto, flexbox ignora overflow-y en algunos navegadores
+        - overflow-y-auto → activa el scroll vertical táctil
+        - overscroll-contain → evita que el scroll "escape" al body
+        - pb-16        → padding inferior para no quedar tapado por el BottomNav
+      */}
+      <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
 
         {/* ─── Páginas principales ──────────────────────── */}
         {currentView === "dashboard"      && <DashboardPage />}
@@ -182,14 +192,14 @@ function AppContent() {
         {currentView === "notifications"  && <NotificationsPage />}
 
         {/* ─── Páginas de configuración ─────────────────── */}
-        {currentView === "profile"                && <ProfilePage />}
-        {currentView === "security"               && <SecurityPage />}
-        {currentView === "help"                   && <HelpPage />}
-        {currentView === "terms"                  && <TermsPage />}
-        {currentView === "language"               && <LanguagePage />}
-        {currentView === "notification-settings"  && <NotificationSettingsPage />}
-        {currentView === "trade-history"          && <TradeHistoryPage />}
-        {currentView === "my-orders"              && <MyOrdersPage />}
+        {currentView === "profile"               && <ProfilePage />}
+        {currentView === "security"              && <SecurityPage />}
+        {currentView === "help"                  && <HelpPage />}
+        {currentView === "terms"                 && <TermsPage />}
+        {currentView === "language"              && <LanguagePage />}
+        {currentView === "notification-settings" && <NotificationSettingsPage />}
+        {currentView === "trade-history"         && <TradeHistoryPage />}
+        {currentView === "my-orders"             && <MyOrdersPage />}
 
         {/* ─── Admin ───────────────────────────────────── */}
         {currentView === "admin-kyc" && user?.role === "admin" && (
@@ -197,7 +207,7 @@ function AppContent() {
         )}
       </main>
 
-      {/* ✅ BottomNav se oculta cuando hay un modal abierto */}
+      {/* ✅ BottomNav fijo abajo, se oculta cuando hay modal abierto */}
       {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
