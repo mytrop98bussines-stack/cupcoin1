@@ -36,26 +36,32 @@
     box-sizing: border-box;
   }
 
+  /* ✅ html y body con height para que el flex funcione en móvil */
   html {
+    height: 100%;
     scroll-behavior: smooth;
     background-color: #f9fafb;
     overflow-x: hidden;
-    /* ✅ Safe area para móviles con notch */
     padding-top: env(safe-area-inset-top);
     padding-left: env(safe-area-inset-left);
     padding-right: env(safe-area-inset-right);
   }
 
   body {
+    height: 100%;
     font-family: var(--font-sans);
     -webkit-font-smoothing: antialiased;
     -moz-osx-font-smoothing: grayscale;
     background-color: #f9fafb;
     color: #111827;
     overflow-x: hidden;
-    min-height: 100vh;
-    /* ✅ Evita el rebote elástico en iOS */
-    overscroll-behavior: none;
+    /* ✅ Solo bloqua el rebote horizontal, no el scroll vertical */
+    overscroll-behavior-x: none;
+  }
+
+  /* ✅ #root debe ocupar toda la altura para que h-screen funcione */
+  #root {
+    height: 100%;
   }
 
   html.dark body {
@@ -78,7 +84,6 @@
 
 @layer utilities {
 
-  /* ─── Scrollbar oculta ───────────────────────────────── */
   .scrollbar-hide {
     -ms-overflow-style: none;
     scrollbar-width: none;
@@ -87,7 +92,6 @@
     display: none;
   }
 
-  /* ─── Glass Premium ──────────────────────────────────── */
   .glass {
     background: rgba(255, 255, 255, 0.04);
     border: 1px solid rgba(255, 255, 255, 0.06);
@@ -96,26 +100,20 @@
     box-shadow: 0 8px 32px rgba(0, 0, 0, 0.18);
   }
 
-  /* ─── Wallet Style Revolut/Wise ──────────────────────── */
   .wallet-card {
     background: linear-gradient(135deg, #1b298e 0%, #15204b 100%);
     border: 1px solid rgba(255, 255, 255, 0.08);
     box-shadow: 0 12px 40px rgba(0, 0, 0, 0.28);
   }
 
-  /* ─── ✅ Safe Bottom ─────────────────────────────────── */
-  /* Empuja el contenido del modal por encima del BottomNav */
   .safe-bottom {
     padding-bottom: max(1.5rem, calc(env(safe-area-inset-bottom) + 5rem));
   }
 
-  /* ─── ✅ Safe Area para el BottomNav ─────────────────── */
-  /* Agrega espacio en el fondo del nav para dispositivos con home bar */
   .safe-area-bottom {
     padding-bottom: env(safe-area-inset-bottom, 0px);
   }
 
-  /* ─── Animaciones ────────────────────────────────────── */
   .animate-slide-up {
     animation: slideUp 0.25s ease-out;
   }
@@ -128,49 +126,27 @@
     animation: pulseGlow 3s ease-in-out infinite;
   }
 
-  /* ─── ✅ Animación slide-down (para modales que bajan) ── */
   .animate-slide-down {
     animation: slideDown 0.25s ease-out;
   }
 }
 
 @keyframes slideUp {
-  from {
-    transform: translateY(12px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(12px); opacity: 0; }
+  to   { transform: translateY(0);    opacity: 1; }
 }
 
 @keyframes slideDown {
-  from {
-    transform: translateY(-12px);
-    opacity: 0;
-  }
-  to {
-    transform: translateY(0);
-    opacity: 1;
-  }
+  from { transform: translateY(-12px); opacity: 0; }
+  to   { transform: translateY(0);     opacity: 1; }
 }
 
 @keyframes fadeIn {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 @keyframes pulseGlow {
-  0%,
-  100% {
-    box-shadow: 0 0 4px rgba(228, 171, 52, 0.15);
-  }
-  50% {
-    box-shadow: 0 0 12px rgba(228, 171, 52, 0.25);
-  }
+  0%, 100% { box-shadow: 0 0 4px  rgba(228, 171, 52, 0.15); }
+  50%       { box-shadow: 0 0 12px rgba(228, 171, 52, 0.25); }
 }
