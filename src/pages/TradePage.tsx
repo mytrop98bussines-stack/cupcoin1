@@ -6,15 +6,11 @@ import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
 import { PAYMENT_METHOD_LABELS } from "@/data/mock";
+import { notifyUser } from "@/lib/firebase/messaging";
 import { db } from "@/lib/firebase/config";
 import {
-  doc,
-  getDoc,
-  updateDoc,
-  runTransaction,
-  onSnapshot,
-  collection,
-  addDoc,
+  doc, getDoc, updateDoc, runTransaction,
+  onSnapshot, collection, addDoc,
 } from "firebase/firestore";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
@@ -23,7 +19,7 @@ import {
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
 
-// ─── Configuración de estados ────────────────────────────
+// ─── Configuración de estados ─────────────────────────────
 const STATUS_CONFIG: Record<
   TradeStatus,
   { label: string; color: string; icon: React.ReactNode; desc: string }
@@ -31,62 +27,59 @@ const STATUS_CONFIG: Record<
   awaiting_escrow: {
     label: "Esperando depósito",
     color: "text-amber-500",
-    icon: <Clock className="h-5 w-5" />,
-    desc: "El vendedor debe depositar los fondos en el escrow.",
+    icon:  <Clock className="h-5 w-5" />,
+    desc:  "El vendedor debe depositar los fondos en el escrow.",
   },
   escrow_funded: {
     label: "Escrow fondeado",
     color: "text-blue-500",
-    icon: <Lock className="h-5 w-5" />,
-    desc: "Fondos seguros en escrow. Realiza el pago móvil ahora.",
+    icon:  <Lock className="h-5 w-5" />,
+    desc:  "Fondos seguros en escrow. Realiza el pago móvil ahora.",
   },
   payment_sent: {
     label: "Pago enviado",
     color: "text-indigo-500",
-    icon: <Send className="h-5 w-5" />,
-    desc: "Comprador marcó pago como enviado. Vendedor, verifica.",
+    icon:  <Send className="h-5 w-5" />,
+    desc:  "Comprador marcó pago como enviado. Vendedor, verifica.",
   },
   payment_confirmed: {
     label: "Pago confirmado",
     color: "text-emerald-500",
-    icon: <CheckCircle2 className="h-5 w-5" />,
-    desc: "Vendedor confirmó el pago. Liberando cripto...",
+    icon:  <CheckCircle2 className="h-5 w-5" />,
+    desc:  "Vendedor confirmó el pago. Liberando cripto...",
   },
   crypto_released: {
     label: "Completado",
     color: "text-emerald-500",
-    icon: <Unlock className="h-5 w-5" />,
-    desc: "¡Trade completado! Los fondos han sido liberados.",
+    icon:  <Unlock className="h-5 w-5" />,
+    desc:  "¡Trade completado! Los fondos han sido liberados.",
   },
   disputed: {
     label: "En disputa",
     color: "text-red-500",
-    icon: <AlertTriangle className="h-5 w-5" />,
-    desc: "Un mediador revisará el caso.",
+    icon:  <AlertTriangle className="h-5 w-5" />,
+    desc:  "Un mediador revisará el caso.",
   },
   cancelled: {
     label: "Cancelado",
     color: "text-gray-500",
-    icon: <XCircle className="h-5 w-5" />,
-    desc: "Trade cancelado. Fondos devueltos al vendedor.",
+    icon:  <XCircle className="h-5 w-5" />,
+    desc:  "Trade cancelado. Fondos devueltos al vendedor.",
   },
 };
 
 export function TradePage() {
   const {
-    activeTrade,
-    selectedTradeId,
-    user,
-    setActiveTrade,
-    navigate,
+    activeTrade, selectedTradeId, user,
+    setActiveTrade, navigate,
   } = useAppStore();
 
-  const [loading, setLoading]     = useState(false);
-  const [trade, setTrade]         = useState<Trade | null>(activeTrade);
-  const [error, setError]         = useState<string | null>(null);
-  const [copied, setCopied]       = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [trade, setTrade]     = useState<Trade | null>(activeTrade);
+  const [error, setError]     = useState<string | null>(null);
+  const [copied, setCopied]   = useState(false);
 
-  // ─── Cargar trade desde Firestore en tiempo real ─────────
+  // ─── Cargar trade desde Firestore en tiempo real ──────────
   useEffect(() => {
     const tradeId = selectedTradeId || activeTrade?.id;
     if (!tradeId) {
@@ -94,7 +87,6 @@ export function TradePage() {
       return;
     }
 
-    // Suscripción en tiempo real al trade
     const unsubscribe = onSnapshot(
       doc(db, "trades", tradeId),
       (docSnap) => {
@@ -116,18 +108,15 @@ export function TradePage() {
   }, [selectedTradeId, activeTrade?.id]);
 
   // ─── Validaciones de seguridad ────────────────────────────
-  const isBuyer  = user?.uid === trade?.buyerId;
-  const isSeller = user?.uid === trade?.sellerId;
+  const isBuyer       = user?.uid === trade?.buyerId;
+  const isSeller      = user?.uid === trade?.sellerId;
   const isParticipant = isBuyer || isSeller;
 
   // ─── Progreso ─────────────────────────────────────────────
   const progress = (() => {
     const steps: TradeStatus[] = [
-      "awaiting_escrow",
-      "escrow_funded",
-      "payment_sent",
-      "payment_confirmed",
-      "crypto_released",
+      "awaiting_escrow", "escrow_funded", "payment_sent",
+      "payment_confirmed", "crypto_released",
     ];
     const idx = steps.indexOf(trade?.status || "awaiting_escrow");
     return idx >= 0 ? ((idx + 1) / steps.length) * 100 : 0;
@@ -140,25 +129,22 @@ export function TradePage() {
     setTimeout(() => setCopied(false), 2000);
   }, []);
 
-  // ─── Enviar mensaje del sistema al chat ───────────────────
+  // ─── Mensaje del sistema al chat ──────────────────────────
+  // ✅ Campos unificados: text y createdAt
   const sendSystemMessage = async (tradeId: string, msg: string) => {
-    await addDoc(
-      collection(db, "trades", tradeId, "messages"),
-      {
-        senderId:   "SYSTEM",
-        senderName: "CubaX Sistema",
-        message:    msg,
-        timestamp:  Date.now(),
-        type:       "system",
-      }
-    );
+    await addDoc(collection(db, "trades", tradeId, "messages"), {
+      senderId:   "SYSTEM",
+      senderName: "CubaX Sistema",
+      text:       msg,        // ✅ unificado
+      createdAt:  Date.now(), // ✅ unificado
+      type:       "system",
+    });
   };
 
-  // ─── ACCIÓN PRINCIPAL CON ESCROW REAL ────────────────────
+  // ─── ACCIÓN PRINCIPAL ─────────────────────────────────────
   const handleAction = useCallback(async (action: string) => {
     if (!trade || !user) return;
 
-    // ✅ Verificar que el usuario es participante del trade
     if (!isParticipant) {
       setError("No tienes permiso para realizar esta acción.");
       return;
@@ -174,7 +160,7 @@ export function TradePage() {
 
       switch (action) {
 
-        // ✅ ESCROW REAL: Descuenta saldo del vendedor y lo bloquea
+        // ✅ Vendedor fondea el escrow
         case "fund_escrow": {
           if (!isSeller) throw new Error("Solo el vendedor puede fondear el escrow.");
           if (trade.status !== "awaiting_escrow") throw new Error("Estado inválido.");
@@ -186,31 +172,36 @@ export function TradePage() {
             const balances     = sellerDoc.data().balances || {};
             const assetBalance = balances[trade.asset] || 0;
 
-            // ✅ Verificar saldo suficiente
             if (assetBalance < trade.amount) {
               throw new Error(
                 `Saldo insuficiente. Tienes ${assetBalance} ${trade.asset} y necesitas ${trade.amount}.`
               );
             }
 
-            // ✅ Descontar del saldo disponible
             tx.update(sellerRef, {
               [`balances.${trade.asset}`]: assetBalance - trade.amount,
             });
 
-            // ✅ Guardar en escrow dentro del trade
             tx.update(tradeRef, {
-              status:          "escrow_funded",
-              escrowAmount:    trade.amount,
-              escrowAsset:     trade.asset,
-              escrowFundedAt:  Date.now(),
-              updatedAt:       Date.now(),
+              status:         "escrow_funded",
+              escrowAmount:   trade.amount,
+              escrowAsset:    trade.asset,
+              escrowFundedAt: Date.now(),
+              updatedAt:      Date.now(),
             });
           });
 
           await sendSystemMessage(
             trade.id,
             `🔒 ESCROW: El vendedor depositó ${trade.amount} ${trade.asset} en garantía. Comprador, ya puedes enviar el pago en CUP.`
+          );
+
+          // ✅ Notificar al comprador
+          await notifyUser(
+            trade.buyerId,
+            "🔒 Escrow fondeado",
+            `El vendedor depositó ${trade.amount} ${trade.asset}. Ya puedes enviar el pago.`,
+            { tradeId: trade.id, type: "trade" }
           );
           break;
         }
@@ -221,19 +212,27 @@ export function TradePage() {
           if (trade.status !== "escrow_funded") throw new Error("Estado inválido.");
 
           await updateDoc(tradeRef, {
-            status:       "payment_sent",
+            status:        "payment_sent",
             paymentSentAt: Date.now(),
-            updatedAt:    Date.now(),
+            updatedAt:     Date.now(),
           });
 
           await sendSystemMessage(
             trade.id,
             `💸 PAGO: El comprador marcó el pago como enviado. Vendedor, verifica en Transfermóvil o Enzona antes de liberar.`
           );
+
+          // ✅ Notificar al vendedor
+          await notifyUser(
+            trade.sellerId,
+            "💸 Pago enviado",
+            `${trade.buyerName} marcó el pago como enviado. Verifica antes de liberar.`,
+            { tradeId: trade.id, type: "payment_sent" }
+          );
           break;
         }
 
-        // ✅ LIBERACIÓN REAL: Transfiere fondos del escrow al comprador
+        // ✅ Vendedor libera los fondos al comprador
         case "release": {
           if (!isSeller) throw new Error("Solo el vendedor puede liberar los fondos.");
           if (trade.status !== "payment_sent") throw new Error("Estado inválido.");
@@ -242,20 +241,18 @@ export function TradePage() {
             const buyerDoc = await tx.get(buyerRef);
             if (!buyerDoc.exists()) throw new Error("Comprador no encontrado.");
 
-            const buyerBalances    = buyerDoc.data().balances || {};
+            const buyerBalances     = buyerDoc.data().balances || {};
             const buyerAssetBalance = buyerBalances[trade.asset] || 0;
 
-            // ✅ Sumar fondos del escrow al comprador
             tx.update(buyerRef, {
               [`balances.${trade.asset}`]: buyerAssetBalance + trade.amount,
             });
 
-            // ✅ Marcar trade como completado
             tx.update(tradeRef, {
-              status:          "crypto_released",
-              releasedAt:      Date.now(),
-              updatedAt:       Date.now(),
-              escrowAmount:    0,
+              status:       "crypto_released",
+              releasedAt:   Date.now(),
+              updatedAt:    Date.now(),
+              escrowAmount: 0,
             });
           });
 
@@ -263,10 +260,18 @@ export function TradePage() {
             trade.id,
             `🎉 COMPLETADO: ${trade.amount} ${trade.asset} liberados al comprador. ¡Operación exitosa!`
           );
+
+          // ✅ Notificar al comprador
+          await notifyUser(
+            trade.buyerId,
+            "✅ Trade completado",
+            `Recibiste ${trade.amount} ${trade.asset} en tu wallet. ¡Gracias por usar CubaX!`,
+            { tradeId: trade.id, type: "trade_completed" }
+          );
           break;
         }
 
-        // ✅ DISPUTA: Congela el trade para revisión del admin
+        // ✅ Disputa
         case "dispute": {
           if (!isParticipant) throw new Error("No autorizado.");
           if (["crypto_released", "cancelled", "disputed"].includes(trade.status)) {
@@ -274,16 +279,15 @@ export function TradePage() {
           }
 
           await updateDoc(tradeRef, {
-            status:      "disputed",
-            disputedBy:  user.uid,
-            disputedAt:  Date.now(),
-            updatedAt:   Date.now(),
+            status:     "disputed",
+            disputedBy: user.uid,
+            disputedAt: Date.now(),
+            updatedAt:  Date.now(),
           });
 
-          // ✅ Crear alerta en system_alerts para que el admin lo vea
           await addDoc(collection(db, "system_alerts"), {
             tipo:        "trade_disputado",
-            descripcion: `Trade ${trade.id} en disputa. Iniciado por ${user.displayName || user.uid}.`,
+            descripcion: `Trade ${trade.id} en disputa por ${user.displayName || user.uid}.`,
             tradeId:     trade.id,
             buyerId:     trade.buyerId,
             sellerId:    trade.sellerId,
@@ -301,7 +305,7 @@ export function TradePage() {
           break;
         }
 
-        // ✅ CANCELAR: Solo si el escrow no fue fondeado aún
+        // ✅ Cancelar
         case "cancel": {
           if (trade.status !== "awaiting_escrow") {
             throw new Error(
@@ -510,10 +514,7 @@ export function TradePage() {
         {/* Contraparte */}
         <Card padding="sm">
           <div className="flex items-center gap-3">
-            <Avatar
-              name={isBuyer ? trade.sellerName : trade.buyerName}
-              size="sm"
-            />
+            <Avatar name={isBuyer ? trade.sellerName : trade.buyerName} size="sm" />
             <div className="flex-1">
               <p className="font-bold text-sm text-gray-900 dark:text-white">
                 {isBuyer ? trade.sellerName : trade.buyerName}
@@ -526,7 +527,7 @@ export function TradePage() {
           </div>
         </Card>
 
-        {/* ═══ BOTONES DE ACCIÓN ════════════════════════════════ */}
+        {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
         <div className="space-y-2">
 
           {/* Vendedor fondea escrow */}
@@ -540,20 +541,51 @@ export function TradePage() {
             </Button>
           )}
 
-          {/* Comprador espera escrow */}
+          {/* Comprador espera que el vendedor fondee */}
           {trade.status === "awaiting_escrow" && isBuyer && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
               <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 text-center">
-                ⏳ Esperando que el vendedor deposite la garantía. No envíes dinero aún.
+                ⏳ Esperando que el vendedor deposite la garantía en escrow.
+                No envíes dinero aún.
               </p>
             </div>
           )}
 
-          {/* Vendedor espera pago */}
+          {/* ✅ Comprador marca el pago como enviado — BOTÓN QUE FALTABA */}
+          {trade.status === "escrow_funded" && isBuyer && (
+            <div className="space-y-2">
+              <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
+                  💳 Envía{" "}
+                  <strong>
+                    {trade.totalFiat.toLocaleString("es-CU")} CUP
+                  </strong>{" "}
+                  por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
+                  toca el botón de abajo.
+                </p>
+              </div>
+              <Button
+                size="lg"
+                fullWidth
+                loading={loading}
+                onClick={() => handleAction("mark_paid")}
+                icon={<Send className="h-4 w-4" />}
+                className="bg-indigo-500 hover:bg-indigo-600 text-white"
+              >
+                Ya envié el pago en CUP
+              </Button>
+            </div>
+          )}
+
+          {/* Vendedor espera confirmación del escrow */}
           {trade.status === "escrow_funded" && isSeller && (
             <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center animate-pulse">
-                💳 Fondos en escrow. Esperando transferencia del comprador...
+              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
+                ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
+                <strong>
+                  {trade.totalFiat.toLocaleString("es-CU")} CUP
+                </strong>{" "}
+                por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
               </p>
             </div>
           )}
@@ -563,11 +595,14 @@ export function TradePage() {
             <div className="space-y-2">
               <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
                 <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 text-center">
-                  ⚠️ Verifica el pago en Transfermóvil o Enzona ANTES de liberar. No te fíes de capturas.
+                  ⚠️ Verifica el pago en Transfermóvil o Enzona ANTES de
+                  liberar. No te fíes de capturas de pantalla.
                 </p>
               </div>
               <Button
-                size="lg" fullWidth loading={loading}
+                size="lg"
+                fullWidth
+                loading={loading}
                 onClick={() => handleAction("release")}
                 icon={<Unlock className="h-4 w-4" />}
                 className="bg-emerald-500 hover:bg-emerald-600 text-white"
@@ -581,7 +616,8 @@ export function TradePage() {
           {trade.status === "payment_sent" && isBuyer && (
             <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
               <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">
-                ⏳ Pago marcado. El vendedor está verificando antes de liberar los fondos.
+                ⏳ Pago marcado. El vendedor está verificando antes de
+                liberar los fondos.
               </p>
             </div>
           )}
@@ -625,7 +661,9 @@ export function TradePage() {
           {trade.status === "cancelled" && (
             <div className="space-y-2">
               <div className="p-3 bg-gray-100 dark:bg-white/5 rounded-xl text-center">
-                <p className="text-sm font-bold text-gray-500">Trade cancelado</p>
+                <p className="text-sm font-bold text-gray-500">
+                  Trade cancelado
+                </p>
                 <p className="text-xs text-gray-400 mt-1">
                   No se realizó ningún movimiento de fondos.
                 </p>
@@ -639,7 +677,7 @@ export function TradePage() {
             </div>
           )}
 
-          {/* Botón cancelar — Solo antes del escrow */}
+          {/* Cancelar — Solo antes del escrow */}
           {trade.status === "awaiting_escrow" && (
             <Button
               size="sm" fullWidth variant="ghost"
