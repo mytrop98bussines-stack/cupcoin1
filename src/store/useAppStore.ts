@@ -28,82 +28,82 @@ import { db } from "@/lib/firebase/config";
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
 interface AppState {
-  theme: ThemeMode;
-  currentView: AppView;
-  previousView: AppView | null;
-  user: User | null;
-  isAuthenticated: boolean;
-  balances: CryptoBalance[];
-  prices: CryptoPrice[];
-  orders: P2POrder[];
-  activeTrade: Trade | null;
-  tradeMessages: ChatMessage[];
-  products: Product[];
-  notifications: Notification[];
+  theme:            ThemeMode;
+  currentView:      AppView;
+  previousView:     AppView | null;
+  user:             User | null;
+  isAuthenticated:  boolean;
+  balances:         CryptoBalance[];
+  prices:           CryptoPrice[];
+  orders:           P2POrder[];
+  activeTrade:      Trade | null;
+  tradeMessages:    ChatMessage[];
+  products:         Product[];
+  notifications:    Notification[];
   depositAddresses: Record<string, string>;
-  selectedTradeId: string | null;
+  selectedTradeId:  string | null;
   selectedProductId: string | null;
-  isLoading: boolean;
-  mobileMenuOpen: boolean;
-  loadingPrices: boolean;
-  modalOpen: boolean; // ✅ NUEVO
+  isLoading:        boolean;
+  mobileMenuOpen:   boolean;
+  loadingPrices:    boolean;
+  modalOpen:        boolean;
 
-  setTheme: (theme: ThemeMode) => void;
-  toggleTheme: () => void;
-  navigate: (view: AppView) => void;
-  goBack: () => void;
-  setUser: (user: User | null) => void;
-  login: (user: User) => void;
-  logout: () => void;
+  setTheme:         (theme: ThemeMode) => void;
+  toggleTheme:      () => void;
+  navigate:         (view: AppView) => void;
+  goBack:           () => void;
+  setUser:          (user: User | null) => void;
+  login:            (user: User) => void;
+  logout:           () => void;
 
   setWalletData: (
-    firestoreBalances: Record<string, number>,
-    depositAddresses?: Record<string, string>
+    firestoreBalances:  Record<string, number>,
+    depositAddresses?:  Record<string, string>
   ) => void;
 
-  setPrices: (prices: CryptoPrice[]) => void;
-  fetchPrices: () => Promise<void>;
-  setOrders: (orders: P2POrder[]) => void;
-  addOrder: (order: P2POrder) => void;
+  setPrices:     (prices: CryptoPrice[]) => void;
+  fetchPrices:   () => Promise<void>;
+  setOrders:     (orders: P2POrder[]) => void;
+  addOrder:      (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
 
   updateTradeStatus: (
     tradeId: string,
-    status: Trade["status"]
+    status:  Trade["status"]
   ) => Promise<void>;
 
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
   requestDeposit: (asset: string) => Promise<{
-    success: boolean;
-    address?: string;
-    message: string;
+    success:   boolean;
+    address?:  string;
+    message:   string;
   }>;
   requestWithdrawal: (
-    asset: string,
-    amount: number,
-    toAddress: string,
-    chain: string
+    asset:      string,
+    amount:     number,
+    toAddress:  string,
+    chain:      string
   ) => Promise<{ success: boolean; txId?: string; message: string }>;
 
-  setTradeMessages: (messages: ChatMessage[]) => void;
-  addMessage: (message: ChatMessage) => void;
+  setTradeMessages:        (messages: ChatMessage[]) => void;
+  addMessage:              (message: ChatMessage) => void;
   subscribeToTradeMessages: (tradeId: string) => () => void;
-  sendMessage: (tradeId: string, text: string) => Promise<void>;
+  sendMessage:             (tradeId: string, text: string) => Promise<void>;
 
-  setProducts: (products: Product[]) => void;
-  addProduct: (product: Product) => void;
-  deleteProduct: (productId: string) => void;
+  setProducts:        (products: Product[]) => void;
+  addProduct:         (product: Product) => void;
+  deleteProduct:      (productId: string) => Promise<void>;
   subscribeToProducts: () => () => void;
 
-  setNotifications: (notifications: Notification[]) => void;
+  setNotifications:        (notifications: Notification[]) => void;
   subscribeToNotifications: (userId: string) => () => void;
-  markNotificationRead: (id: string) => Promise<void>;
+  markNotificationRead:    (id: string) => Promise<void>;
 
-  setSelectedTradeId: (id: string | null) => void;
+  setSelectedTradeId:   (id: string | null) => void;
   setSelectedProductId: (id: string | null) => void;
-  setLoading: (loading: boolean) => void;
-  setMobileMenuOpen: (open: boolean) => void;
-  setModalOpen: (open: boolean) => void; // ✅ NUEVO
+  setLoading:           (loading: boolean) => void;
+  setMobileMenuOpen:    (open: boolean) => void;
+  setModalOpen:         (open: boolean) => void;
 }
 
 const getInitialTheme = (): ThemeMode => {
@@ -118,32 +118,32 @@ const getInitialTheme = (): ThemeMode => {
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
-  theme: getInitialTheme(),
-  currentView: "landing",
-  previousView: null,
-  user: null,
-  isAuthenticated: false,
-  balances: [],
+  theme:            getInitialTheme(),
+  currentView:      "landing",
+  previousView:     null,
+  user:             null,
+  isAuthenticated:  false,
+  balances:         [],
   depositAddresses: {},
-  modalOpen: false, // ✅ NUEVO
+  modalOpen:        false,
 
   prices: [
-    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
-    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,     change24h: 0 },
-    { id: "3", symbol: "BTC",  name: "Bitcoin",   priceUSD: 67500.00, change24h: 0 },
-    { id: "4", symbol: "ETH",  name: "Ethereum",  priceUSD: 3500.00,  change24h: 0 },
+    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0    },
+    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,     change24h: 0    },
+    { id: "3", symbol: "BTC",  name: "Bitcoin",   priceUSD: 67500.00, change24h: 0    },
+    { id: "4", symbol: "ETH",  name: "Ethereum",  priceUSD: 3500.00,  change24h: 0    },
   ],
 
-  orders: [],
-  activeTrade: null,
-  tradeMessages: [],
-  products: [],
-  notifications: [],
-  selectedTradeId: null,
+  orders:           [],
+  activeTrade:      null,
+  tradeMessages:    [],
+  products:         [],
+  notifications:    [],
+  selectedTradeId:  null,
   selectedProductId: null,
-  isLoading: false,
-  mobileMenuOpen: false,
-  loadingPrices: false,
+  isLoading:        false,
+  mobileMenuOpen:   false,
+  loadingPrices:    false,
 
   // ─── TEMA ────────────────────────────────────────────────
   setTheme: (theme) => {
@@ -158,13 +158,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ─── NAVEGACIÓN ──────────────────────────────────────────
-  navigate: (view) => {
+  navigate: (view) =>
     set({
-      previousView: get().currentView,
-      currentView:  view,
+      previousView:   get().currentView,
+      currentView:    view,
       mobileMenuOpen: false,
-    });
-  },
+    }),
 
   goBack: () => {
     const prev = get().previousView;
@@ -188,7 +187,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       activeTrade:      null,
       tradeMessages:    [],
       products:         [],
-      modalOpen:        false, // ✅ RESET
+      modalOpen:        false,
     }),
 
   // ─── WALLET DATA ─────────────────────────────────────────
@@ -202,8 +201,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       );
       const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.0;
       return {
-        asset:    asset.toUpperCase(),
-        amount:   amount,
+        asset:    asset.toUpperCase() as any,
+        amount,
         usdValue: amount * priceUSD,
       };
     });
@@ -216,7 +215,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   setPrices: (prices) => set({ prices }),
 
-  // ─── FETCH PRICES — COINGECKO ─────────────────────────────
+  // ─── FETCH PRICES — COINGECKO ────────────────────────────
   fetchPrices: async () => {
     set({ loadingPrices: true });
     try {
@@ -279,7 +278,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── FETCH DEPOSIT ADDRESS ────────────────────────────────
+  // ─── FETCH DEPOSIT ADDRESS ───────────────────────────────
   fetchDepositAddress: async (asset: string, chain: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
@@ -307,9 +306,8 @@ export const useAppStore = create<AppState>((set, get) => ({
             [assetKey]: data.coin_address,
           },
         });
-        console.log(`✅ [fetchDepositAddress] ${assetKey} => ${data.coin_address}`);
       } else {
-        console.warn(`⚠️ [fetchDepositAddress] Sin dirección para ${assetKey}:`, data?.error);
+        console.warn(`⚠️ Sin dirección para ${assetKey}:`, data?.error);
       }
     } catch (error) {
       console.error("❌ [fetchDepositAddress] Error:", error);
@@ -325,7 +323,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const assetKey = asset.toUpperCase();
     const cached   = get().depositAddresses[assetKey];
-
     if (cached) {
       return { success: true, address: cached, message: "Dirección desde cache." };
     }
@@ -334,10 +331,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid:   currentUser.uid,
-          asset: assetKey,
-        }),
+        body: JSON.stringify({ uid: currentUser.uid, asset: assetKey }),
       });
 
       const resData = await response.json();
@@ -347,27 +341,17 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...get().depositAddresses,
           [assetKey]: resData.coin_address,
         };
-
         set({
           depositAddresses: updatedAddresses,
-          user: {
-            ...currentUser,
-            depositAddresses: updatedAddresses,
-          },
+          user: currentUser
+            ? { ...currentUser, depositAddresses: updatedAddresses }
+            : null,
         });
-
-        return {
-          success: true,
-          address: resData.coin_address,
-          message: "Dirección obtenida.",
-        };
+        return { success: true, address: resData.coin_address, message: "Dirección obtenida." };
       }
 
-      return {
-        success: false,
-        message: resData?.error || "Error obteniendo dirección.",
-      };
-    } catch (error: any) {
+      return { success: false, message: resData?.error || "Error obteniendo dirección." };
+    } catch {
       return { success: false, message: "Error de conexión con backend." };
     }
   },
@@ -375,42 +359,27 @@ export const useAppStore = create<AppState>((set, get) => ({
   // ─── REQUEST WITHDRAWAL ──────────────────────────────────
   requestWithdrawal: async (asset, amount, toAddress, chain) => {
     const currentUser = get().user;
-    if (
-      !currentUser?.uid ||
-      currentUser.uid === "invitado" ||
-      currentUser.uid === "{uid}"
-    ) {
+    if (!currentUser?.uid || currentUser.uid === "invitado") {
       return { success: false, message: "Operación no válida." };
     }
 
     try {
-      const withdrawalCollectionRef = collection(db, "withdrawals");
-      const newWithdrawalDocRef     = doc(withdrawalCollectionRef);
-
-      const withdrawalRequest = {
-        id:                 newWithdrawalDocRef.id,
+      const withdrawalRef = doc(collection(db, "withdrawals"));
+      await setDoc(withdrawalRef, {
+        id:                 withdrawalRef.id,
         userId:             currentUser.uid,
         asset:              asset.toUpperCase(),
-        amount:             amount,
+        amount,
         destinationAddress: toAddress,
         chain:              chain ? chain.toUpperCase() : "TRC20",
         status:             "pending",
         intentos:           0,
         createdAt:          Date.now(),
-      };
+      });
 
-      await setDoc(newWithdrawalDocRef, withdrawalRequest);
-
-      return {
-        success: true,
-        txId:    newWithdrawalDocRef.id,
-        message: "Solicitud registrada con éxito en la cola.",
-      };
+      return { success: true, txId: withdrawalRef.id, message: "Solicitud registrada con éxito." };
     } catch (error: any) {
-      return {
-        success: false,
-        message: error.message || "Error de red con Firebase.",
-      };
+      return { success: false, message: error.message || "Error de red con Firebase." };
     }
   },
 
@@ -423,8 +392,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateTradeStatus: async (tradeId, status) => {
     if (!tradeId) return;
     try {
-      const tradeRef = doc(db, "trades", tradeId);
-      await updateDoc(tradeRef, { status, updatedAt: Date.now() });
+      await updateDoc(doc(db, "trades", tradeId), {
+        status,
+        updatedAt: Date.now(),
+      });
     } catch (error) {
       console.error("Error actualizando estado del trade:", error);
     }
@@ -432,28 +403,33 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   // ─── CHAT P2P ────────────────────────────────────────────
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
-  addMessage: (message) =>
+  addMessage:       (message)  =>
     set({ tradeMessages: [...get().tradeMessages, message] }),
 
   subscribeToTradeMessages: (tradeId: string) => {
     if (!tradeId) return () => {};
+
     const q = query(
       collection(db, "trades", tradeId, "messages"),
-      orderBy("timestamp", "asc")
+      orderBy("createdAt", "asc") // ✅ unificado a createdAt
     );
+
     return onSnapshot(q, (snapshot) => {
-      const messagesList: ChatMessage[] = [];
-      snapshot.forEach((docSnap) => {
+      const messages: ChatMessage[] = snapshot.docs.map((docSnap) => {
         const data = docSnap.data();
-        messagesList.push({
+        return {
           id:         docSnap.id,
-          senderId:   data.senderId,
-          senderName: data.senderName,
-          text:       data.message || "",
-          createdAt:  data.timestamp || Date.now(),
-        } as any);
+          tradeId,
+          senderId:   data.senderId   ?? "SYSTEM",
+          senderName: data.senderName ?? "Sistema",
+          // ✅ acepta text o message para compatibilidad con datos viejos
+          text:       data.text       ?? data.message ?? "",
+          // ✅ acepta createdAt o timestamp para compatibilidad con datos viejos
+          createdAt:  data.createdAt  ?? data.timestamp ?? Date.now(),
+          type:       data.type       ?? "text",
+        };
       });
-      set({ tradeMessages: messagesList });
+      set({ tradeMessages: messages });
     });
   },
 
@@ -464,8 +440,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       await addDoc(collection(db, "trades", tradeId, "messages"), {
         senderId:   currentUser.uid,
         senderName: currentUser.displayName || "Usuario",
-        message:    text.trim(),
-        timestamp:  Date.now(),
+        text:       text.trim(),  // ✅ unificado a text
+        createdAt:  Date.now(),   // ✅ unificado a createdAt
         type:       "text",
       });
     } catch (error) {
@@ -477,10 +453,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProducts: (products) => set({ products }),
   addProduct:  (product)  => set({ products: [product, ...get().products] }),
 
-  deleteProduct: (productId: string) => {
-    set({
-      products: get().products.filter((p) => p.id !== productId),
-    });
+  // ✅ Ahora actualiza Firestore, no solo el estado local
+  deleteProduct: async (productId: string) => {
+    try {
+      await updateDoc(doc(db, "products", productId), {
+        status:      "cancelled",
+        cancelledAt: Date.now(),
+      });
+      // El listener onSnapshot actualiza el estado automáticamente
+      console.log(`✅ Producto ${productId} cancelado en Firestore`);
+    } catch (error) {
+      console.error("❌ Error al eliminar producto:", error);
+    }
   },
 
   subscribeToProducts: () => {
@@ -493,13 +477,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     return onSnapshot(
       q,
       (snapshot) => {
-        const productsList: Product[] = [];
-        snapshot.forEach((docSnap) => {
-          productsList.push({
-            id: docSnap.id,
-            ...docSnap.data(),
-          } as Product);
-        });
+        const productsList: Product[] = snapshot.docs.map((docSnap) => ({
+          id: docSnap.id,
+          ...docSnap.data(),
+        } as Product));
         set({ products: productsList });
         console.log(`✅ [Products] ${productsList.length} productos en tiempo real`);
       },
@@ -517,32 +498,39 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const q = query(
       collection(db, "notifications"),
-      where("userId", "==", userId),
+      where("userId",    "==", userId),
       orderBy("createdAt", "desc")
     );
 
     return onSnapshot(
       q,
       (snapshot) => {
-        const notificationsList: Notification[] = [];
-        snapshot.forEach((docSnap) => {
-          notificationsList.push({
-            id: docSnap.id,
-            ...docSnap.data(),
-          } as Notification);
+        const list: Notification[] = snapshot.docs.map((docSnap) => {
+          const data = docSnap.data();
+          return {
+            id:        docSnap.id,
+            userId:    data.userId    ?? userId,
+            title:     data.title     ?? "",
+            // ✅ acepta body o message para compatibilidad con datos viejos
+            body:      data.body      ?? data.message ?? "",
+            type:      data.type      ?? "system",
+            read:      data.read      ?? false,
+            createdAt: data.createdAt ?? Date.now(),
+            data:      data.data      ?? {},
+            link:      data.link,
+          } as Notification;
         });
-        set({ notifications: notificationsList });
+        set({ notifications: list });
       },
       (error) => {
-        console.error("Error en Snapshot de notificaciones:", error);
+        console.error("❌ Error en snapshot de notificaciones:", error);
       }
     );
   },
 
   markNotificationRead: async (id) => {
     try {
-      const notifRef = doc(db, "notifications", id);
-      await updateDoc(notifRef, { read: true });
+      await updateDoc(doc(db, "notifications", id), { read: true });
       set({
         notifications: get().notifications.map((n) =>
           n.id === id ? { ...n, read: true } : n
@@ -554,9 +542,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ─── UTILIDADES ──────────────────────────────────────────
-  setSelectedTradeId:   (id)      => set({ selectedTradeId: id }),
+  setSelectedTradeId:   (id)      => set({ selectedTradeId:   id }),
   setSelectedProductId: (id)      => set({ selectedProductId: id }),
-  setLoading:           (loading) => set({ isLoading: loading }),
-  setMobileMenuOpen:    (open)    => set({ mobileMenuOpen: open }),
-  setModalOpen:         (open)    => set({ modalOpen: open }), // ✅ NUEVO
+  setLoading:           (loading) => set({ isLoading:         loading }),
+  setMobileMenuOpen:    (open)    => set({ mobileMenuOpen:    open }),
+  setModalOpen:         (open)    => set({ modalOpen:         open }),
 }));
