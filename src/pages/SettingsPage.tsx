@@ -7,33 +7,18 @@ import { Avatar } from "@/components/ui/Avatar";
 import { db } from "@/lib/firebase/config";
 import { doc, onSnapshot } from "firebase/firestore";
 import {
-  Shield,
-  Bell,
-  Moon,
-  Sun,
-  Globe,
-  Lock,
-  HelpCircle,
-  LogOut,
-  ChevronRight,
-  Star,
-  ArrowLeftRight,
-  Wallet,
-  FileText,
-  ExternalLink,
-  Wrench,
-  Copy,
-  Check,
-  User,
-  AlertTriangle,
-  Smartphone,
+  Shield, Bell, Moon, Sun, Globe, Lock,
+  HelpCircle, LogOut, ChevronRight, Star,
+  ArrowLeftRight, Wallet, FileText, ExternalLink,
+  Wrench, Copy, Check, User, AlertTriangle,
+  Smartphone, CheckCircle2, Clock, X,
 } from "lucide-react";
 
 export function SettingsPage() {
   const { user, setUser, theme, toggleTheme, navigate, logout } =
     useAppStore();
 
-  const [copied, setCopied]                   = useState(false);
+  const [copied, setCopied]                       = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
 
   // ─── Modo oscuro ──────────────────────────────────────────
@@ -68,7 +53,7 @@ export function SettingsPage() {
   if (!user) return null;
 
   // ─── KYC config ──────────────────────────────────────────
-  const kycStatus = {
+  const kycConfig = {
     unverified: {
       label:    "Sin verificar",
       variant:  "warning" as const,
@@ -96,8 +81,18 @@ export function SettingsPage() {
   };
 
   const currentKyc =
-    kycStatus[user.kycStatus as keyof typeof kycStatus] ||
-    kycStatus.unverified;
+    kycConfig[user.kycStatus as keyof typeof kycConfig] ||
+    kycConfig.unverified;
+
+  // ✅ Solo navega al KYC si puede hacer algo ahí
+  const handleKycAction = () => {
+    if (user.kycStatus === "verified") return;           // Ya verificado, no hace nada
+    if (user.kycStatus === "pending_verification") {     // En revisión, solo ver estado
+      navigate("kyc");
+      return;
+    }
+    navigate("kyc"); // unverified o rejected → puede enviar/reintentar
+  };
 
   // ─── Copiar UID ───────────────────────────────────────────
   const handleCopyUID = () => {
@@ -112,6 +107,16 @@ export function SettingsPage() {
     navigate("landing");
   };
 
+  // ─── Subtítulo dinámico del KYC ──────────────────────────
+  const kycSubtitle = () => {
+    switch (user.kycStatus) {
+      case "verified":             return "Identidad verificada ✓";
+      case "pending_verification": return "En revisión — esperando aprobación";
+      case "rejected":             return "Rechazado — toca para reintentar";
+      default:                     return "Verifica tu identidad";
+    }
+  };
+
   // ─── Secciones del menú ───────────────────────────────────
   const menuSections = [
     {
@@ -123,16 +128,18 @@ export function SettingsPage() {
           subtitle:  "Foto, nombre y datos personales",
           iconBg:    "bg-blue-500/10",
           iconColor: "text-blue-500",
-          action:    () => navigate("profile"),           // ✅
+          action:    () => navigate("profile"),
         },
         {
           icon:      <Shield className="h-4 w-4" />,
           label:     "Verificación KYC",
-          subtitle:  currentKyc.label,
-          badge:     currentKyc.variant,
+          subtitle:  kycSubtitle(),
+          badge:     user.kycStatus !== "verified" ? currentKyc.variant : undefined,
           iconBg:    currentKyc.bg,
           iconColor: currentKyc.color,
-          action:    () => navigate("kyc"),
+          // ✅ Solo navega si NO está verificado
+          action:    user.kycStatus !== "verified" ? handleKycAction : undefined,
+          disabled:  user.kycStatus === "verified",
         },
         {
           icon:      <Wallet className="h-4 w-4" />,
@@ -148,7 +155,7 @@ export function SettingsPage() {
           subtitle:  "Gestionar alertas y preferencias",
           iconBg:    "bg-violet-500/10",
           iconColor: "text-violet-500",
-          action:    () => navigate("notification-settings"), // ✅
+          action:    () => navigate("notification-settings"),
         },
       ],
     },
@@ -172,7 +179,7 @@ export function SettingsPage() {
           subtitle:  "Español (Cuba)",
           iconBg:    "bg-emerald-500/10",
           iconColor: "text-emerald-500",
-          action:    () => navigate("language"),            // ✅
+          action:    () => navigate("language"),
         },
         {
           icon:      <Smartphone className="h-4 w-4" />,
@@ -180,7 +187,7 @@ export function SettingsPage() {
           subtitle:  "Alertas en tiempo real",
           iconBg:    "bg-amber-500/10",
           iconColor: "text-amber-500",
-          action:    () => navigate("notification-settings"), // ✅
+          action:    () => navigate("notification-settings"),
         },
       ],
     },
@@ -193,7 +200,7 @@ export function SettingsPage() {
           subtitle:  `${user.totalTrades || 0} trades completados`,
           iconBg:    "bg-brand-500/10",
           iconColor: "text-brand-500",
-          action:    () => navigate("trade-history"),       // ✅
+          action:    () => navigate("trade-history"),
         },
         {
           icon:      <FileText className="h-4 w-4" />,
@@ -201,7 +208,7 @@ export function SettingsPage() {
           subtitle:  "Gestionar órdenes activas",
           iconBg:    "bg-indigo-500/10",
           iconColor: "text-indigo-500",
-          action:    () => navigate("my-orders"),           // ✅
+          action:    () => navigate("my-orders"),
         },
       ],
     },
@@ -214,7 +221,7 @@ export function SettingsPage() {
           subtitle:  "FAQ y guías de uso",
           iconBg:    "bg-blue-500/10",
           iconColor: "text-blue-500",
-          action:    () => navigate("help"),                // ✅
+          action:    () => navigate("help"),
         },
         {
           icon:      <Lock className="h-4 w-4" />,
@@ -222,7 +229,7 @@ export function SettingsPage() {
           subtitle:  "Contraseña y autenticación",
           iconBg:    "bg-red-500/10",
           iconColor: "text-red-500",
-          action:    () => navigate("security"),            // ✅
+          action:    () => navigate("security"),
         },
         {
           icon:      <ExternalLink className="h-4 w-4" />,
@@ -230,7 +237,7 @@ export function SettingsPage() {
           subtitle:  "Leer política de uso",
           iconBg:    "bg-gray-500/10",
           iconColor: "text-gray-500",
-          action:    () => navigate("terms"),               // ✅
+          action:    () => navigate("terms"),
         },
       ],
     },
@@ -244,7 +251,6 @@ export function SettingsPage() {
         <div className="absolute top-0 right-0 h-24 w-24 bg-brand-500/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-4">
-          {/* Avatar con badge verificado */}
           <div className="relative">
             <Avatar name={user.displayName} src={user.photoURL} size="lg" />
             {user.kycStatus === "verified" && (
@@ -290,19 +296,18 @@ export function SettingsPage() {
             className={`flex items-center gap-1 text-[10px] font-bold px-2 py-1 rounded-lg transition-all ${
               copied
                 ? "bg-emerald-500 text-white"
-                : "bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400 hover:bg-gray-300 dark:hover:bg-white/15"
+                : "bg-gray-200 dark:bg-white/10 text-gray-500 dark:text-gray-400"
             }`}
           >
-            {copied ? (
-              <><Check className="h-3 w-3" /> Copiado</>
-            ) : (
-              <><Copy className="h-3 w-3" /> Copiar</>
-            )}
+            {copied
+              ? <><Check className="h-3 w-3" /> Copiado</>
+              : <><Copy className="h-3 w-3" /> Copiar</>
+            }
           </button>
         </div>
 
-        {/* Banner KYC si no está verificado */}
-        {user.kycStatus !== "verified" && (
+        {/* ✅ Banner KYC dinámico según estado */}
+        {user.kycStatus === "unverified" && (
           <button
             onClick={() => navigate("kyc")}
             className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-amber-500/10 border border-amber-500/20 hover:bg-amber-500/15 transition-colors text-left"
@@ -310,17 +315,62 @@ export function SettingsPage() {
             <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
             <div className="flex-1 min-w-0">
               <p className="text-[11px] font-bold text-amber-700 dark:text-amber-400">
-                {user.kycStatus === "pending_verification"
-                  ? "Verificación en proceso"
-                  : "Completa tu verificación KYC"}
+                Completa tu verificación KYC
               </p>
               <p className="text-[10px] text-amber-600/70 dark:text-amber-400/70">
-                {user.kycStatus === "pending_verification"
-                  ? "Tu solicitud está siendo revisada."
-                  : "Aumenta tus límites verificando tu identidad."}
+                Aumenta tus límites verificando tu identidad.
               </p>
             </div>
             <ChevronRight className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+          </button>
+        )}
+
+        {/* ✅ Banner pendiente — no navega, solo informa */}
+        {user.kycStatus === "pending_verification" && (
+          <div className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
+            <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-blue-700 dark:text-blue-400">
+                Verificación en proceso
+              </p>
+              <p className="text-[10px] text-blue-600/70 dark:text-blue-400/70">
+                Tu solicitud está siendo revisada. 24-48 horas.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ Banner verificado — solo muestra el estado */}
+        {user.kycStatus === "verified" && (
+          <div className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
+            <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-emerald-700 dark:text-emerald-400">
+                Identidad verificada
+              </p>
+              <p className="text-[10px] text-emerald-600/70 dark:text-emerald-400/70">
+                Operas sin restricciones en CubaX.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* ✅ Banner rechazado — permite reintentar */}
+        {user.kycStatus === "rejected" && (
+          <button
+            onClick={() => navigate("kyc")}
+            className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-red-500/10 border border-red-500/20 hover:bg-red-500/15 transition-colors text-left"
+          >
+            <X className="h-4 w-4 text-red-500 flex-shrink-0" />
+            <div className="flex-1 min-w-0">
+              <p className="text-[11px] font-bold text-red-700 dark:text-red-400">
+                Verificación rechazada
+              </p>
+              <p className="text-[10px] text-red-600/70 dark:text-red-400/70">
+                Toca para volver a intentarlo.
+              </p>
+            </div>
+            <ChevronRight className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
           </button>
         )}
       </Card>
@@ -359,7 +409,6 @@ export function SettingsPage() {
 
       {/* ═══ SECCIONES DEL MENÚ ══════════════════════════════ */}
       {menuSections.map((section) => {
-        // Ocultar Actividad para invitados
         if (section.title === "Actividad" && user.uid === "invitado") {
           return null;
         }
@@ -377,12 +426,15 @@ export function SettingsPage() {
                 <button
                   key={item.label}
                   onClick={item.action}
-                  className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-gray-50 dark:hover:bg-white/[0.03] transition-colors first:rounded-t-2xl last:rounded-b-2xl text-left"
+                  disabled={"disabled" in item && item.disabled}
+                  className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors first:rounded-t-2xl last:rounded-b-2xl text-left ${
+                    "disabled" in item && item.disabled
+                      ? "opacity-60 cursor-default"
+                      : "hover:bg-gray-50 dark:hover:bg-white/[0.03]"
+                  }`}
                 >
                   {/* Icono */}
-                  <div
-                    className={`h-8 w-8 rounded-lg ${item.iconBg} flex items-center justify-center ${item.iconColor} flex-shrink-0`}
-                  >
+                  <div className={`h-8 w-8 rounded-lg ${item.iconBg} flex items-center justify-center ${item.iconColor} flex-shrink-0`}>
                     {item.icon}
                   </div>
 
@@ -398,28 +450,20 @@ export function SettingsPage() {
 
                   {/* Toggle o chevron */}
                   {"toggle" in item && item.toggle ? (
-                    <div
-                      className={`relative h-6 w-11 rounded-full transition-colors flex items-center flex-shrink-0 ${
-                        theme === "dark" ? "bg-brand-500" : "bg-gray-300"
-                      }`}
-                    >
-                      <div
-                        className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                          theme === "dark"
-                            ? "translate-x-[22px]"
-                            : "translate-x-0.5"
-                        }`}
-                      />
+                    <div className={`relative h-6 w-11 rounded-full transition-colors flex items-center flex-shrink-0 ${
+                      theme === "dark" ? "bg-brand-500" : "bg-gray-300"
+                    }`}>
+                      <div className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                        theme === "dark" ? "translate-x-[22px]" : "translate-x-0.5"
+                      }`} />
                     </div>
+                  ) : "disabled" in item && item.disabled ? (
+                    // ✅ KYC verificado — muestra badge verde sin flecha
+                    <Badge variant="success" size="sm">
+                      Verificado ✓
+                    </Badge>
                   ) : (
-                    <div className="flex items-center gap-1.5 flex-shrink-0">
-                      {"badge" in item && item.badge && !("toggle" in item) && (
-                        <Badge variant={item.badge} size="sm">
-                          {item.subtitle}
-                        </Badge>
-                      )}
-                      <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
-                    </div>
+                    <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                   )}
                 </button>
               ))}
@@ -448,7 +492,7 @@ export function SettingsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowLogoutConfirm(false)}
-              className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm font-bold hover:bg-gray-200 dark:hover:bg-white/10 transition-all"
+              className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm font-bold transition-all"
             >
               Cancelar
             </button>
@@ -475,3 +519,4 @@ export function SettingsPage() {
     </div>
   );
 }
+ 
