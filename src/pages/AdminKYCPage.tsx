@@ -124,13 +124,13 @@ export function AdminKYCPage() {
 
       // ✅ Notificar al usuario
       await addDoc(collection(db, "notifications"), {
-        userId:    kycUser.id,
-        title:     "✅ Verificación aprobada",
-        message:   "Tu identidad ha sido verificada. Ahora puedes operar sin restricciones en CubaX.",
-        type:      "kyc",
-        read:      false,
-        createdAt: Date.now(),
-      });
+  userId:    kycUser.id,
+  title:     "✅ Verificación aprobada",
+  body:      "Tu identidad ha sido verificada. Ahora puedes operar sin restricciones en CubaX.", // ✅ body
+  type:      "kyc",
+  read:      false,
+  createdAt: Date.now(),
+});
 
       setSuccessMsg(`✅ ${kycUser.fullName || kycUser.displayName} verificado correctamente.`);
       setTimeout(() => setSuccessMsg(null), 4000);
@@ -159,13 +159,13 @@ export function AdminKYCPage() {
 
       // ✅ Notificar al usuario con el motivo
       await addDoc(collection(db, "notifications"), {
-        userId:    kycUser.id,
-        title:     "❌ Verificación rechazada",
-        message:   `Tu solicitud KYC fue rechazada. Motivo: ${reason}. Puedes volver a intentarlo con documentos más claros.`,
-        type:      "kyc",
-        read:      false,
-        createdAt: Date.now(),
-      });
+  userId:    kycUser.id,
+  title:     "❌ Verificación rechazada",
+  body:      `Tu solicitud KYC fue rechazada. Motivo: ${reason}. Puedes volver a intentarlo.`, // ✅ body
+  type:      "kyc",
+  read:      false,
+  createdAt: Date.now(),
+});
 
       setShowRejectForm(null);
       setRejectReason((prev) => ({ ...prev, [kycUser.id]: "" }));
