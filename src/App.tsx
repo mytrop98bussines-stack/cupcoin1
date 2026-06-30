@@ -242,55 +242,45 @@ export default function App() {
   }, [theme]);
 
   // ─── Guardián de autenticación ────────────────────────────
-  useEffect(() => {
-    const unsubscribeAuth = onAuthStateChanged(
-      auth,
-      async (firebaseUser) => {
-        try {
-          if (firebaseUser) {
-            const initialUserData: AppUser = {
-              uid:           firebaseUser.uid,
-              email:         firebaseUser.email       || "",
-              displayName:   firebaseUser.displayName || "Usuario",
-              photoURL:      firebaseUser.photoURL    || null,
-              kycStatus:     "unverified",
-              createdAt:     Date.now(),
-              totalTrades:   0,
-              rating:        5.0,
-              walletAddress: null,
-              role:          "user",
-            };
+useEffect(() => {
+  // ✅ Leer sesión guardada en localStorage
+  const savedToken = localStorage.getItem("cubax_token");
+  const savedUid   = localStorage.getItem("cubax_uid");
 
-            login(initialUserData);
+  if (savedToken && savedUid) {
+    // ✅ Verificar que el token sigue válido
+    const verifySession = async () => {
+      try {
+        // Leer datos actualizados desde Firestore directamente
+        const userSnap = await getDoc(doc(db, "users", savedUid));
 
-            if (firebaseUser.uid !== "invitado") {
-              setTimeout(() => {
-                requestNotificationPermission(firebaseUser.uid).catch(
-                  (err) => console.warn("Push silenciado:", err)
-                );
-              }, 1000);
-            }
-          } else {
-            logout();
-            if (
-              AUTHENTICATED_VIEWS.includes(currentView) ||
-              !currentView
-            ) {
-              navigate("landing");
-            }
-          }
-        } catch (error) {
-          console.error("Error en guardián de auth:", error);
+        if (userSnap.exists()) {
+          const userData = userSnap.data() as AppUser;
+          login(userData);
+        } else {
+          // Usuario no existe en Firestore
+          localStorage.removeItem("cubax_token");
+          localStorage.removeItem("cubax_refresh_token");
+          localStorage.removeItem("cubax_uid");
           navigate("landing");
-        } finally {
-          setAuthLoading(false);
         }
+      } catch (error) {
+        console.error("Error verificando sesión:", error);
+      } finally {
+        setAuthLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribeAuth();
-  }, [login, logout]);
-
+    verifySession();
+  } else {
+    // No hay sesión guardada
+    setAuthLoading(false);
+    if (AUTHENTICATED_VIEWS.includes(currentView) || !currentView) {
+      navigate("landing");
+    }
+  }
+}, []);
+  
   // ─── Sincronización Firestore ─────────────────────────────
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
