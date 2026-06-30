@@ -173,14 +173,18 @@ export const useAppStore = create<AppState>((set, get) => ({
   // ─── USUARIO ─────────────────────────────────────────────
   setUser: (user) => set({ user }),
 
-  login: (user) =>
-    set({ user, isAuthenticated: true, currentView: "dashboard" }),
+  login: (user) => {
+    // ✅ Guardar uid en localStorage para persistencia
+    localStorage.setItem("cubax_last_view", "dashboard");
+    set({ user, isAuthenticated: true, currentView: "dashboard" });
+  },
 
-  // ✅ logout limpia localStorage
+  // ✅ logout limpia todo el localStorage
   logout: () => {
     localStorage.removeItem("cubax_token");
     localStorage.removeItem("cubax_refresh_token");
     localStorage.removeItem("cubax_uid");
+    localStorage.removeItem("cubax_last_view");
 
     set({
       user:             null,
@@ -285,25 +289,23 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ─── FETCH DEPOSIT ADDRESS — TRONGRID ────────────────────
-  // ✅ Cambiado de CoinEx a TronGrid
   fetchDepositAddress: async (asset: string, _chain: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
 
     const assetKey = asset.toUpperCase();
-
-    // Solo USDT soportado por TronGrid actualmente
     if (assetKey !== "USDT") return;
-
-    // Si ya tiene dirección no pedir de nuevo
     if (get().depositAddresses[assetKey]) return;
 
     try {
-      const response = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: currentUser.uid }),
-      });
+      const response = await fetch(
+        `${RENDER_API_URL}/tron/deposit-address`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ uid: currentUser.uid }),
+        }
+      );
 
       const data = await response.json();
 
@@ -324,7 +326,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // ─── REQUEST DEPOSIT — TRONGRID ──────────────────────────
-  // ✅ Cambiado de CoinEx a TronGrid
   requestDeposit: async (asset: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") {
@@ -333,7 +334,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const assetKey = asset.toUpperCase();
 
-    // Solo USDT soportado actualmente
     if (assetKey !== "USDT") {
       return {
         success: false,
@@ -341,18 +341,24 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }
 
-    // Ver si ya tiene dirección en cache
     const cached = get().depositAddresses[assetKey];
     if (cached) {
-      return { success: true, address: cached, message: "Dirección desde cache." };
+      return {
+        success: true,
+        address: cached,
+        message: "Dirección desde cache.",
+      };
     }
 
     try {
-      const response = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: currentUser.uid }),
-      });
+      const response = await fetch(
+        `${RENDER_API_URL}/tron/deposit-address`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ uid: currentUser.uid }),
+        }
+      );
 
       const resData = await response.json();
 
@@ -379,19 +385,20 @@ export const useAppStore = create<AppState>((set, get) => ({
         message: resData?.error || "Error obteniendo dirección.",
       };
     } catch {
-      return { success: false, message: "Error de conexión con backend." };
+      return {
+        success: false,
+        message: "Error de conexión con backend.",
+      };
     }
   },
 
   // ─── REQUEST WITHDRAWAL — TRONGRID ───────────────────────
-  // ✅ Cambiado de Firestore directo a backend TronGrid
   requestWithdrawal: async (asset, amount, toAddress, _chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") {
       return { success: false, message: "Operación no válida." };
     }
 
-    // Solo USDT soportado actualmente
     if (asset.toUpperCase() !== "USDT") {
       return {
         success: false,
@@ -399,7 +406,6 @@ export const useAppStore = create<AppState>((set, get) => ({
       };
     }
 
-    // Validar dirección TRC20
     if (!toAddress.startsWith("T")) {
       return {
         success: false,
@@ -408,15 +414,18 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     try {
-      const response = await fetch(`${RENDER_API_URL}/tron/withdraw`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid:       currentUser.uid,
-          toAddress,
-          amount,
-        }),
-      });
+      const response = await fetch(
+        `${RENDER_API_URL}/tron/withdraw`,
+        {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            uid: currentUser.uid,
+            toAddress,
+            amount,
+          }),
+        }
+      );
 
       const data = await response.json();
 
@@ -479,7 +488,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           tradeId,
           senderId:   data.senderId   ?? "SYSTEM",
           senderName: data.senderName ?? "Sistema",
-          text:       data.text       ?? data.message ?? "",
+          text:       data.text       ?? data.message   ?? "",
           createdAt:  data.createdAt  ?? data.timestamp ?? Date.now(),
           type:       data.type       ?? "text",
         };
