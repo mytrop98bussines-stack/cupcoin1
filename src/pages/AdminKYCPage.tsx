@@ -1149,4 +1149,4 @@ export function AdminKYCPage() {
       )}
     </div>
   );
- }
+}
