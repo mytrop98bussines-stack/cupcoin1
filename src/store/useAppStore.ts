@@ -28,43 +28,43 @@ import { db } from "@/lib/firebase/config";
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
 interface AppState {
-  theme:            ThemeMode;
-  currentView:      AppView;
-  previousView:     AppView | null;
-  user:             User | null;
-  isAuthenticated:  boolean;
-  balances:         CryptoBalance[];
-  prices:           CryptoPrice[];
-  orders:           P2POrder[];
-  activeTrade:      Trade | null;
-  tradeMessages:    ChatMessage[];
-  products:         Product[];
-  notifications:    Notification[];
-  depositAddresses: Record<string, string>;
-  selectedTradeId:  string | null;
+  theme:             ThemeMode;
+  currentView:       AppView;
+  previousView:      AppView | null;
+  user:              User | null;
+  isAuthenticated:   boolean;
+  balances:          CryptoBalance[];
+  prices:            CryptoPrice[];
+  orders:            P2POrder[];
+  activeTrade:       Trade | null;
+  tradeMessages:     ChatMessage[];
+  products:          Product[];
+  notifications:     Notification[];
+  depositAddresses:  Record<string, string>;
+  selectedTradeId:   string | null;
   selectedProductId: string | null;
-  isLoading:        boolean;
-  mobileMenuOpen:   boolean;
-  loadingPrices:    boolean;
-  modalOpen:        boolean;
+  isLoading:         boolean;
+  mobileMenuOpen:    boolean;
+  loadingPrices:     boolean;
+  modalOpen:         boolean;
 
-  setTheme:         (theme: ThemeMode) => void;
-  toggleTheme:      () => void;
-  navigate:         (view: AppView) => void;
-  goBack:           () => void;
-  setUser:          (user: User | null) => void;
-  login:            (user: User) => void;
-  logout:           () => void;
+  setTheme:      (theme: ThemeMode) => void;
+  toggleTheme:   () => void;
+  navigate:      (view: AppView) => void;
+  goBack:        () => void;
+  setUser:       (user: User | null) => void;
+  login:         (user: User) => void;
+  logout:        () => void;
 
   setWalletData: (
-    firestoreBalances:  Record<string, number>,
-    depositAddresses?:  Record<string, string>
+    firestoreBalances: Record<string, number>,
+    depositAddresses?: Record<string, string>
   ) => void;
 
-  setPrices:     (prices: CryptoPrice[]) => void;
-  fetchPrices:   () => Promise<void>;
-  setOrders:     (orders: P2POrder[]) => void;
-  addOrder:      (order: P2POrder) => void;
+  setPrices:   (prices: CryptoPrice[]) => void;
+  fetchPrices: () => Promise<void>;
+  setOrders:   (orders: P2POrder[]) => void;
+  addOrder:    (order: P2POrder) => void;
   setActiveTrade: (trade: Trade | null) => void;
 
   updateTradeStatus: (
@@ -74,30 +74,30 @@ interface AppState {
 
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
   requestDeposit: (asset: string) => Promise<{
-    success:   boolean;
-    address?:  string;
-    message:   string;
+    success:  boolean;
+    address?: string;
+    message:  string;
   }>;
   requestWithdrawal: (
-    asset:      string,
-    amount:     number,
-    toAddress:  string,
-    chain:      string
+    asset:     string,
+    amount:    number,
+    toAddress: string,
+    chain:     string
   ) => Promise<{ success: boolean; txId?: string; message: string }>;
 
-  setTradeMessages:        (messages: ChatMessage[]) => void;
-  addMessage:              (message: ChatMessage) => void;
+  setTradeMessages:         (messages: ChatMessage[]) => void;
+  addMessage:               (message: ChatMessage) => void;
   subscribeToTradeMessages: (tradeId: string) => () => void;
-  sendMessage:             (tradeId: string, text: string) => Promise<void>;
+  sendMessage:              (tradeId: string, text: string) => Promise<void>;
 
-  setProducts:        (products: Product[]) => void;
-  addProduct:         (product: Product) => void;
-  deleteProduct:      (productId: string) => Promise<void>;
+  setProducts:         (products: Product[]) => void;
+  addProduct:          (product: Product) => void;
+  deleteProduct:       (productId: string) => Promise<void>;
   subscribeToProducts: () => () => void;
 
-  setNotifications:        (notifications: Notification[]) => void;
+  setNotifications:         (notifications: Notification[]) => void;
   subscribeToNotifications: (userId: string) => () => void;
-  markNotificationRead:    (id: string) => Promise<void>;
+  markNotificationRead:     (id: string) => Promise<void>;
 
   setSelectedTradeId:   (id: string | null) => void;
   setSelectedProductId: (id: string | null) => void;
@@ -118,32 +118,32 @@ const getInitialTheme = (): ThemeMode => {
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
-  theme:            getInitialTheme(),
-  currentView:      "landing",
-  previousView:     null,
-  user:             null,
-  isAuthenticated:  false,
-  balances:         [],
-  depositAddresses: {},
-  modalOpen:        false,
+  theme:             getInitialTheme(),
+  currentView:       "landing",
+  previousView:      null,
+  user:              null,
+  isAuthenticated:   false,
+  balances:          [],
+  depositAddresses:  {},
+  modalOpen:         false,
 
   prices: [
-    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0    },
-    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,     change24h: 0    },
-    { id: "3", symbol: "BTC",  name: "Bitcoin",   priceUSD: 67500.00, change24h: 0    },
-    { id: "4", symbol: "ETH",  name: "Ethereum",  priceUSD: 3500.00,  change24h: 0    },
+    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
+    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,     change24h: 0 },
+    { id: "3", symbol: "BTC",  name: "Bitcoin",   priceUSD: 67500.00, change24h: 0 },
+    { id: "4", symbol: "ETH",  name: "Ethereum",  priceUSD: 3500.00,  change24h: 0 },
   ],
 
-  orders:           [],
-  activeTrade:      null,
-  tradeMessages:    [],
-  products:         [],
-  notifications:    [],
-  selectedTradeId:  null,
+  orders:            [],
+  activeTrade:       null,
+  tradeMessages:     [],
+  products:          [],
+  notifications:     [],
+  selectedTradeId:   null,
   selectedProductId: null,
-  isLoading:        false,
-  mobileMenuOpen:   false,
-  loadingPrices:    false,
+  isLoading:         false,
+  mobileMenuOpen:    false,
+  loadingPrices:     false,
 
   // ─── TEMA ────────────────────────────────────────────────
   setTheme: (theme) => {
@@ -176,7 +176,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   login: (user) =>
     set({ user, isAuthenticated: true, currentView: "dashboard" }),
 
-  logout: () =>
+  // ✅ logout limpia localStorage
+  logout: () => {
+    localStorage.removeItem("cubax_token");
+    localStorage.removeItem("cubax_refresh_token");
+    localStorage.removeItem("cubax_uid");
+
     set({
       user:             null,
       isAuthenticated:  false,
@@ -188,7 +193,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       tradeMessages:    [],
       products:         [],
       modalOpen:        false,
-    }),
+    });
+  },
 
   // ─── WALLET DATA ─────────────────────────────────────────
   setWalletData: (firestoreBalances, depositAddresses = {}) => {
@@ -278,23 +284,25 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── FETCH DEPOSIT ADDRESS ───────────────────────────────
-  fetchDepositAddress: async (asset: string, chain: string) => {
+  // ─── FETCH DEPOSIT ADDRESS — TRONGRID ────────────────────
+  // ✅ Cambiado de CoinEx a TronGrid
+  fetchDepositAddress: async (asset: string, _chain: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
 
     const assetKey = asset.toUpperCase();
+
+    // Solo USDT soportado por TronGrid actualmente
+    if (assetKey !== "USDT") return;
+
+    // Si ya tiene dirección no pedir de nuevo
     if (get().depositAddresses[assetKey]) return;
 
     try {
-      const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
+      const response = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          uid:   currentUser.uid,
-          asset: assetKey,
-          chain: chain || "TRC20",
-        }),
+        body: JSON.stringify({ uid: currentUser.uid }),
       });
 
       const data = await response.json();
@@ -306,6 +314,7 @@ export const useAppStore = create<AppState>((set, get) => ({
             [assetKey]: data.coin_address,
           },
         });
+        console.log(`✅ Dirección TRC20: ${data.coin_address}`);
       } else {
         console.warn(`⚠️ Sin dirección para ${assetKey}:`, data?.error);
       }
@@ -314,7 +323,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── REQUEST DEPOSIT ─────────────────────────────────────
+  // ─── REQUEST DEPOSIT — TRONGRID ──────────────────────────
+  // ✅ Cambiado de CoinEx a TronGrid
   requestDeposit: async (asset: string) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") {
@@ -322,16 +332,26 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
 
     const assetKey = asset.toUpperCase();
-    const cached   = get().depositAddresses[assetKey];
+
+    // Solo USDT soportado actualmente
+    if (assetKey !== "USDT") {
+      return {
+        success: false,
+        message: "Solo USDT/TRC20 está disponible actualmente.",
+      };
+    }
+
+    // Ver si ya tiene dirección en cache
+    const cached = get().depositAddresses[assetKey];
     if (cached) {
       return { success: true, address: cached, message: "Dirección desde cache." };
     }
 
     try {
-      const response = await fetch(`${RENDER_API_URL}/coinex/deposit`, {
+      const response = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: currentUser.uid, asset: assetKey }),
+        body: JSON.stringify({ uid: currentUser.uid }),
       });
 
       const resData = await response.json();
@@ -347,39 +367,76 @@ export const useAppStore = create<AppState>((set, get) => ({
             ? { ...currentUser, depositAddresses: updatedAddresses }
             : null,
         });
-        return { success: true, address: resData.coin_address, message: "Dirección obtenida." };
+        return {
+          success: true,
+          address: resData.coin_address,
+          message: "Dirección obtenida.",
+        };
       }
 
-      return { success: false, message: resData?.error || "Error obteniendo dirección." };
+      return {
+        success: false,
+        message: resData?.error || "Error obteniendo dirección.",
+      };
     } catch {
       return { success: false, message: "Error de conexión con backend." };
     }
   },
 
-  // ─── REQUEST WITHDRAWAL ──────────────────────────────────
-  requestWithdrawal: async (asset, amount, toAddress, chain) => {
+  // ─── REQUEST WITHDRAWAL — TRONGRID ───────────────────────
+  // ✅ Cambiado de Firestore directo a backend TronGrid
+  requestWithdrawal: async (asset, amount, toAddress, _chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") {
       return { success: false, message: "Operación no válida." };
     }
 
+    // Solo USDT soportado actualmente
+    if (asset.toUpperCase() !== "USDT") {
+      return {
+        success: false,
+        message: "Solo retiros de USDT/TRC20 están disponibles actualmente.",
+      };
+    }
+
+    // Validar dirección TRC20
+    if (!toAddress.startsWith("T")) {
+      return {
+        success: false,
+        message: "La dirección debe ser TRC20 y empezar con T.",
+      };
+    }
+
     try {
-      const withdrawalRef = doc(collection(db, "withdrawals"));
-      await setDoc(withdrawalRef, {
-        id:                 withdrawalRef.id,
-        userId:             currentUser.uid,
-        asset:              asset.toUpperCase(),
-        amount,
-        destinationAddress: toAddress,
-        chain:              chain ? chain.toUpperCase() : "TRC20",
-        status:             "pending",
-        intentos:           0,
-        createdAt:          Date.now(),
+      const response = await fetch(`${RENDER_API_URL}/tron/withdraw`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          uid:       currentUser.uid,
+          toAddress,
+          amount,
+        }),
       });
 
-      return { success: true, txId: withdrawalRef.id, message: "Solicitud registrada con éxito." };
+      const data = await response.json();
+
+      if (data.success) {
+        return {
+          success: true,
+          txId:    data.txHash,
+          message: "Retiro procesado exitosamente.",
+        };
+      }
+
+      return {
+        success: false,
+        message: data.error || "Error procesando el retiro.",
+      };
     } catch (error: any) {
-      return { success: false, message: error.message || "Error de red con Firebase." };
+      return {
+        success: false,
+        message: error.message || "Error de conexión con backend.",
+      };
     }
   },
 
@@ -411,7 +468,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const q = query(
       collection(db, "trades", tradeId, "messages"),
-      orderBy("createdAt", "asc") // ✅ unificado a createdAt
+      orderBy("createdAt", "asc")
     );
 
     return onSnapshot(q, (snapshot) => {
@@ -422,9 +479,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           tradeId,
           senderId:   data.senderId   ?? "SYSTEM",
           senderName: data.senderName ?? "Sistema",
-          // ✅ acepta text o message para compatibilidad con datos viejos
           text:       data.text       ?? data.message ?? "",
-          // ✅ acepta createdAt o timestamp para compatibilidad con datos viejos
           createdAt:  data.createdAt  ?? data.timestamp ?? Date.now(),
           type:       data.type       ?? "text",
         };
@@ -440,8 +495,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       await addDoc(collection(db, "trades", tradeId, "messages"), {
         senderId:   currentUser.uid,
         senderName: currentUser.displayName || "Usuario",
-        text:       text.trim(),  // ✅ unificado a text
-        createdAt:  Date.now(),   // ✅ unificado a createdAt
+        text:       text.trim(),
+        createdAt:  Date.now(),
         type:       "text",
       });
     } catch (error) {
@@ -453,14 +508,12 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProducts: (products) => set({ products }),
   addProduct:  (product)  => set({ products: [product, ...get().products] }),
 
-  // ✅ Ahora actualiza Firestore, no solo el estado local
   deleteProduct: async (productId: string) => {
     try {
       await updateDoc(doc(db, "products", productId), {
         status:      "cancelled",
         cancelledAt: Date.now(),
       });
-      // El listener onSnapshot actualiza el estado automáticamente
       console.log(`✅ Producto ${productId} cancelado en Firestore`);
     } catch (error) {
       console.error("❌ Error al eliminar producto:", error);
@@ -482,7 +535,7 @@ export const useAppStore = create<AppState>((set, get) => ({
           ...docSnap.data(),
         } as Product));
         set({ products: productsList });
-        console.log(`✅ [Products] ${productsList.length} productos en tiempo real`);
+        console.log(`✅ [Products] ${productsList.length} productos`);
       },
       (error) => {
         console.error("❌ [Products] Error en snapshot:", error);
@@ -498,7 +551,7 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     const q = query(
       collection(db, "notifications"),
-      where("userId",    "==", userId),
+      where("userId",      "==", userId),
       orderBy("createdAt", "desc")
     );
 
@@ -511,7 +564,6 @@ export const useAppStore = create<AppState>((set, get) => ({
             id:        docSnap.id,
             userId:    data.userId    ?? userId,
             title:     data.title     ?? "",
-            // ✅ acepta body o message para compatibilidad con datos viejos
             body:      data.body      ?? data.message ?? "",
             type:      data.type      ?? "system",
             read:      data.read      ?? false,
