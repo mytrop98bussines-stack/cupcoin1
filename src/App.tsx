@@ -3,9 +3,11 @@ import { useAppStore } from "@/store/useAppStore";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 
+// ─── Páginas públicas ─────────────────────────────────────
 import { LandingPage } from "@/pages/LandingPage";
 import { AuthPage }    from "@/pages/AuthPage";
 
+// ─── Páginas principales ──────────────────────────────────
 import { DashboardPage }     from "@/pages/DashboardPage";
 import { P2PPage }           from "@/pages/P2PPage";
 import { CreateOrderPage }   from "@/pages/CreateOrderPage";
@@ -17,7 +19,9 @@ import { CreateProductPage } from "@/pages/CreateProductPage";
 import { WalletPage }        from "@/pages/WalletPage";
 import { SettingsPage }      from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
+import { MembershipPage }    from "@/pages/MembershipPage"; // ✅ nuevo
 
+// ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
 import { SecurityPage }             from "@/pages/SecurityPage";
 import { HelpPage }                 from "@/pages/HelpPage";
@@ -27,8 +31,10 @@ import { NotificationSettingsPage } from "@/pages/NotificationSettingsPage";
 import { TradeHistoryPage }         from "@/pages/TradeHistoryPage";
 import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 
+// ─── Admin ────────────────────────────────────────────────
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
+// ─── Firebase ─────────────────────────────────────────────
 import { db } from "@/lib/firebase/config";
 import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import {
@@ -37,10 +43,13 @@ import {
 } from "@/lib/firebase/messaging";
 
 import { MOCK_USER }            from "@/data/mock";
-import type { User as AppUser, AppView } from "@/types";
+import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
+// =========================================================
+// CONFIGURACIÓN DE VISTAS
+// =========================================================
 const VIEW_TITLES: Record<string, string> = {
   dashboard:               "",
   p2p:                     "",
@@ -62,35 +71,71 @@ const VIEW_TITLES: Record<string, string> = {
   "notification-settings": "Notificaciones",
   "trade-history":         "Historial de Trades",
   "my-orders":             "Mis Anuncios P2P",
+  membership:              "Membresía CubaX", // ✅ nuevo
 };
 
 const SHOW_BACK_VIEWS = [
-  "create-order", "trade", "kyc", "product-detail",
-  "create-product", "notifications", "admin-kyc",
-  "profile", "security", "help", "terms", "language",
-  "notification-settings", "trade-history", "my-orders",
+  "create-order",
+  "trade",
+  "kyc",
+  "product-detail",
+  "create-product",
+  "notifications",
+  "admin-kyc",
+  "profile",
+  "security",
+  "help",
+  "terms",
+  "language",
+  "notification-settings",
+  "trade-history",
+  "my-orders",
+  "membership", // ✅ nuevo
 ];
 
 const AUTHENTICATED_VIEWS = [
-  "dashboard", "p2p", "marketplace", "create-order",
-  "trade", "kyc", "product-detail", "create-product",
-  "wallet", "settings", "notifications", "admin-kyc",
-  "profile", "security", "help", "terms", "language",
-  "notification-settings", "trade-history", "my-orders",
+  "dashboard",
+  "p2p",
+  "marketplace",
+  "create-order",
+  "trade",
+  "kyc",
+  "product-detail",
+  "create-product",
+  "wallet",
+  "settings",
+  "notifications",
+  "admin-kyc",
+  "profile",
+  "security",
+  "help",
+  "terms",
+  "language",
+  "notification-settings",
+  "trade-history",
+  "my-orders",
+  "membership", // ✅ nuevo
 ];
 
 // =========================================================
 // APP CONTENT
 // =========================================================
 function AppContent() {
-  const { currentView, user, navigate, modalOpen } = useAppStore();
+  const {
+    currentView,
+    user,
+    navigate,
+    modalOpen,
+  } = useAppStore();
 
+  // ─── Seguridad: solo admin ────────────────────────────────
   useEffect(() => {
     if (currentView === "admin-kyc" && user?.role !== "admin") {
       navigate("dashboard");
     }
   }, [currentView, user, navigate]);
 
+  // ─── Push en primer plano ─────────────────────────────────
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("📬 Push en primer plano:", payload);
@@ -98,6 +143,7 @@ function AppContent() {
     return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
+  // ─── Loading si requiere auth ─────────────────────────────
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950">
@@ -111,9 +157,11 @@ function AppContent() {
 
   const showBottomNav = AUTHENTICATED_VIEWS.includes(currentView);
 
+  // ─── Páginas sin layout ───────────────────────────────────
   if (currentView === "landing") return <LandingPage />;
   if (currentView === "login" || currentView === "register") return <AuthPage />;
 
+  // ─── Layout principal ─────────────────────────────────────
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950">
       <Header
@@ -121,6 +169,8 @@ function AppContent() {
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
       />
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
+
+        {/* ─── Páginas principales ──────────────────────── */}
         {currentView === "dashboard"      && <DashboardPage />}
         {currentView === "p2p"            && <P2PPage />}
         {currentView === "create-order"   && <CreateOrderPage />}
@@ -132,6 +182,9 @@ function AppContent() {
         {currentView === "wallet"         && <WalletPage />}
         {currentView === "settings"       && <SettingsPage />}
         {currentView === "notifications"  && <NotificationsPage />}
+        {currentView === "membership"     && <MembershipPage />} {/* ✅ nuevo */}
+
+        {/* ─── Páginas de configuración ─────────────────── */}
         {currentView === "profile"               && <ProfilePage />}
         {currentView === "security"              && <SecurityPage />}
         {currentView === "help"                  && <HelpPage />}
@@ -140,8 +193,13 @@ function AppContent() {
         {currentView === "notification-settings" && <NotificationSettingsPage />}
         {currentView === "trade-history"         && <TradeHistoryPage />}
         {currentView === "my-orders"             && <MyOrdersPage />}
-        {currentView === "admin-kyc" && user?.role === "admin" && <AdminKYCPage />}
+
+        {/* ─── Admin ───────────────────────────────────── */}
+        {currentView === "admin-kyc" && user?.role === "admin" && (
+          <AdminKYCPage />
+        )}
       </main>
+
       {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
@@ -152,9 +210,15 @@ function AppContent() {
 // =========================================================
 export default function App() {
   const {
-    theme, user, login, logout,
-    currentView, isAuthenticated,
-    navigate, setWalletData, subscribeToNotifications,
+    theme,
+    user,
+    login,
+    logout,
+    currentView,
+    isAuthenticated,
+    navigate,
+    setWalletData,
+    subscribeToNotifications,
   } = useAppStore();
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -182,11 +246,11 @@ export default function App() {
           if (userSnap.exists()) {
             const userData = userSnap.data() as AppUser;
 
-            // ✅ Actualizar estado directamente sin race condition
+            // ✅ Actualizar estado sin race condition
             useAppStore.setState({
               user:            userData,
               isAuthenticated: true,
-              currentView:     "dashboard", // ✅ siempre dashboard al recargar
+              currentView:     "dashboard",
             });
 
           } else {
@@ -198,8 +262,7 @@ export default function App() {
           }
         } catch (error) {
           console.error("Error verificando sesión:", error);
-          // ✅ Si hay error de red ir al dashboard de todas formas
-          // porque el token existe y el usuario puede estar offline
+          // ✅ Si hay error de red ir al dashboard igualmente
           useAppStore.setState({ currentView: "dashboard" });
         } finally {
           setAuthLoading(false);
@@ -298,35 +361,36 @@ export default function App() {
             setWalletData(firestoreBalances, depositAddresses);
 
           } else {
+            // ✅ Crear documento con primer mes gratis
             const templateUser = {
-  uid,
-  email:            user.email       || "",
-  displayName:      user.displayName || "Usuario",
-  photoURL:         user.photoURL    || null,
-  kycStatus:        "unverified",
-  createdAt:        Date.now(),
-  totalTrades:      0,
-  rating:           5.0,
-  role:             "user",
-  balances:         { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
-  depositAddresses: {},
-  // ✅ Primer mes gratis automático
-  membership: {
-    status:    "free_trial",
-    startedAt: Date.now(),
-    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 días
-    plan:      "monthly",
-  },
-  notifPrefs: {
-    trades:      true,
-    marketplace: true,
-    kyc:         true,
-    precios:     false,
-    sistema:     true,
-  },
-};
+              uid,
+              email:            user.email       || "",
+              displayName:      user.displayName || "Usuario",
+              photoURL:         user.photoURL    || null,
+              kycStatus:        "unverified",
+              createdAt:        Date.now(),
+              totalTrades:      0,
+              rating:           5.0,
+              role:             "user",
+              balances:         { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
+              depositAddresses: {},
+              // ✅ Primer mes gratis automático
+              membership: {
+                status:    "free_trial",
+                startedAt: Date.now(),
+                expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
+                plan:      "monthly",
+              },
+              notifPrefs: {
+                trades:      true,
+                marketplace: true,
+                kyc:         true,
+                precios:     false,
+                sistema:     true,
+              },
+            };
             await setDoc(userDocRef, templateUser);
-            console.log(`[Firebase] Documento creado para: ${uid}`);
+            console.log(`[Firebase] Documento creado con membresía gratis para: ${uid}`);
           }
         } catch (err) {
           console.error("Error en snapshot de usuario:", err);
