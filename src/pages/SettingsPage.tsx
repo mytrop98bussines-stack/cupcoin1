@@ -130,6 +130,21 @@ export function SettingsPage() {
           iconColor: "text-blue-500",
           action:    () => navigate("profile"),
         },
+       {
+         icon:      <Crown className="h-4 w-4" />,
+         label:     "Membresía",
+         subtitle:  (() => {
+         const m = (user as any).membership;
+         if (!m || m.status === "expired") return "Sin membresía activa";
+         if (m.status === "free_trial")    return "Prueba gratuita activa";
+         if (m.status === "manual")        return "Cortesía del admin";
+         const days = Math.ceil((m.expiresAt - Date.now()) / (1000 * 60 * 60 * 24));
+         return days > 0 ? `Activa · ${days} días restantes` : "Vencida";
+         })(),
+         iconBg:    "bg-brand-500/10",
+         iconColor: "text-brand-500",
+         action:    () => navigate("membership"),
+        },
         {
           icon:      <Shield className="h-4 w-4" />,
           label:     "Verificación KYC",
