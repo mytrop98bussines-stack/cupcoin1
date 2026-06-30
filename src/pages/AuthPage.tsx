@@ -2,62 +2,30 @@ import { useState, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
+import { db } from "@/lib/firebase/config";
+import { doc, onSnapshot } from "firebase/firestore";
 import {
-  Mail,
-  Lock,
-  User,
-  Eye,
-  EyeOff,
-  ArrowLeft,
-  CheckCircle2,
-  AlertTriangle,
-  Shield,
+  Mail, Lock, User, Eye, EyeOff,
+  ArrowLeft, CheckCircle2, AlertTriangle, Shield,
 } from "lucide-react";
-
-import { auth, db } from "@/lib/firebase/config";
-import {
-  signInWithEmailAndPassword,
-  createUserWithEmailAndPassword,
-  updateProfile,
-  signInWithPopup,
-  GoogleAuthProvider,
-  sendPasswordResetEmail,
-} from "firebase/auth";
-import { doc, getDoc, setDoc } from "firebase/firestore";
 import type { User as AppUser } from "@/types";
 
-// ─── Errores de Firebase traducidos al español ────────────
-const FIREBASE_ERRORS: Record<string, string> = {
-  "auth/user-not-found":       "No existe una cuenta con este correo.",
-  "auth/wrong-password":       "Contraseña incorrecta. Inténtalo de nuevo.",
-  "auth/invalid-credential":   "Credenciales incorrectas. Verifica tu correo y contraseña.",
-  "auth/email-already-in-use": "Este correo ya está registrado. Inicia sesión.",
-  "auth/weak-password":        "La contraseña debe tener al menos 6 caracteres.",
-  "auth/invalid-email":        "El formato del correo no es válido.",
-  "auth/too-many-requests":    "Demasiados intentos. Espera unos minutos e inténtalo de nuevo.",
-  "auth/network-request-failed": "Error de conexión. Verifica tu internet.",
-  "auth/popup-closed-by-user": "Ventana de Google cerrada. Inténtalo de nuevo.",
-  "auth/cancelled-popup-request": "Operación cancelada.",
-};
-
-const getFirebaseError = (code: string): string =>
-  FIREBASE_ERRORS[code] || "Error inesperado. Inténtalo de nuevo.";
+const BACKEND_URL = "https://cubax-backend.onrender.com";
 
 export function AuthPage() {
-  const { currentView, navigate } = useAppStore();
+  const { currentView, navigate, login } = useAppStore();
   const isLogin = currentView === "login";
 
-  const [email, setEmail]           = useState("");
-  const [password, setPassword]     = useState("");
-  const [name, setName]             = useState("");
+  const [email, setEmail]               = useState("");
+  const [password, setPassword]         = useState("");
+  const [name, setName]                 = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [loading, setLoading]       = useState(false);
-  const [googleLoading, setGoogleLoading] = useState(false);
-  const [errors, setErrors]         = useState<Record<string, string>>({});
-  const [globalError, setGlobalError] = useState<string | null>(null);
-  const [resetSent, setResetSent]   = useState(false);
-  const [showReset, setShowReset]   = useState(false);
-  const [resetEmail, setResetEmail] = useState("");
+  const [loading, setLoading]           = useState(false);
+  const [errors, setErrors]             = useState<Record<string, string>>({});
+  const [globalError, setGlobalError]   = useState<string | null>(null);
+  const [resetSent, setResetSent]       = useState(false);
+  const [showReset, setShowReset]       = useState(false);
+  const [resetEmail, setResetEmail]     = useState("");
   const [resetLoading, setResetLoading] = useState(false);
 
   // ─── Validación ───────────────────────────────────────────
@@ -88,7 +56,7 @@ export function AuthPage() {
     return Object.keys(newErrors).length === 0;
   }, [email, password, name, isLogin]);
 
-  // ─── Login / Registro con email ───────────────────────────
+  // ─── Login / Registro via backend ─────────────────────────
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -99,108 +67,100 @@ export function AuthPage() {
       setGlobalError(null);
 
       try {
-        if (isLogin) {
-          await signInWithEmailAndPassword(auth, email, password);
-          // App.tsx maneja el onAuthStateChanged y navega automáticamente
-        } else {
-          const userCredential = await createUserWithEmailAndPassword(
-            auth,
-            email,
-            password
-          );
-          const fUser = userCredential.user;
+        const endpoint = isLogin
+          ? `${BACKEND_URL}/api/auth/login`
+          : `${BACKEND_URL}/api/auth/register`;
 
-          await updateProfile(fUser, { displayName: name.trim() });
+        const body = isLogin
+          ? { email: email.trim(), password }
+          : { email: email.trim(), password, displayName: name.trim() };
 
-          const newUser: AppUser = {
-            uid:          fUser.uid,
-            email:        email.toLowerCase().trim(),
-            displayName:  name.trim(),
-            photoURL:     null,
-            kycStatus:    "unverified",
-            createdAt:    Date.now(),
-            totalTrades:  0,
-            rating:       5.0,
-            walletAddress: null,
-          };
+        const res  = await fetch(endpoint, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify(body),
+        });
 
-          await setDoc(doc(db, "users", fUser.uid), newUser);
-        }
-      } catch (error: any) {
-        console.error("Error de autenticación:", error.code, error.message);
-        const msg = getFirebaseError(error.code);
+        const data = await res.json();
 
-        // Errores específicos del campo
-        if (
-          error.code === "auth/email-already-in-use" ||
-          error.code === "auth/invalid-email"
-        ) {
-          setErrors({ email: msg });
-        } else if (
-          error.code === "auth/wrong-password" ||
-          error.code === "auth/invalid-credential"
-        ) {
-          setErrors({ password: msg });
-        } else {
-          setGlobalError(msg);
+        if (!data.success) {
+          // ✅ Mostrar error en el campo correcto
+          if (
+            data.code === "EMAIL_EXISTS" ||
+            data.code === "INVALID_EMAIL"
+          ) {
+            setErrors({ email: data.error });
+          } else if (
+            data.code === "INVALID_PASSWORD" ||
+            data.code === "INVALID_LOGIN_CREDENTIALS"
+          ) {
+            setErrors({ password: data.error });
+          } else {
+            setGlobalError(data.error);
+          }
+          setLoading(false);
+          return;
         }
 
+        // ✅ Guardar token en localStorage para persistencia
+        localStorage.setItem("cubax_token",        data.token);
+        localStorage.setItem("cubax_refresh_token", data.refreshToken);
+        localStorage.setItem("cubax_uid",           data.uid);
+
+        // ✅ Construir objeto de usuario
+        const userData = data.userData || {};
+        const appUser: AppUser = {
+          uid:           data.uid,
+          email:         data.email,
+          displayName:   data.displayName,
+          photoURL:      data.photoURL || null,
+          kycStatus:     userData.kycStatus     || "unverified",
+          createdAt:     userData.createdAt     || Date.now(),
+          totalTrades:   userData.totalTrades   || 0,
+          rating:        userData.rating        || 5.0,
+          walletAddress: userData.walletAddress || null,
+          role:          userData.role          || "user",
+        };
+
+        // ✅ Loguear en el store
+        login(appUser);
+        navigate("dashboard");
+
+      } catch (err: any) {
+        console.error("Error de autenticación:", err.message);
+        setGlobalError("Error de conexión. Verifica tu internet.");
         setLoading(false);
       }
     },
-    [email, password, name, isLogin, validate]
+    [email, password, name, isLogin, validate, login, navigate]
   );
 
-  // ─── Login con Google ─────────────────────────────────────
-  const handleGoogleLogin = useCallback(async () => {
-    setGoogleLoading(true);
-    setErrors({});
-    setGlobalError(null);
-
-    const provider = new GoogleAuthProvider();
-    provider.setCustomParameters({ prompt: "select_account" });
-
-    try {
-      const result  = await signInWithPopup(auth, provider);
-      const fUser   = result.user;
-      const userRef = doc(db, "users", fUser.uid);
-      const userDoc = await getDoc(userRef);
-
-      if (!userDoc.exists()) {
-        const newUser: AppUser = {
-          uid:          fUser.uid,
-          email:        fUser.email || "",
-          displayName:  fUser.displayName || "Usuario CubaX",
-          photoURL:     fUser.photoURL || null,
-          kycStatus:    "unverified",
-          createdAt:    Date.now(),
-          totalTrades:  0,
-          rating:       5.0,
-          walletAddress: null,
-        };
-        await setDoc(userRef, newUser);
-      }
-      // App.tsx maneja la navegación via onAuthStateChanged
-    } catch (error: any) {
-      console.error("Error Google Auth:", error.code);
-      setGlobalError(getFirebaseError(error.code));
-      setGoogleLoading(false);
-    }
-  }, []);
-
-  // ─── Reset de contraseña ──────────────────────────────────
+  // ─── Reset de contraseña via backend ─────────────────────
   const handlePasswordReset = useCallback(async () => {
-    if (!resetEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)) {
-      setGlobalError("Ingresa un correo válido para recuperar la contraseña.");
+    if (
+      !resetEmail.trim() ||
+      !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)
+    ) {
+      setGlobalError("Ingresa un correo válido.");
       return;
     }
 
     setResetLoading(true);
     try {
-      await sendPasswordResetEmail(auth, resetEmail.trim());
-      setResetSent(true);
-    } catch (error: any) {
-      setGlobalError(getFirebaseError(error.code));
+      const res  = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ email: resetEmail.trim() }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setResetSent(true);
+      } else {
+        setGlobalError(data.error);
+      }
+    } catch {
+      setGlobalError("Error de conexión.");
     } finally {
       setResetLoading(false);
     }
@@ -256,7 +216,7 @@ export function AuthPage() {
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
                   Revisa tu bandeja de entrada en{" "}
-                  <strong>{resetEmail}</strong> y sigue las instrucciones.
+                  <strong>{resetEmail}</strong>.
                 </p>
               </div>
               <button
@@ -264,7 +224,7 @@ export function AuthPage() {
                   setShowReset(false);
                   setResetSent(false);
                 }}
-                className="text-sm text-brand-500 font-semibold hover:text-brand-400"
+                className="text-sm text-brand-500 font-semibold"
               >
                 Volver al inicio de sesión →
               </button>
@@ -279,7 +239,6 @@ export function AuthPage() {
                   </p>
                 </div>
               )}
-
               <Input
                 label="Correo electrónico"
                 type="email"
@@ -287,9 +246,7 @@ export function AuthPage() {
                 icon={<Mail className="h-4 w-4" />}
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
-                autoComplete="email"
               />
-
               <Button
                 size="lg"
                 fullWidth
@@ -309,7 +266,6 @@ export function AuthPage() {
   return (
     <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col">
 
-      {/* Header */}
       <div className="px-4 pt-4">
         <button
           onClick={() => navigate("landing")}
@@ -321,7 +277,7 @@ export function AuthPage() {
 
       <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
 
-        {/* Logo y título */}
+        {/* Logo */}
         <div className="text-center mb-8">
           <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/20">
             <span className="text-white font-black text-xl">CX</span>
@@ -345,34 +301,6 @@ export function AuthPage() {
             </p>
           </div>
         )}
-
-        {/* Botón Google */}
-        <button
-          onClick={handleGoogleLogin}
-          disabled={googleLoading || loading}
-          className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-all disabled:opacity-50 font-semibold text-sm text-gray-700 dark:text-gray-300 mb-4 shadow-sm"
-        >
-          {googleLoading ? (
-            <div className="h-4 w-4 border-2 border-gray-400 border-t-transparent rounded-full animate-spin" />
-          ) : (
-            <svg className="h-5 w-5 flex-shrink-0" viewBox="0 0 24 24">
-              <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92a5.06 5.06 0 01-2.2 3.32v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.1z" fill="#4285F4" />
-              <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
-              <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
-              <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
-            </svg>
-          )}
-          {googleLoading ? "Conectando..." : "Continuar con Google"}
-        </button>
-
-        {/* Divider */}
-        <div className="flex items-center gap-3 mb-4">
-          <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-          <span className="text-xs text-gray-400 font-medium">
-            o con correo
-          </span>
-          <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-        </div>
 
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="space-y-4">
@@ -418,18 +346,17 @@ export function AuthPage() {
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
+                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
               >
-                {showPassword ? (
-                  <EyeOff className="h-4 w-4" />
-                ) : (
-                  <Eye className="h-4 w-4" />
-                )}
+                {showPassword
+                  ? <EyeOff className="h-4 w-4" />
+                  : <Eye    className="h-4 w-4" />
+                }
               </button>
             }
           />
 
-          {/* Indicador de fuerza de contraseña — Solo en registro */}
+          {/* Indicador contraseña */}
           {!isLogin && password.length > 0 && (
             <div className="space-y-1.5">
               <div className="flex gap-1">
@@ -470,31 +397,32 @@ export function AuthPage() {
                   setShowReset(true);
                   setGlobalError(null);
                 }}
-                className="text-xs text-brand-500 hover:text-brand-400 font-semibold transition-colors"
+                className="text-xs text-brand-500 hover:text-brand-400 font-semibold"
               >
                 ¿Olvidaste tu contraseña?
               </button>
             </div>
           )}
 
-          {/* Términos — Solo en registro */}
+          {/* Términos */}
           {!isLogin && (
             <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
               Al registrarte aceptas nuestros{" "}
               <button
                 type="button"
-                className="text-brand-500 font-semibold hover:text-brand-400"
+                onClick={() => navigate("terms")}
+                className="text-brand-500 font-semibold"
               >
                 Términos de Uso
               </button>{" "}
               y{" "}
               <button
                 type="button"
-                className="text-brand-500 font-semibold hover:text-brand-400"
+                onClick={() => navigate("terms")}
+                className="text-brand-500 font-semibold"
               >
                 Política de Privacidad
-              </button>
-              .
+              </button>.
             </p>
           )}
 
@@ -503,7 +431,6 @@ export function AuthPage() {
             size="lg"
             fullWidth
             loading={loading}
-            disabled={googleLoading}
             className="shadow-lg shadow-brand-500/20"
           >
             {isLogin ? "Iniciar sesión" : "Crear cuenta gratis"}
@@ -512,7 +439,7 @@ export function AuthPage() {
 
         {/* Trust badges */}
         <div className="flex items-center justify-center gap-4 mt-5">
-          {["Cifrado SSL", "2FA disponible", "Sin comisiones"].map((badge) => (
+          {["Sin VPN", "Cifrado SSL", "Sin comisiones"].map((badge) => (
             <div
               key={badge}
               className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
@@ -523,12 +450,12 @@ export function AuthPage() {
           ))}
         </div>
 
-        {/* Switch login/register */}
+        {/* Switch */}
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
           {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
           <button
             onClick={handleSwitchView}
-            className="text-brand-500 hover:text-brand-400 font-bold transition-colors"
+            className="text-brand-500 hover:text-brand-400 font-bold"
           >
             {isLogin ? "Regístrate gratis" : "Inicia sesión"}
           </button>
@@ -536,4 +463,4 @@ export function AuthPage() {
       </div>
     </div>
   );
-}
+                     }
