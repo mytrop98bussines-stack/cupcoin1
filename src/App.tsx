@@ -3,11 +3,9 @@ import { useAppStore } from "@/store/useAppStore";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 
-// ─── Páginas públicas ─────────────────────────────────────
 import { LandingPage } from "@/pages/LandingPage";
 import { AuthPage }    from "@/pages/AuthPage";
 
-// ─── Páginas principales ──────────────────────────────────
 import { DashboardPage }     from "@/pages/DashboardPage";
 import { P2PPage }           from "@/pages/P2PPage";
 import { CreateOrderPage }   from "@/pages/CreateOrderPage";
@@ -20,7 +18,6 @@ import { WalletPage }        from "@/pages/WalletPage";
 import { SettingsPage }      from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 
-// ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
 import { SecurityPage }             from "@/pages/SecurityPage";
 import { HelpPage }                 from "@/pages/HelpPage";
@@ -30,26 +27,20 @@ import { NotificationSettingsPage } from "@/pages/NotificationSettingsPage";
 import { TradeHistoryPage }         from "@/pages/TradeHistoryPage";
 import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 
-// ─── Admin ────────────────────────────────────────────────
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
-// ─── Firebase ─────────────────────────────────────────────
-// ✅ Eliminado "auth" — ya no se usa
-import { db }                          from "@/lib/firebase/config";
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore"; // ✅ añadido getDoc
+import { db } from "@/lib/firebase/config";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
 import {
   requestNotificationPermission,
   onForegroundMessage,
 } from "@/lib/firebase/messaging";
 
 import { MOCK_USER }            from "@/data/mock";
-import type { User as AppUser } from "@/types";
+import type { User as AppUser, AppView } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
-// =========================================================
-// CONFIGURACIÓN DE VISTAS
-// =========================================================
 const VIEW_TITLES: Record<string, string> = {
   dashboard:               "",
   p2p:                     "",
@@ -74,75 +65,39 @@ const VIEW_TITLES: Record<string, string> = {
 };
 
 const SHOW_BACK_VIEWS = [
-  "create-order",
-  "trade",
-  "kyc",
-  "product-detail",
-  "create-product",
-  "notifications",
-  "admin-kyc",
-  "profile",
-  "security",
-  "help",
-  "terms",
-  "language",
-  "notification-settings",
-  "trade-history",
-  "my-orders",
+  "create-order", "trade", "kyc", "product-detail",
+  "create-product", "notifications", "admin-kyc",
+  "profile", "security", "help", "terms", "language",
+  "notification-settings", "trade-history", "my-orders",
 ];
 
 const AUTHENTICATED_VIEWS = [
-  "dashboard",
-  "p2p",
-  "marketplace",
-  "create-order",
-  "trade",
-  "kyc",
-  "product-detail",
-  "create-product",
-  "wallet",
-  "settings",
-  "notifications",
-  "admin-kyc",
-  "profile",
-  "security",
-  "help",
-  "terms",
-  "language",
-  "notification-settings",
-  "trade-history",
-  "my-orders",
+  "dashboard", "p2p", "marketplace", "create-order",
+  "trade", "kyc", "product-detail", "create-product",
+  "wallet", "settings", "notifications", "admin-kyc",
+  "profile", "security", "help", "terms", "language",
+  "notification-settings", "trade-history", "my-orders",
 ];
 
 // =========================================================
 // APP CONTENT
 // =========================================================
 function AppContent() {
-  const {
-    currentView,
-    user,
-    navigate,
-    modalOpen,
-  } = useAppStore();
+  const { currentView, user, navigate, modalOpen } = useAppStore();
 
-  // ─── Seguridad: solo admin ────────────────────────────────
   useEffect(() => {
     if (currentView === "admin-kyc" && user?.role !== "admin") {
       navigate("dashboard");
     }
   }, [currentView, user, navigate]);
 
-  // ─── Push en primer plano ─────────────────────────────────
   useEffect(() => {
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("📬 Push en primer plano:", payload);
     });
-    return () => {
-      if (unsubscribe) unsubscribe();
-    };
+    return () => { if (unsubscribe) unsubscribe(); };
   }, []);
 
-  // ─── Loading si requiere auth ─────────────────────────────
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950">
@@ -156,11 +111,9 @@ function AppContent() {
 
   const showBottomNav = AUTHENTICATED_VIEWS.includes(currentView);
 
-  // ─── Páginas sin layout ───────────────────────────────────
   if (currentView === "landing") return <LandingPage />;
   if (currentView === "login" || currentView === "register") return <AuthPage />;
 
-  // ─── Layout principal ─────────────────────────────────────
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950">
       <Header
@@ -168,7 +121,6 @@ function AppContent() {
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
       />
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
-
         {currentView === "dashboard"      && <DashboardPage />}
         {currentView === "p2p"            && <P2PPage />}
         {currentView === "create-order"   && <CreateOrderPage />}
@@ -180,7 +132,6 @@ function AppContent() {
         {currentView === "wallet"         && <WalletPage />}
         {currentView === "settings"       && <SettingsPage />}
         {currentView === "notifications"  && <NotificationsPage />}
-
         {currentView === "profile"               && <ProfilePage />}
         {currentView === "security"              && <SecurityPage />}
         {currentView === "help"                  && <HelpPage />}
@@ -189,12 +140,8 @@ function AppContent() {
         {currentView === "notification-settings" && <NotificationSettingsPage />}
         {currentView === "trade-history"         && <TradeHistoryPage />}
         {currentView === "my-orders"             && <MyOrdersPage />}
-
-        {currentView === "admin-kyc" && user?.role === "admin" && (
-          <AdminKYCPage />
-        )}
+        {currentView === "admin-kyc" && user?.role === "admin" && <AdminKYCPage />}
       </main>
-
       {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
@@ -205,15 +152,9 @@ function AppContent() {
 // =========================================================
 export default function App() {
   const {
-    theme,
-    user,
-    login,
-    logout,
-    currentView,
-    isAuthenticated,
-    navigate,
-    setWalletData,
-    subscribeToNotifications,
+    theme, user, login, logout,
+    currentView, isAuthenticated,
+    navigate, setWalletData, subscribeToNotifications,
   } = useAppStore();
 
   const [authLoading, setAuthLoading] = useState(true);
@@ -240,18 +181,26 @@ export default function App() {
 
           if (userSnap.exists()) {
             const userData = userSnap.data() as AppUser;
-            login(userData);
+
+            // ✅ Actualizar estado directamente sin race condition
+            useAppStore.setState({
+              user:            userData,
+              isAuthenticated: true,
+              currentView:     "dashboard", // ✅ siempre dashboard al recargar
+            });
+
           } else {
-            // Usuario no existe en Firestore
             localStorage.removeItem("cubax_token");
             localStorage.removeItem("cubax_refresh_token");
             localStorage.removeItem("cubax_uid");
+            localStorage.removeItem("cubax_last_view");
             navigate("landing");
           }
         } catch (error) {
           console.error("Error verificando sesión:", error);
-          // ✅ Si hay error de red no cerramos sesión
-          // intentamos con los datos del store si existen
+          // ✅ Si hay error de red ir al dashboard de todas formas
+          // porque el token existe y el usuario puede estar offline
+          useAppStore.setState({ currentView: "dashboard" });
         } finally {
           setAuthLoading(false);
         }
@@ -288,18 +237,18 @@ export default function App() {
           localStorage.setItem("cubax_refresh_token", data.refreshToken);
           console.log("✅ Token refrescado");
         } else {
-          // Token inválido — cerrar sesión
           console.warn("⚠️ Token expirado — cerrando sesión");
           localStorage.removeItem("cubax_token");
           localStorage.removeItem("cubax_refresh_token");
           localStorage.removeItem("cubax_uid");
+          localStorage.removeItem("cubax_last_view");
           logout();
           navigate("landing");
         }
       } catch (err) {
         console.warn("⚠️ Error refrescando token:", err);
       }
-    }, 50 * 60 * 1000); // cada 50 minutos
+    }, 50 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, [user?.uid]);
@@ -307,7 +256,6 @@ export default function App() {
   // ─── Notificaciones push ──────────────────────────────────
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
-
     setTimeout(() => {
       requestNotificationPermission(user.uid).catch(
         (err) => console.warn("Push silenciado:", err)
@@ -350,7 +298,6 @@ export default function App() {
             setWalletData(firestoreBalances, depositAddresses);
 
           } else {
-            // ✅ Crear documento si no existe
             const templateUser = {
               uid,
               email:            user.email       || "",
@@ -406,9 +353,7 @@ export default function App() {
   if (authLoading) {
     return (
       <div className={`min-h-screen flex flex-col items-center justify-center ${
-        theme === "dark"
-          ? "bg-navy-950 text-white"
-          : "bg-white text-gray-900"
+        theme === "dark" ? "bg-navy-950 text-white" : "bg-white text-gray-900"
       }`}>
         <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mb-5 shadow-lg shadow-brand-500/20 animate-bounce">
           <span className="text-white font-black text-xl">CX</span>
@@ -428,4 +373,4 @@ export default function App() {
   }
 
   return <AppContent />;
-        }
+  }
