@@ -34,8 +34,9 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // ─── Firebase ─────────────────────────────────────────────
-import { auth, db }                    from "@/lib/firebase/config";
-import { doc, onSnapshot, setDoc }     from "firebase/firestore";
+// ✅ Eliminado "auth" — ya no se usa
+import { db }                          from "@/lib/firebase/config";
+import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore"; // ✅ añadido getDoc
 import {
   requestNotificationPermission,
   onForegroundMessage,
@@ -43,6 +44,8 @@ import {
 
 import { MOCK_USER }            from "@/data/mock";
 import type { User as AppUser } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com";
 
 // =========================================================
 // CONFIGURACIÓN DE VISTAS
@@ -159,25 +162,13 @@ function AppContent() {
 
   // ─── Layout principal ─────────────────────────────────────
   return (
-    // ✅ Contenedor fijo a la pantalla, sin overflow propio
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950">
-
       <Header
         title={VIEW_TITLES[currentView] || ""}
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
       />
-
-      {/*
-        ✅ main con scroll real:
-        - flex-1       → ocupa el espacio restante entre Header y BottomNav
-        - min-h-0      → sin esto, flexbox ignora overflow-y en algunos navegadores
-        - overflow-y-auto → activa el scroll vertical táctil
-        - overscroll-contain → evita que el scroll "escape" al body
-        - pb-16        → padding inferior para no quedar tapado por el BottomNav
-      */}
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
 
-        {/* ─── Páginas principales ──────────────────────── */}
         {currentView === "dashboard"      && <DashboardPage />}
         {currentView === "p2p"            && <P2PPage />}
         {currentView === "create-order"   && <CreateOrderPage />}
@@ -190,7 +181,6 @@ function AppContent() {
         {currentView === "settings"       && <SettingsPage />}
         {currentView === "notifications"  && <NotificationsPage />}
 
-        {/* ─── Páginas de configuración ─────────────────── */}
         {currentView === "profile"               && <ProfilePage />}
         {currentView === "security"              && <SecurityPage />}
         {currentView === "help"                  && <HelpPage />}
@@ -200,13 +190,11 @@ function AppContent() {
         {currentView === "trade-history"         && <TradeHistoryPage />}
         {currentView === "my-orders"             && <MyOrdersPage />}
 
-        {/* ─── Admin ───────────────────────────────────── */}
         {currentView === "admin-kyc" && user?.role === "admin" && (
           <AdminKYCPage />
         )}
       </main>
 
-      {/* ✅ BottomNav fijo abajo, se oculta cuando hay modal abierto */}
       {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
@@ -241,45 +229,92 @@ export default function App() {
   }, [theme]);
 
   // ─── Guardián de autenticación ────────────────────────────
-useEffect(() => {
-  // ✅ Leer sesión guardada en localStorage
-  const savedToken = localStorage.getItem("cubax_token");
-  const savedUid   = localStorage.getItem("cubax_uid");
+  useEffect(() => {
+    const savedToken = localStorage.getItem("cubax_token");
+    const savedUid   = localStorage.getItem("cubax_uid");
 
-  if (savedToken && savedUid) {
-    // ✅ Verificar que el token sigue válido
-    const verifySession = async () => {
+    if (savedToken && savedUid) {
+      const verifySession = async () => {
+        try {
+          const userSnap = await getDoc(doc(db, "users", savedUid));
+
+          if (userSnap.exists()) {
+            const userData = userSnap.data() as AppUser;
+            login(userData);
+          } else {
+            // Usuario no existe en Firestore
+            localStorage.removeItem("cubax_token");
+            localStorage.removeItem("cubax_refresh_token");
+            localStorage.removeItem("cubax_uid");
+            navigate("landing");
+          }
+        } catch (error) {
+          console.error("Error verificando sesión:", error);
+          // ✅ Si hay error de red no cerramos sesión
+          // intentamos con los datos del store si existen
+        } finally {
+          setAuthLoading(false);
+        }
+      };
+
+      verifySession();
+    } else {
+      setAuthLoading(false);
+      if (AUTHENTICATED_VIEWS.includes(currentView) || !currentView) {
+        navigate("landing");
+      }
+    }
+  }, []);
+
+  // ─── Refrescar token cada 50 minutos ─────────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const interval = setInterval(async () => {
+      const refreshToken = localStorage.getItem("cubax_refresh_token");
+      if (!refreshToken) return;
+
       try {
-        // Leer datos actualizados desde Firestore directamente
-        const userSnap = await getDoc(doc(db, "users", savedUid));
+        const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ refreshToken }),
+        });
 
-        if (userSnap.exists()) {
-          const userData = userSnap.data() as AppUser;
-          login(userData);
+        const data = await res.json();
+
+        if (data.success) {
+          localStorage.setItem("cubax_token",         data.token);
+          localStorage.setItem("cubax_refresh_token", data.refreshToken);
+          console.log("✅ Token refrescado");
         } else {
-          // Usuario no existe en Firestore
+          // Token inválido — cerrar sesión
+          console.warn("⚠️ Token expirado — cerrando sesión");
           localStorage.removeItem("cubax_token");
           localStorage.removeItem("cubax_refresh_token");
           localStorage.removeItem("cubax_uid");
+          logout();
           navigate("landing");
         }
-      } catch (error) {
-        console.error("Error verificando sesión:", error);
-      } finally {
-        setAuthLoading(false);
+      } catch (err) {
+        console.warn("⚠️ Error refrescando token:", err);
       }
-    };
+    }, 50 * 60 * 1000); // cada 50 minutos
 
-    verifySession();
-  } else {
-    // No hay sesión guardada
-    setAuthLoading(false);
-    if (AUTHENTICATED_VIEWS.includes(currentView) || !currentView) {
-      navigate("landing");
-    }
-  }
-}, []);
-  
+    return () => clearInterval(interval);
+  }, [user?.uid]);
+
+  // ─── Notificaciones push ──────────────────────────────────
+  useEffect(() => {
+    if (!user?.uid || user.uid === "invitado") return;
+
+    setTimeout(() => {
+      requestNotificationPermission(user.uid).catch(
+        (err) => console.warn("Push silenciado:", err)
+      );
+    }, 1000);
+  }, [user?.uid]);
+
   // ─── Sincronización Firestore ─────────────────────────────
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
@@ -315,8 +350,9 @@ useEffect(() => {
             setWalletData(firestoreBalances, depositAddresses);
 
           } else {
+            // ✅ Crear documento si no existe
             const templateUser = {
-              uid:              uid,
+              uid,
               email:            user.email       || "",
               displayName:      user.displayName || "Usuario",
               photoURL:         user.photoURL    || null,
@@ -336,9 +372,7 @@ useEffect(() => {
               },
             };
             await setDoc(userDocRef, templateUser);
-            console.log(
-              `[Firebase] Documento creado para nuevo usuario: ${uid}`
-            );
+            console.log(`[Firebase] Documento creado para: ${uid}`);
           }
         } catch (err) {
           console.error("Error en snapshot de usuario:", err);
@@ -371,28 +405,22 @@ useEffect(() => {
   // ─── Pantalla de carga ────────────────────────────────────
   if (authLoading) {
     return (
-      <div
-        className={`min-h-screen flex flex-col items-center justify-center ${
-          theme === "dark"
-            ? "bg-navy-950 text-white"
-            : "bg-white text-gray-900"
-        }`}
-      >
+      <div className={`min-h-screen flex flex-col items-center justify-center ${
+        theme === "dark"
+          ? "bg-navy-950 text-white"
+          : "bg-white text-gray-900"
+      }`}>
         <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mb-5 shadow-lg shadow-brand-500/20 animate-bounce">
           <span className="text-white font-black text-xl">CX</span>
         </div>
-        <div
-          className={`h-1 w-24 rounded-full overflow-hidden ${
-            theme === "dark" ? "bg-white/10" : "bg-gray-200"
-          }`}
-        >
+        <div className={`h-1 w-24 rounded-full overflow-hidden ${
+          theme === "dark" ? "bg-white/10" : "bg-gray-200"
+        }`}>
           <div className="h-full bg-brand-500 rounded-full animate-pulse w-full" />
         </div>
-        <p
-          className={`text-xs mt-3 font-medium ${
-            theme === "dark" ? "text-gray-500" : "text-gray-400"
-          }`}
-        >
+        <p className={`text-xs mt-3 font-medium ${
+          theme === "dark" ? "text-gray-500" : "text-gray-400"
+        }`}>
           Cargando CubaX...
         </p>
       </div>
@@ -400,4 +428,4 @@ useEffect(() => {
   }
 
   return <AppContent />;
-}
+        }
