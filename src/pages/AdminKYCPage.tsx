@@ -925,6 +925,8 @@ export function AdminKYCPage() {
                 );
               })}
             </div>
+          )}
+        </div>
       )}
 
       {/* ═══ PESTAÑA MEMBRESÍAS ══════════════════════════════ */}
