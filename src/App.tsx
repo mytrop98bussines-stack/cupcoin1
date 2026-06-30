@@ -299,25 +299,32 @@ export default function App() {
 
           } else {
             const templateUser = {
-              uid,
-              email:            user.email       || "",
-              displayName:      user.displayName || "Usuario",
-              photoURL:         user.photoURL    || null,
-              kycStatus:        "unverified",
-              createdAt:        Date.now(),
-              totalTrades:      0,
-              rating:           5.0,
-              role:             "user",
-              balances:         { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
-              depositAddresses: {},
-              notifPrefs: {
-                trades:      true,
-                marketplace: true,
-                kyc:         true,
-                precios:     false,
-                sistema:     true,
-              },
-            };
+  uid,
+  email:            user.email       || "",
+  displayName:      user.displayName || "Usuario",
+  photoURL:         user.photoURL    || null,
+  kycStatus:        "unverified",
+  createdAt:        Date.now(),
+  totalTrades:      0,
+  rating:           5.0,
+  role:             "user",
+  balances:         { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
+  depositAddresses: {},
+  // ✅ Primer mes gratis automático
+  membership: {
+    status:    "free_trial",
+    startedAt: Date.now(),
+    expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000, // 30 días
+    plan:      "monthly",
+  },
+  notifPrefs: {
+    trades:      true,
+    marketplace: true,
+    kyc:         true,
+    precios:     false,
+    sistema:     true,
+  },
+};
             await setDoc(userDocRef, templateUser);
             console.log(`[Firebase] Documento creado para: ${uid}`);
           }
