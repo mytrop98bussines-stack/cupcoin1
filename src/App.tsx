@@ -35,7 +35,6 @@ import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // ─── Firebase ─────────────────────────────────────────────
 import { auth, db }                    from "@/lib/firebase/config";
-import { onAuthStateChanged }          from "firebase/auth";
 import { doc, onSnapshot, setDoc }     from "firebase/firestore";
 import {
   requestNotificationPermission,
