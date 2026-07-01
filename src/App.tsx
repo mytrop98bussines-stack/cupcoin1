@@ -19,7 +19,7 @@ import { CreateProductPage } from "@/pages/CreateProductPage";
 import { WalletPage }        from "@/pages/WalletPage";
 import { SettingsPage }      from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
-import { MembershipPage }    from "@/pages/MembershipPage"; // ✅ nuevo
+import { MembershipPage }    from "@/pages/MembershipPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -35,8 +35,8 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // ─── Firebase ─────────────────────────────────────────────
-import { db } from "@/lib/firebase/config";
-import { doc, onSnapshot, setDoc, getDoc } from "firebase/firestore";
+import { db }                      from "@/lib/firebase/config";
+import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import {
   requestNotificationPermission,
   onForegroundMessage,
@@ -44,6 +44,9 @@ import {
 
 import { MOCK_USER }            from "@/data/mock";
 import type { User as AppUser } from "@/types";
+
+// ✅ Ya no importamos getDoc ni auth de Firebase
+// El guardián usa el backend en vez de Firestore directamente
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
@@ -71,7 +74,7 @@ const VIEW_TITLES: Record<string, string> = {
   "notification-settings": "Notificaciones",
   "trade-history":         "Historial de Trades",
   "my-orders":             "Mis Anuncios P2P",
-  membership:              "Membresía CubaX", // ✅ nuevo
+  membership:              "Membresía CubaX",
 };
 
 const SHOW_BACK_VIEWS = [
@@ -90,7 +93,7 @@ const SHOW_BACK_VIEWS = [
   "notification-settings",
   "trade-history",
   "my-orders",
-  "membership", // ✅ nuevo
+  "membership",
 ];
 
 const AUTHENTICATED_VIEWS = [
@@ -114,7 +117,7 @@ const AUTHENTICATED_VIEWS = [
   "notification-settings",
   "trade-history",
   "my-orders",
-  "membership", // ✅ nuevo
+  "membership",
 ];
 
 // =========================================================
@@ -170,7 +173,6 @@ function AppContent() {
       />
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
 
-        {/* ─── Páginas principales ──────────────────────── */}
         {currentView === "dashboard"      && <DashboardPage />}
         {currentView === "p2p"            && <P2PPage />}
         {currentView === "create-order"   && <CreateOrderPage />}
@@ -182,9 +184,8 @@ function AppContent() {
         {currentView === "wallet"         && <WalletPage />}
         {currentView === "settings"       && <SettingsPage />}
         {currentView === "notifications"  && <NotificationsPage />}
-        {currentView === "membership"     && <MembershipPage />} {/* ✅ nuevo */}
+        {currentView === "membership"     && <MembershipPage />}
 
-        {/* ─── Páginas de configuración ─────────────────── */}
         {currentView === "profile"               && <ProfilePage />}
         {currentView === "security"              && <SecurityPage />}
         {currentView === "help"                  && <HelpPage />}
@@ -194,7 +195,6 @@ function AppContent() {
         {currentView === "trade-history"         && <TradeHistoryPage />}
         {currentView === "my-orders"             && <MyOrdersPage />}
 
-        {/* ─── Admin ───────────────────────────────────── */}
         {currentView === "admin-kyc" && user?.role === "admin" && (
           <AdminKYCPage />
         )}
@@ -212,7 +212,6 @@ export default function App() {
   const {
     theme,
     user,
-    login,
     logout,
     currentView,
     isAuthenticated,
@@ -234,6 +233,8 @@ export default function App() {
   }, [theme]);
 
   // ─── Guardián de autenticación ────────────────────────────
+  // ✅ Usa el backend en vez de Firestore directamente
+  // Así no hay problemas de autenticación del SDK del cliente
   useEffect(() => {
     const savedToken = localStorage.getItem("cubax_token");
     const savedUid   = localStorage.getItem("cubax_uid");
@@ -241,29 +242,104 @@ export default function App() {
     if (savedToken && savedUid) {
       const verifySession = async () => {
         try {
-          const userSnap = await getDoc(doc(db, "users", savedUid));
+          // ✅ Leer datos desde el backend (bypasea las reglas de Firestore)
+          const res  = await fetch(`${BACKEND_URL}/api/auth/me`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ uid: savedUid }),
+          });
 
-          if (userSnap.exists()) {
-            const userData = userSnap.data() as AppUser;
+          const data = await res.json();
 
-            // ✅ Actualizar estado sin race condition
+          if (data.success && data.userData) {
+            // ✅ Usuario encontrado — restaurar sesión
             useAppStore.setState({
-              user:            userData,
+              user:            data.userData as AppUser,
               isAuthenticated: true,
               currentView:     "dashboard",
             });
 
           } else {
+            // ✅ No existe en Firestore — crear documento básico
+            console.warn("[Auth] Usuario no en Firestore — creando documento");
+
+            const createRes = await fetch(
+              `${BACKEND_URL}/api/auth/register-basic`,
+              {
+                method:  "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  uid:         savedUid,
+                  email:       localStorage.getItem("cubax_email") || "",
+                  displayName: localStorage.getItem("cubax_name")  || "Usuario",
+                }),
+              }
+            );
+
+            const createData = await createRes.json();
+
+            if (createData.success) {
+              useAppStore.setState({
+                user:            createData.userData as AppUser,
+                isAuthenticated: true,
+                currentView:     "dashboard",
+              });
+            } else {
+              // Usar datos mínimos del localStorage como último recurso
+              const basicUser: AppUser = {
+                uid:           savedUid,
+                email:         localStorage.getItem("cubax_email") || "",
+                displayName:   localStorage.getItem("cubax_name")  || "Usuario",
+                photoURL:      null,
+                kycStatus:     "unverified",
+                createdAt:     Date.now(),
+                totalTrades:   0,
+                rating:        5.0,
+                walletAddress: null,
+                role:          "user",
+              };
+              useAppStore.setState({
+                user:            basicUser,
+                isAuthenticated: true,
+                currentView:     "dashboard",
+              });
+            }
+          }
+
+        } catch (error: any) {
+          console.error("Error verificando sesión:", error.message);
+
+          // ✅ Si hay error de red usar datos del localStorage
+          const emailSaved = localStorage.getItem("cubax_email");
+          const nameSaved  = localStorage.getItem("cubax_name");
+
+          if (emailSaved) {
+            // Tenemos datos suficientes para no cerrar sesión
+            const basicUser: AppUser = {
+              uid:           savedUid,
+              email:         emailSaved,
+              displayName:   nameSaved || "Usuario",
+              photoURL:      null,
+              kycStatus:     "unverified",
+              createdAt:     Date.now(),
+              totalTrades:   0,
+              rating:        5.0,
+              walletAddress: null,
+              role:          "user",
+            };
+            useAppStore.setState({
+              user:            basicUser,
+              isAuthenticated: true,
+              currentView:     "dashboard",
+            });
+          } else {
+            // Sin datos — cerrar sesión
             localStorage.removeItem("cubax_token");
             localStorage.removeItem("cubax_refresh_token");
             localStorage.removeItem("cubax_uid");
             localStorage.removeItem("cubax_last_view");
             navigate("landing");
           }
-        } catch (error) {
-          console.error("Error verificando sesión:", error);
-          // ✅ Si hay error de red ir al dashboard igualmente
-          useAppStore.setState({ currentView: "dashboard" });
         } finally {
           setAuthLoading(false);
         }
@@ -305,11 +381,13 @@ export default function App() {
           localStorage.removeItem("cubax_refresh_token");
           localStorage.removeItem("cubax_uid");
           localStorage.removeItem("cubax_last_view");
+          localStorage.removeItem("cubax_email");
+          localStorage.removeItem("cubax_name");
           logout();
           navigate("landing");
         }
       } catch (err) {
-        console.warn("⚠️ Error refrescando token:", err);
+        console.warn("⚠️ Error refrescando token — manteniendo sesión:", err);
       }
     }, 50 * 60 * 1000);
 
@@ -326,7 +404,10 @@ export default function App() {
     }, 1000);
   }, [user?.uid]);
 
-  // ─── Sincronización Firestore ─────────────────────────────
+  // ─── Sincronización Firestore en tiempo real ──────────────
+  // ✅ onSnapshot funciona porque Firestore permite lectura
+  // del propio documento cuando el usuario está autenticado
+  // via Firebase Auth (que sigue activo en el backend)
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
 
@@ -361,43 +442,26 @@ export default function App() {
             setWalletData(firestoreBalances, depositAddresses);
 
           } else {
-            // ✅ Crear documento con primer mes gratis
-            const templateUser = {
-              uid,
-              email:            user.email       || "",
-              displayName:      user.displayName || "Usuario",
-              photoURL:         user.photoURL    || null,
-              kycStatus:        "unverified",
-              createdAt:        Date.now(),
-              totalTrades:      0,
-              rating:           5.0,
-              role:             "user",
-              balances:         { USDT: 0, BTC: 0, ETH: 0, USDC: 0 },
-              depositAddresses: {},
-              // ✅ Primer mes gratis automático
-              membership: {
-                status:    "free_trial",
-                startedAt: Date.now(),
-                expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000,
-                plan:      "monthly",
-              },
-              notifPrefs: {
-                trades:      true,
-                marketplace: true,
-                kyc:         true,
-                precios:     false,
-                sistema:     true,
-              },
-            };
-            await setDoc(userDocRef, templateUser);
-            console.log(`[Firebase] Documento creado con membresía gratis para: ${uid}`);
+            // ✅ Documento no existe — crear via backend
+            console.warn(`[Firebase] Documento no existe para ${uid} — creando via backend`);
+
+            await fetch(`${BACKEND_URL}/api/auth/register-basic`, {
+              method:  "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                uid,
+                email:       user.email       || "",
+                displayName: user.displayName || "Usuario",
+              }),
+            });
           }
         } catch (err) {
           console.error("Error en snapshot de usuario:", err);
         }
       },
       (err) => {
-        console.error("Error en listener de usuario:", err);
+        // ✅ Si falla el listener no hacemos nada crítico
+        console.warn("Error en listener de usuario (no crítico):", err.message);
       }
     );
 
@@ -444,4 +508,4 @@ export default function App() {
   }
 
   return <AppContent />;
-  }
+                }
