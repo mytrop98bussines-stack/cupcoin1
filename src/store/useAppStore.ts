@@ -185,6 +185,8 @@ export const useAppStore = create<AppState>((set, get) => ({
     localStorage.removeItem("cubax_refresh_token");
     localStorage.removeItem("cubax_uid");
     localStorage.removeItem("cubax_last_view");
+    localStorage.removeItem("cubax_email"); // ✅
+    localStorage.removeItem("cubax_name");  // ✅
 
     set({
       user:             null,
