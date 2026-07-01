@@ -106,7 +106,8 @@ export function AuthPage() {
         localStorage.setItem("cubax_token",        data.token);
         localStorage.setItem("cubax_refresh_token", data.refreshToken);
         localStorage.setItem("cubax_uid",           data.uid);
-
+        localStorage.setItem("cubax_email",         data.email);       // ✅
+        localStorage.setItem("cubax_name",          data.displayName); // ✅
         // ✅ Construir objeto de usuario
         const userData = data.userData || {};
         const appUser: AppUser = {
