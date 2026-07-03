@@ -22,25 +22,21 @@ import type { CryptoAsset, ProductCategory, Product } from "@/types";
 export function CreateProductPage() {
   const { navigate, user, prices } = useAppStore();
 
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
-  const [price, setPrice] = useState("");
-  const [category, setCategory] = useState<ProductCategory>("electronics");
-  const [condition, setCondition] = useState<"new" | "used" | "refurbished">("new");
-  const [location, setLocation] = useState("");
+  const [title, setTitle]               = useState("");
+  const [description, setDescription]   = useState("");
+  const [price, setPrice]               = useState("");
+  const [category, setCategory]         = useState<ProductCategory>("electronics");
+  const [condition, setCondition]       = useState<"new" | "used" | "refurbished">("new");
+  const [location, setLocation]         = useState("");
   const [acceptedCryptos, setAcceptedCryptos] = useState<CryptoAsset[]>(["USDT"]);
-  
-  // 📸 Manejo de imágenes reales (guardamos objetos File para subirlos luego)
-  const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
-  const [previews, setPreviews] = useState<string[]>([]);
-  
-  const [loading, setLoading] = useState(false);
-  const [success, setSuccess] = useState(false);
+  const [selectedFiles, setSelectedFiles]     = useState<File[]>([]);
+  const [previews, setPreviews]               = useState<string[]>([]);
+  const [loading, setLoading]           = useState(false);
+  const [success, setSuccess]           = useState(false);
 
-  // Referencia para disparar el input de archivos oculto
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // ─── 1. ESPERAR A QUE LA CUENTA CARGUE COMPLEMENTE ───────────
+  // ─── 1. Esperar a que la cuenta cargue ───────────────────
   if (!user || !(user as any).membership) {
     return (
       <div className="flex flex-col items-center justify-center py-32 space-y-4">
@@ -50,68 +46,96 @@ export function CreateProductPage() {
     );
   }
 
-  // ─── 2. EVALUAR ESTADOS DE SEGURIDAD (Aquí 'user' ya existe) ───
+  // ─── 2. Verificar membresía ───────────────────────────────
   const membershipActive = (() => {
     const m = (user as any).membership;
-    if (!m) return false;
-    if (m.status === "expired") return false;
+    if (!m)                       return false;
+    if (m.status === "expired")   return false;
     if (m.expiresAt < Date.now()) return false;
     return true;
   })();
 
-  const kycVerified = user?.kycStatus === "verified";
-
-  // ─── 3. PRIORIDAD 1: BLOQUEO DE MEMBRESÍA ────────────────────
+  // ─── 3. Bloqueo por membresía ─────────────────────────────
   if (!membershipActive) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
         <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
           <Crown className="h-8 w-8 text-brand-500" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
           Membresía requerida
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Necesitas una membresía activa para publicar anuncios.
-          El primer mes es gratis.
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          Necesitas una membresía activa para publicar productos en el Marketplace.
         </p>
-        <Button size="lg" onClick={() => navigate("membership")}>
-          Ver membresía
+        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-6">
+          ✨ El primer mes es completamente gratis
+        </p>
+        <Button size="lg" fullWidth onClick={() => navigate("membership")}>
+          <Crown className="h-4 w-4 mr-2" />
+          Activar membresía
         </Button>
       </div>
     );
   }
 
-  // ─── 4. PRIORIDAD 2: BLOQUEO DE KYC ──────────────────────────
-  if (!kycVerified) {
+  // ─── 4. Bloqueo por KYC ───────────────────────────────────
+  if (user.kycStatus !== "verified") {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
         <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
           <Shield className="h-8 w-8 text-amber-500" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-          KYC requerido
+          Verificación KYC requerida
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Debes verificar tu identidad para poder publicar anuncios.
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          Debes verificar tu identidad para poder publicar productos.
         </p>
-        <Button size="lg" onClick={() => navigate("kyc")}>
-          Verificar identidad
+        {user.kycStatus === "pending_verification" ? (
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 mb-6">
+            <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
+              ⏳ Tu solicitud está siendo revisada. Espera la aprobación del equipo.
+            </p>
+          </div>
+        ) : user.kycStatus === "rejected" ? (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-6">
+            <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
+              ❌ Tu KYC fue rechazado. Vuelve a intentarlo con documentos más claros.
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 mb-6">
+            El proceso toma menos de 48 horas.
+          </p>
+        )}
+        <Button
+          size="lg"
+          fullWidth
+          onClick={() => navigate("kyc")}
+          disabled={user.kycStatus === "pending_verification"}
+        >
+          <Shield className="h-4 w-4 mr-2" />
+          {user.kycStatus === "pending_verification"
+            ? "Verificación en proceso..."
+            : "Verificar identidad"}
         </Button>
       </div>
     );
   }
 
-  // ─── Callbacks e Interacciones del Formulario ────────────────
+  // ─── Callbacks ────────────────────────────────────────────
   const toggleCrypto = useCallback((crypto: CryptoAsset) => {
     setAcceptedCryptos((prev) =>
-      prev.includes(crypto) ? prev.filter((c) => c !== crypto) : [...prev, crypto]
+      prev.includes(crypto)
+        ? prev.filter((c) => c !== crypto)
+        : [...prev, crypto]
     );
   }, []);
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
-      const filesArray = Array.from(e.target.files);
+      const filesArray     = Array.from(e.target.files);
       const availableSlots = 5 - selectedFiles.length;
       const filesToProcess = filesArray.slice(0, availableSlots);
 
@@ -137,62 +161,69 @@ export function CreateProductPage() {
     try {
       const uploadedImageUrls: string[] = [];
 
+      // ✅ Subir imágenes a Cloudinary
       for (const file of selectedFiles) {
         const formData = new FormData();
-        formData.append("file", file);
-        formData.append("upload_preset", "cubax_unsigned");
-        formData.append("folder", "cubax/products");
+        formData.append("file",           file);
+        formData.append("upload_preset",  "cubax_unsigned");
+        formData.append("folder",         "cubax/products");
 
         const cloudinaryRes = await fetch(
           "https://api.cloudinary.com/v1_1/dc4caibrn/image/upload",
-          {
-            method: "POST",
-            body: formData,
-          }
+          { method: "POST", body: formData }
         );
 
         if (!cloudinaryRes.ok) {
           const errorData = await cloudinaryRes.json();
-          throw new Error(errorData.error?.message || "Error en la respuesta del servidor de Cloudinary");
+          throw new Error(
+            errorData.error?.message || "Error en Cloudinary"
+          );
         }
 
         const imageData = await cloudinaryRes.json();
         uploadedImageUrls.push(imageData.secure_url);
       }
 
+      // ✅ Guardar producto en Firestore
       const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
-        id: productRef.id,
-        sellerId: user.uid,
-        sellerName: user.displayName || "Comerciante CubaX",
+        id:              productRef.id,
+        sellerId:        user.uid,
+        sellerName:      user.displayName || "Comerciante CubaX",
         title,
         description,
-        priceUSD: parseFloat(price),
+        priceUSD:        parseFloat(price),
         acceptedCryptos,
-        images: uploadedImageUrls,
+        images:          uploadedImageUrls,
         category,
         condition,
         location,
-        status: "active",
-        createdAt: Date.now(),
+        status:          "active",
+        createdAt:       Date.now(),
       };
 
       await setDoc(productRef, newProduct);
 
+      // Limpiar URLs temporales
       previews.forEach((url) => URL.revokeObjectURL(url));
 
       setLoading(false);
       setSuccess(true);
       setTimeout(() => navigate("marketplace"), 1500);
+
     } catch (error: any) {
-      console.error("Error al publicar el producto con imágenes reales:", error);
+      console.error("Error al publicar producto:", error);
       alert(`Fallo en la publicación: ${error.message || "Revisa tu conexión."}`);
       setLoading(false);
     }
-  }, [title, description, price, location, user, acceptedCryptos, selectedFiles, category, condition, navigate, previews]);
+  }, [
+    title, description, price, location,
+    user, acceptedCryptos, selectedFiles,
+    category, condition, navigate, previews,
+  ]);
 
-  // ─── Vista de éxito ──────────────────────────────────────────
+  // ─── Pantalla de éxito ────────────────────────────────────
   if (success) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
@@ -203,15 +234,16 @@ export function CreateProductPage() {
           ¡Producto publicado!
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400">
-          Tu producto está visible en el marketplace con imágenes reales y cotizaciones activas.
+          Tu producto está visible en el marketplace.
         </p>
       </div>
     );
   }
 
-  // ─── RENDER DEL FORMULARIO PRINCIPAL ──────────────────────────
+  // ─── RENDER PRINCIPAL ─────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
+
       <h1 className="text-lg font-bold text-gray-900 dark:text-white">
         Publicar producto
       </h1>
@@ -221,12 +253,13 @@ export function CreateProductPage() {
         <div className="flex items-start gap-2">
           <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 dark:text-gray-400">
-            Las imágenes se suben con firma criptográfica Cloudinary. Tus
-            credenciales están protegidas.
+            Las imágenes se suben con firma criptográfica Cloudinary.
+            Tus credenciales están protegidas.
           </p>
         </div>
       </Card>
 
+      {/* Input oculto para archivos */}
       <input
         type="file"
         ref={fileInputRef}
@@ -236,7 +269,7 @@ export function CreateProductPage() {
         className="hidden"
       />
 
-      {/* Images Preview Section */}
+      {/* Imágenes */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
           Fotos del producto ({previews.length}/5)
@@ -261,7 +294,7 @@ export function CreateProductPage() {
               </button>
             </div>
           ))}
-          
+
           {previews.length < 5 && (
             <button
               type="button"
@@ -275,6 +308,7 @@ export function CreateProductPage() {
         </div>
       </div>
 
+      {/* Título */}
       <Input
         label="Título"
         placeholder="iPhone 14 Pro Max 256GB"
@@ -282,6 +316,7 @@ export function CreateProductPage() {
         onChange={(e) => setTitle(e.target.value)}
       />
 
+      {/* Descripción */}
       <div>
         <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1.5">
           Descripción
@@ -295,27 +330,38 @@ export function CreateProductPage() {
         />
       </div>
 
+      {/* Precio */}
       <Input
         label="Precio (USD)"
         type="number"
         placeholder="850"
         value={price}
         onChange={(e) => setPrice(e.target.value)}
-        rightElement={<span className="text-xs font-medium text-gray-400">USD</span>}
+        rightElement={
+          <span className="text-xs font-medium text-gray-400">USD</span>
+        }
       />
 
+      {/* Equivalencia en crypto */}
       {price && parseFloat(price) > 0 && (
         <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 space-y-1.5">
-          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Equivalencia aproximada en vivo:</p>
+          <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
+            Equivalencia aproximada en vivo:
+          </p>
           <div className="grid grid-cols-2 gap-2">
             {acceptedCryptos.map((crypto) => {
-              const cryptoData = prices.find((p) => p.symbol === crypto);
-              const rate = cryptoData ? cryptoData.priceUSD : 1;
-              const amount = parseFloat(price) / rate;
-              const formattedAmount = crypto === "BTC" || crypto === "ETH" ? amount.toFixed(6) : amount.toFixed(2);
-              
+              const cryptoData      = prices.find((p) => p.symbol === crypto);
+              const rate            = cryptoData ? cryptoData.priceUSD : 1;
+              const amount          = parseFloat(price) / rate;
+              const formattedAmount = crypto === "BTC" || crypto === "ETH"
+                ? amount.toFixed(6)
+                : amount.toFixed(2);
+
               return (
-                <div key={crypto} className="flex items-center justify-between text-xs font-mono bg-white dark:bg-black/20 p-1.5 rounded-lg px-2 border dark:border-white/5">
+                <div
+                  key={crypto}
+                  className="flex items-center justify-between text-xs font-mono bg-white dark:bg-black/20 p-1.5 rounded-lg px-2 border dark:border-white/5"
+                >
                   <span className="text-gray-500">{crypto}:</span>
                   <span className="font-bold text-brand-500">{formattedAmount}</span>
                 </div>
@@ -325,6 +371,7 @@ export function CreateProductPage() {
         </div>
       )}
 
+      {/* Categoría */}
       <Select
         label="Categoría"
         value={category}
@@ -335,6 +382,7 @@ export function CreateProductPage() {
         }))}
       />
 
+      {/* Condición */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
           Condición
@@ -350,12 +398,17 @@ export function CreateProductPage() {
                   : "border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400"
               }`}
             >
-              {cond === "new" ? "Nuevo" : cond === "used" ? "Usado" : "Reacondicionado"}
+              {cond === "new"
+                ? "Nuevo"
+                : cond === "used"
+                ? "Usado"
+                : "Reacondicionado"}
             </button>
           ))}
         </div>
       </div>
 
+      {/* Ubicación */}
       <Input
         label="Ubicación"
         placeholder="La Habana, Cuba"
@@ -363,6 +416,7 @@ export function CreateProductPage() {
         onChange={(e) => setLocation(e.target.value)}
       />
 
+      {/* Criptomonedas aceptadas */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
           Criptomonedas aceptadas
@@ -385,17 +439,29 @@ export function CreateProductPage() {
         </div>
       </div>
 
+      {/* Botón publicar */}
       <Button
         size="lg"
         fullWidth
         loading={loading}
         onClick={handleSubmit}
-        disabled={!title || !description || !price || parseFloat(price) <= 0 || !location || acceptedCryptos.length === 0 || selectedFiles.length === 0}
-        icon={loading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Upload className="h-4 w-4" />}
+        disabled={
+          !title                         ||
+          !description                   ||
+          !price                         ||
+          parseFloat(price) <= 0         ||
+          !location                      ||
+          acceptedCryptos.length === 0   ||
+          selectedFiles.length === 0
+        }
+        icon={
+          loading
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <Upload className="h-4 w-4" />
+        }
       >
-        {loading ? "Subiendo imágenes a Cloudinary..." : "Publicar producto real"}
+        {loading ? "Subiendo imágenes a Cloudinary..." : "Publicar producto"}
       </Button>
     </div>
   );
-          }
-                                   
+    }
