@@ -21,17 +21,17 @@ import type { OrderType, CryptoAsset, PaymentMethod, P2POrder } from "@/types";
 export function CreateOrderPage() {
   const { navigate, user } = useAppStore();
 
-  const [orderType, setOrderType]           = useState<OrderType>("sell");
-  const [asset, setAsset]                   = useState<CryptoAsset>("USDT");
-  const [price, setPrice]                   = useState("");
-  const [minAmount, setMinAmount]           = useState("");
-  const [maxAmount, setMaxAmount]           = useState("");
+  const [orderType, setOrderType]             = useState<OrderType>("sell");
+  const [asset, setAsset]                     = useState<CryptoAsset>("USDT");
+  const [price, setPrice]                     = useState("");
+  const [minAmount, setMinAmount]             = useState("");
+  const [maxAmount, setMaxAmount]             = useState("");
   const [selectedMethods, setSelectedMethods] = useState<PaymentMethod[]>([]);
-  const [loading, setLoading]               = useState(false);
-  const [success, setSuccess]               = useState(false);
-  const [error, setError]                   = useState<string | null>(null);
+  const [loading, setLoading]                 = useState(false);
+  const [success, setSuccess]                 = useState(false);
+  const [error, setError]                     = useState<string | null>(null);
 
-  // ─── 1. ESPERAR A QUE LA CUENTA CARGUE ────────────────────
+  // ─── 1. Esperar a que la cuenta cargue ────────────────────
   if (!user || !(user as any).membership) {
     return (
       <div className="flex flex-col items-center justify-center py-32 space-y-4">
@@ -41,59 +41,85 @@ export function CreateOrderPage() {
     );
   }
 
-  // ─── 2. EVALUAR ESTADOS DE MEMBRESÍA Y KYC ───────────────
+  // ─── 2. Verificar membresía ───────────────────────────────
   const membershipActive = (() => {
     const m = (user as any).membership;
-    if (!m) return false;
-    if (m.status === "expired") return false;
+    if (!m)                      return false;
+    if (m.status === "expired")  return false;
     if (m.expiresAt < Date.now()) return false;
     return true;
   })();
 
-  const kycVerified = user?.kycStatus === "verified";
-
-  // ─── 3. PRIORIDAD 1: BLOQUEO DE MEMBRESÍA ────────────────
+  // ─── 3. Bloqueo por membresía ─────────────────────────────
   if (!membershipActive) {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
         <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
           <Crown className="h-8 w-8 text-brand-500" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
           Membresía requerida
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Necesitas una membresía activa para publicar anuncios.
-          El primer mes es gratis.
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          Necesitas una membresía activa para publicar anuncios en el P2P.
         </p>
-        <Button size="lg" onClick={() => navigate("membership")}>
-          Ver membresía
+        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-6">
+          ✨ El primer mes es completamente gratis
+        </p>
+        <Button size="lg" fullWidth onClick={() => navigate("membership")}>
+          <Crown className="h-4 w-4 mr-2" />
+          Activar membresía
         </Button>
       </div>
     );
   }
 
-  // ─── 4. PRIORIDAD 2: BLOQUEO DE KYC ──────────────────────
-  if (!kycVerified) {
+  // ─── 4. Bloqueo por KYC ───────────────────────────────────
+  if (user.kycStatus !== "verified") {
     return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
         <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
           <Shield className="h-8 w-8 text-amber-500" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-          KYC requerido
+          Verificación KYC requerida
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Debes verificar tu identidad para poder publicar anuncios.
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          Debes verificar tu identidad para poder publicar anuncios en el P2P.
         </p>
-        <Button size="lg" onClick={() => navigate("kyc")}>
-          Verificar identidad
+        {user.kycStatus === "pending_verification" ? (
+          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 mb-6">
+            <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
+              ⏳ Tu solicitud está siendo revisada. Espera la aprobación del equipo.
+            </p>
+          </div>
+        ) : user.kycStatus === "rejected" ? (
+          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-6">
+            <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
+              ❌ Tu KYC fue rechazado. Vuelve a intentarlo con documentos más claros.
+            </p>
+          </div>
+        ) : (
+          <p className="text-xs text-gray-400 mb-6">
+            El proceso toma menos de 48 horas.
+          </p>
+        )}
+        <Button
+          size="lg"
+          fullWidth
+          onClick={() => navigate("kyc")}
+          disabled={user.kycStatus === "pending_verification"}
+        >
+          <Shield className="h-4 w-4 mr-2" />
+          {user.kycStatus === "pending_verification"
+            ? "Verificación en proceso..."
+            : "Verificar identidad"}
         </Button>
       </div>
     );
   }
 
-  // ─── Lógica interna y Callbacks ──────────────────────────
+  // ─── Callbacks ────────────────────────────────────────────
   const togglePayment = useCallback((method: PaymentMethod) => {
     setSelectedMethods((prev) =>
       prev.includes(method)
@@ -126,6 +152,7 @@ export function CreateOrderPage() {
     setError(null);
 
     try {
+      // ✅ Verificar saldo si es venta
       if (orderType === "sell") {
         const userRef  = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
@@ -145,6 +172,7 @@ export function CreateOrderPage() {
         }
       }
 
+      // ✅ Crear orden en Firestore
       const orderRef = doc(collection(db, "orders"));
 
       const newOrder: P2POrder = {
@@ -181,7 +209,7 @@ export function CreateOrderPage() {
     selectedMethods, user, orderType,
     asset, navigate, validationError,
   ]);
-  
+
   // ─── Pantalla de éxito ────────────────────────────────────
   if (success) {
     return (
@@ -201,9 +229,10 @@ export function CreateOrderPage() {
     );
   }
 
-  // ─── RENDER DEL FORMULARIO PRINCIPAL ──────────────────────
+  // ─── RENDER PRINCIPAL ─────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
+
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -259,7 +288,7 @@ export function CreateOrderPage() {
               className={`py-3 rounded-xl text-center transition-all duration-200 border ${
                 asset === a
                   ? "border-brand-500 bg-brand-500/10 text-brand-500 shadow-sm"
-                  : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-white/20"
+                  : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400"
               }`}
             >
               <div className="text-xl mb-0.5">{CRYPTO_ICONS[a]}</div>
@@ -316,8 +345,8 @@ export function CreateOrderPage() {
             Rango en CUP:{" "}
             <strong className="text-gray-900 dark:text-white">
               {(parseFloat(minAmount) * parseFloat(price)).toLocaleString("es-CU")}
-            </strong>{" "}
-            —{" "}
+            </strong>
+            {" "}—{" "}
             <strong className="text-gray-900 dark:text-white">
               {(parseFloat(maxAmount) * parseFloat(price)).toLocaleString("es-CU")}
             </strong>{" "}
@@ -353,23 +382,19 @@ export function CreateOrderPage() {
                         ? "💳"
                         : "💵"}
                     </span>
-                    <span
-                      className={`text-sm font-semibold ${
-                        selected
-                          ? "text-brand-500"
-                          : "text-gray-600 dark:text-gray-400"
-                      }`}
-                    >
+                    <span className={`text-sm font-semibold ${
+                      selected
+                        ? "text-brand-500"
+                        : "text-gray-600 dark:text-gray-400"
+                    }`}>
                       {PAYMENT_METHOD_LABELS[method]}
                     </span>
                   </div>
-                  <div
-                    className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                      selected
-                        ? "border-brand-500 bg-brand-500"
-                        : "border-gray-300 dark:border-gray-600"
-                    }`}
-                  >
+                  <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                    selected
+                      ? "border-brand-500 bg-brand-500"
+                      : "border-gray-300 dark:border-gray-600"
+                  }`}>
                     {selected && (
                       <CheckCircle2 className="h-3 w-3 text-white" />
                     )}
@@ -381,12 +406,9 @@ export function CreateOrderPage() {
         </div>
       </div>
 
-      {/* Info escrow — Solo para ventas */}
+      {/* Info escrow — Solo ventas */}
       {orderType === "sell" && (
-        <Card
-          padding="md"
-          className="border-blue-500/20 bg-blue-50 dark:bg-blue-500/5"
-        >
+        <Card padding="md" className="border-blue-500/20 bg-blue-50 dark:bg-blue-500/5">
           <div className="flex items-start gap-3">
             <Shield className="h-5 w-5 text-blue-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -395,9 +417,8 @@ export function CreateOrderPage() {
               </p>
               <p className="text-xs text-gray-500 dark:text-gray-400 leading-relaxed">
                 Al iniciar un trade, tus fondos se bloquean en escrow dentro
-                de CubaX. Solo se liberan al comprador cuando tú confirmes
-                haber recibido el pago en CUP. Si hay algún problema, puedes
-                abrir una disputa y un moderador intervendrá.
+                de CubaX. Solo se liberan al comprador cuando confirmes haber
+                recibido el pago en CUP.
               </p>
             </div>
           </div>
@@ -406,10 +427,7 @@ export function CreateOrderPage() {
 
       {/* Info compra */}
       {orderType === "buy" && (
-        <Card
-          padding="md"
-          className="border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5"
-        >
+        <Card padding="md" className="border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5">
           <div className="flex items-start gap-3">
             <Info className="h-5 w-5 text-emerald-500 flex-shrink-0 mt-0.5" />
             <div>
@@ -488,27 +506,25 @@ export function CreateOrderPage() {
         loading={loading}
         onClick={handleSubmit}
         disabled={
-          loading ||
-          !price ||
-          !minAmount ||
-          !maxAmount ||
-          parseFloat(price) <= 0 ||
-          parseFloat(minAmount) <= 0 ||
-          parseFloat(maxAmount) <= 0 ||
-          selectedMethods.length === 0 ||
+          loading                          ||
+          !price                           ||
+          !minAmount                       ||
+          !maxAmount                       ||
+          parseFloat(price) <= 0           ||
+          parseFloat(minAmount) <= 0       ||
+          parseFloat(maxAmount) <= 0       ||
+          selectedMethods.length === 0     ||
           !!validationError
         }
         icon={
-          loading ? (
-            <Loader2 className="h-4 w-4 animate-spin" />
-          ) : (
-            <ArrowLeftRight className="h-4 w-4" />
-          )
+          loading
+            ? <Loader2 className="h-4 w-4 animate-spin" />
+            : <ArrowLeftRight className="h-4 w-4" />
         }
       >
         {loading ? "Publicando oferta..." : "Publicar oferta P2P"}
       </Button>
     </div>
   );
-    }
-        
+}
+  
