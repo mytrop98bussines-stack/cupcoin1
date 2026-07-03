@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   Loader2,
   Info,
-  Crown,
+  Crown, // 👈 Se agregó el icono faltante
 } from "lucide-react";
 import type { OrderType, CryptoAsset, PaymentMethod, P2POrder } from "@/types";
 
@@ -128,17 +128,6 @@ export function CreateOrderPage() {
   ]);
 
   // Al inicio del componente, antes del return
-const membershipActive = (() => {
-  const m = (user as any)?.membership;
-  if (!m) return false;
-  if (m.status === "expired") return false;
-  if (m.expiresAt < Date.now()) return false;
-  return true;
-})();
-
-const kycVerified = user?.kycStatus === "verified";
-
-  // ─── Verificación de Membresía y KYC ──────────────────────
   const membershipActive = (() => {
     const m = (user as any)?.membership;
     if (!m) return false;
@@ -149,13 +138,12 @@ const kycVerified = user?.kycStatus === "verified";
 
   const kycVerified = user?.kycStatus === "verified";
 
-  // 1️⃣ PRIORIDAD 1: Si no tiene membresía activa, salta esto primero
+  // 1️⃣ Pasa a primer lugar para evaluar la membresía antes que el KYC
   if (!membershipActive) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
         <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-          {/* Asegúrate de añadir Crown a tus imports de lucide-react */}
-          <Shield className="h-8 w-8 text-brand-500" /> 
+          <Crown className="h-8 w-8 text-brand-500" />
         </div>
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
           Membresía requerida
@@ -171,7 +159,7 @@ const kycVerified = user?.kycStatus === "verified";
     );
   }
 
-  // 2️⃣ PRIORIDAD 2: Si ya tiene membresía pero le falta el KYC, salta esto después
+  // 2️⃣ Pasa a segundo lugar para evaluar el KYC si la membresía está activa
   if (!kycVerified) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
@@ -521,3 +509,5 @@ const kycVerified = user?.kycStatus === "verified";
     </div>
   );
 }
+
+              
