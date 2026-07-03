@@ -14,7 +14,7 @@ import {
   AlertTriangle,
   Loader2,
   Info,
-  Crown, // 👈 Se agregó el icono faltante
+  Crown,
 } from "lucide-react";
 import type { OrderType, CryptoAsset, PaymentMethod, P2POrder } from "@/types";
 
@@ -31,6 +31,69 @@ export function CreateOrderPage() {
   const [success, setSuccess]               = useState(false);
   const [error, setError]                   = useState<string | null>(null);
 
+  // ─── 1. ESPERAR A QUE LA CUENTA CARGUE ────────────────────
+  if (!user || !(user as any).membership) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+        <p className="text-xs text-gray-400">Verificando cuenta...</p>
+      </div>
+    );
+  }
+
+  // ─── 2. EVALUAR ESTADOS DE MEMBRESÍA Y KYC ───────────────
+  const membershipActive = (() => {
+    const m = (user as any).membership;
+    if (!m) return false;
+    if (m.status === "expired") return false;
+    if (m.expiresAt < Date.now()) return false;
+    return true;
+  })();
+
+  const kycVerified = user?.kycStatus === "verified";
+
+  // ─── 3. PRIORIDAD 1: BLOQUEO DE MEMBRESÍA ────────────────
+  if (!membershipActive) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
+          <Crown className="h-8 w-8 text-brand-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          Membresía requerida
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Necesitas una membresía activa para publicar anuncios.
+          El primer mes es gratis.
+        </p>
+        <Button size="lg" onClick={() => navigate("membership")}>
+          Ver membresía
+        </Button>
+      </div>
+    );
+  }
+
+  // ─── 4. PRIORIDAD 2: BLOQUEO DE KYC ──────────────────────
+  if (!kycVerified) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+          <Shield className="h-8 w-8 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          KYC requerido
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Debes verificar tu identidad para poder publicar anuncios.
+        </p>
+        <Button size="lg" onClick={() => navigate("kyc")}>
+          Verificar identidad
+        </Button>
+      </div>
+    );
+  }
+
+  // ─── Lógica interna y Callbacks ──────────────────────────
   const togglePayment = useCallback((method: PaymentMethod) => {
     setSelectedMethods((prev) =>
       prev.includes(method)
@@ -39,7 +102,6 @@ export function CreateOrderPage() {
     );
   }, []);
 
-  // ─── Validaciones locales ─────────────────────────────────
   const validationError = (() => {
     if (!price || parseFloat(price) <= 0)
       return "El precio debe ser mayor a 0.";
@@ -55,11 +117,6 @@ export function CreateOrderPage() {
   })();
 
   const handleSubmit = useCallback(async () => {
-    if (!user) {
-      setError("Debes iniciar sesión para publicar una orden.");
-      return;
-    }
-
     if (validationError) {
       setError(validationError);
       return;
@@ -69,7 +126,6 @@ export function CreateOrderPage() {
     setError(null);
 
     try {
-      // ✅ VALIDAR SALDO si es orden de VENTA
       if (orderType === "sell") {
         const userRef  = doc(db, "users", user.uid);
         const userSnap = await getDoc(userRef);
@@ -89,7 +145,6 @@ export function CreateOrderPage() {
         }
       }
 
-      // ✅ Crear referencia con ID único en Firestore
       const orderRef = doc(collection(db, "orders"));
 
       const newOrder: P2POrder = {
@@ -126,58 +181,6 @@ export function CreateOrderPage() {
     selectedMethods, user, orderType,
     asset, navigate, validationError,
   ]);
-
-  // Al inicio del componente, antes del return
-  const membershipActive = (() => {
-    const m = (user as any)?.membership;
-    if (!m) return false;
-    if (m.status === "expired") return false;
-    if (m.expiresAt < Date.now()) return false;
-    return true;
-  })();
-
-  const kycVerified = user?.kycStatus === "verified";
-
-  // 1️⃣ Pasa a primer lugar para evaluar la membresía antes que el KYC
-  if (!membershipActive) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-          <Crown className="h-8 w-8 text-brand-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-          Membresía requerida
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Necesitas una membresía activa para publicar anuncios.
-          El primer mes es gratis.
-        </p>
-        <Button size="lg" onClick={() => navigate("membership")}>
-          Ver membresía
-        </Button>
-      </div>
-    );
-  }
-
-  // 2️⃣ Pasa a segundo lugar para evaluar el KYC si la membresía está activa
-  if (!kycVerified) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-          <Shield className="h-8 w-8 text-amber-500" />
-        </div>
-        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-          KYC requerido
-        </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-          Debes verificar tu identidad para poder publicar anuncios.
-        </p>
-        <Button size="lg" onClick={() => navigate("kyc")}>
-          Verificar identidad
-        </Button>
-      </div>
-    );
-  }
   
   // ─── Pantalla de éxito ────────────────────────────────────
   if (success) {
@@ -198,10 +201,9 @@ export function CreateOrderPage() {
     );
   }
 
-  // ─── RENDER ───────────────────────────────────────────────
+  // ─── RENDER DEL FORMULARIO PRINCIPAL ──────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
-
       {/* Header */}
       <div>
         <h1 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -508,6 +510,5 @@ export function CreateOrderPage() {
       </Button>
     </div>
   );
-}
-
-              
+    }
+        
