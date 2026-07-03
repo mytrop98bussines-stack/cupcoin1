@@ -5,6 +5,7 @@ import {
   collection, query, where, onSnapshot,
   doc, updateDoc, serverTimestamp, addDoc,
   getDoc, orderBy,
+  setDoc, // ✅ añadir esto
 } from "firebase/firestore";
 import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -168,19 +169,26 @@ export function AdminKYCPage() {
   }, [activeTab]);
 
   // ─── Guardar config ───────────────────────────────────────
-  const handleSaveConfig = async () => {
-    setSavingConfig(true);
-    try {
-      await updateDoc(doc(db, "config", "membership"), config);
-      setEditingConfig(false);
-      setSuccessMsg("✅ Configuración guardada.");
-      setTimeout(() => setSuccessMsg(null), 3000);
-    } catch (err: any) {
-      setError("Error guardando config: " + err.message);
-    } finally {
-      setSavingConfig(false);
-    }
-  };
+  // ✅ Después — crea o actualiza sin importar si existe
+const handleSaveConfig = async () => {
+  setSavingConfig(true);
+  try {
+    // setDoc con merge:true crea el documento si no existe
+    // y actualiza si ya existe
+    await setDoc(
+      doc(db, "config", "membership"),
+      config,
+      { merge: true }
+    );
+    setEditingConfig(false);
+    setSuccessMsg("✅ Configuración guardada.");
+    setTimeout(() => setSuccessMsg(null), 3000);
+  } catch (err: any) {
+    setError("Error guardando config: " + err.message);
+  } finally {
+    setSavingConfig(false);
+  }
+};
 
   // ─── Aprobar KYC ──────────────────────────────────────────
   const handleApprove = async (kycUser: KYCUser) => {
