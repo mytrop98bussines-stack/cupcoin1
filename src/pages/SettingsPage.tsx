@@ -2,7 +2,6 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { db } from "@/lib/firebase/config";
 import { doc, onSnapshot } from "firebase/firestore";
@@ -11,12 +10,11 @@ import {
   HelpCircle, LogOut, ChevronRight, Star,
   ArrowLeftRight, Wallet, FileText, ExternalLink,
   Wrench, Copy, Check, User, AlertTriangle,
-  Smartphone, CheckCircle2, Clock, X,
+  Smartphone, CheckCircle2, Clock, X, Crown,
 } from "lucide-react";
 
 export function SettingsPage() {
-  const { user, setUser, theme, toggleTheme, navigate, logout } =
-    useAppStore();
+  const { user, theme, toggleTheme, navigate, logout } = useAppStore();
 
   const [copied, setCopied]                       = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
@@ -33,55 +31,56 @@ export function SettingsPage() {
 
   // ─── Listener perfil en tiempo real ──────────────────────
   useEffect(() => {
-  if (!user?.uid || user.uid === "invitado") return;
+    if (!user?.uid || user.uid === "invitado") return;
 
-  const unsubscribe = onSnapshot(
-    doc(db, "users", user.uid),
-    (docSnap) => {
-      if (docSnap.exists()) {
-        // ✅ Solo actualizar si hay datos
-        const newData = docSnap.data();
-        if (newData) {
-          useAppStore.setState((state) => ({
-            user: state.user ? { ...state.user, ...newData } : null,
-          }));
+    const unsubscribe = onSnapshot(
+      doc(db, "users", user.uid),
+      (docSnap) => {
+        if (docSnap.exists()) {
+          const newData = docSnap.data();
+          if (newData) {
+            useAppStore.setState((state) => ({
+              user: state.user ? { ...state.user, ...newData } : null,
+            }));
+          }
         }
+      },
+      (error) => {
+        console.warn("Error sincronizando perfil (no crítico):", error.message);
       }
-    },
-    (error) => {
-      // ✅ Error silencioso — no romper la UI
-      console.warn("Error sincronizando perfil (no crítico):", error.message);
-    }
-  );
+    );
 
-  return () => unsubscribe();
-}, [user?.uid]);
+    return () => unsubscribe();
+  }, [user?.uid]);
 
-  // ─── KYC config ──────────────────────────────────────────
+  // ✅ Guard — si no hay usuario no renderizar nada
+  if (!user) return null;
+
+  // ─── KYC config ───────────────────────────────────────────
   const kycConfig = {
     unverified: {
-      label:    "Sin verificar",
-      variant:  "warning" as const,
-      color:    "text-amber-500",
-      bg:       "bg-amber-500/10",
+      label:   "Sin verificar",
+      variant: "warning" as const,
+      color:   "text-amber-500",
+      bg:      "bg-amber-500/10",
     },
     pending_verification: {
-      label:    "En revisión",
-      variant:  "info" as const,
-      color:    "text-blue-500",
-      bg:       "bg-blue-500/10",
+      label:   "En revisión",
+      variant: "info" as const,
+      color:   "text-blue-500",
+      bg:      "bg-blue-500/10",
     },
     verified: {
-      label:    "Verificado ✓",
-      variant:  "success" as const,
-      color:    "text-emerald-500",
-      bg:       "bg-emerald-500/10",
+      label:   "Verificado ✓",
+      variant: "success" as const,
+      color:   "text-emerald-500",
+      bg:      "bg-emerald-500/10",
     },
     rejected: {
-      label:    "Rechazado",
-      variant:  "danger" as const,
-      color:    "text-red-500",
-      bg:       "bg-red-500/10",
+      label:   "Rechazado",
+      variant: "danger" as const,
+      color:   "text-red-500",
+      bg:      "bg-red-500/10",
     },
   };
 
@@ -89,30 +88,22 @@ export function SettingsPage() {
     kycConfig[user.kycStatus as keyof typeof kycConfig] ||
     kycConfig.unverified;
 
-  // ✅ Solo navega al KYC si puede hacer algo ahí
   const handleKycAction = () => {
-    if (user.kycStatus === "verified") return;           // Ya verificado, no hace nada
-    if (user.kycStatus === "pending_verification") {     // En revisión, solo ver estado
-      navigate("kyc");
-      return;
-    }
-    navigate("kyc"); // unverified o rejected → puede enviar/reintentar
+    if (user.kycStatus === "verified") return;
+    navigate("kyc");
   };
 
-  // ─── Copiar UID ───────────────────────────────────────────
   const handleCopyUID = () => {
     navigator.clipboard.writeText(user.uid);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ─── Cerrar sesión ────────────────────────────────────────
   const handleLogout = () => {
     logout();
     navigate("landing");
   };
 
-  // ─── Subtítulo dinámico del KYC ──────────────────────────
   const kycSubtitle = () => {
     switch (user.kycStatus) {
       case "verified":             return "Identidad verificada ✓";
@@ -120,6 +111,16 @@ export function SettingsPage() {
       case "rejected":             return "Rechazado — toca para reintentar";
       default:                     return "Verifica tu identidad";
     }
+  };
+
+  // ─── Subtítulo membresía ──────────────────────────────────
+  const membershipSubtitle = () => {
+    const m = (user as any).membership;
+    if (!m || m.status === "expired") return "Sin membresía activa";
+    if (m.status === "free_trial")    return "Prueba gratuita activa";
+    if (m.status === "manual")        return "Cortesía del admin";
+    const days = Math.ceil((m.expiresAt - Date.now()) / (1000 * 60 * 60 * 24));
+    return days > 0 ? `Activa · ${days} días restantes` : "Vencida";
   };
 
   // ─── Secciones del menú ───────────────────────────────────
@@ -135,29 +136,20 @@ export function SettingsPage() {
           iconColor: "text-blue-500",
           action:    () => navigate("profile"),
         },
-       {
-         icon:      <Crown className="h-4 w-4" />,
-         label:     "Membresía",
-         subtitle:  (() => {
-         const m = (user as any).membership;
-         if (!m || m.status === "expired") return "Sin membresía activa";
-         if (m.status === "free_trial")    return "Prueba gratuita activa";
-         if (m.status === "manual")        return "Cortesía del admin";
-         const days = Math.ceil((m.expiresAt - Date.now()) / (1000 * 60 * 60 * 24));
-         return days > 0 ? `Activa · ${days} días restantes` : "Vencida";
-         })(),
-         iconBg:    "bg-brand-500/10",
-         iconColor: "text-brand-500",
-         action:    () => navigate("membership"),
+        {
+          icon:      <Crown className="h-4 w-4" />,
+          label:     "Membresía",
+          subtitle:  membershipSubtitle(),
+          iconBg:    "bg-brand-500/10",
+          iconColor: "text-brand-500",
+          action:    () => navigate("membership"),
         },
         {
           icon:      <Shield className="h-4 w-4" />,
           label:     "Verificación KYC",
           subtitle:  kycSubtitle(),
-          badge:     user.kycStatus !== "verified" ? currentKyc.variant : undefined,
           iconBg:    currentKyc.bg,
           iconColor: currentKyc.color,
-          // ✅ Solo navega si NO está verificado
           action:    user.kycStatus !== "verified" ? handleKycAction : undefined,
           disabled:  user.kycStatus === "verified",
         },
@@ -326,7 +318,7 @@ export function SettingsPage() {
           </button>
         </div>
 
-        {/* ✅ Banner KYC dinámico según estado */}
+        {/* Banner KYC dinámico */}
         {user.kycStatus === "unverified" && (
           <button
             onClick={() => navigate("kyc")}
@@ -345,7 +337,6 @@ export function SettingsPage() {
           </button>
         )}
 
-        {/* ✅ Banner pendiente — no navega, solo informa */}
         {user.kycStatus === "pending_verification" && (
           <div className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-blue-500/10 border border-blue-500/20">
             <Clock className="h-4 w-4 text-blue-500 flex-shrink-0" />
@@ -360,7 +351,6 @@ export function SettingsPage() {
           </div>
         )}
 
-        {/* ✅ Banner verificado — solo muestra el estado */}
         {user.kycStatus === "verified" && (
           <div className="mt-3 w-full flex items-center gap-2 p-2.5 rounded-xl bg-emerald-500/10 border border-emerald-500/20">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
@@ -375,7 +365,6 @@ export function SettingsPage() {
           </div>
         )}
 
-        {/* ✅ Banner rechazado — permite reintentar */}
         {user.kycStatus === "rejected" && (
           <button
             onClick={() => navigate("kyc")}
@@ -415,10 +404,10 @@ export function SettingsPage() {
               </div>
               <div className="flex-1 text-left min-w-0">
                 <p className="font-bold text-sm text-gray-900 dark:text-white">
-                  Panel KYC Admin
+                  Panel Admin
                 </p>
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
-                  Revisar y aprobar solicitudes pendientes
+                  KYC · Disputas · Membresías
                 </p>
               </div>
               <ChevronRight className="h-4 w-4 text-amber-500/60 flex-shrink-0" />
@@ -453,12 +442,10 @@ export function SettingsPage() {
                       : "hover:bg-gray-50 dark:hover:bg-white/[0.03]"
                   }`}
                 >
-                  {/* Icono */}
                   <div className={`h-8 w-8 rounded-lg ${item.iconBg} flex items-center justify-center ${item.iconColor} flex-shrink-0`}>
                     {item.icon}
                   </div>
 
-                  {/* Texto */}
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 dark:text-white">
                       {item.label}
@@ -468,7 +455,6 @@ export function SettingsPage() {
                     </p>
                   </div>
 
-                  {/* Toggle o chevron */}
                   {"toggle" in item && item.toggle ? (
                     <div className={`relative h-6 w-11 rounded-full transition-colors flex items-center flex-shrink-0 ${
                       theme === "dark" ? "bg-brand-500" : "bg-gray-300"
@@ -478,7 +464,6 @@ export function SettingsPage() {
                       }`} />
                     </div>
                   ) : "disabled" in item && item.disabled ? (
-                    // ✅ KYC verificado — muestra badge verde sin flecha
                     <Badge variant="success" size="sm">
                       Verificado ✓
                     </Badge>
@@ -512,13 +497,13 @@ export function SettingsPage() {
           <div className="flex gap-2">
             <button
               onClick={() => setShowLogoutConfirm(false)}
-              className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm font-bold transition-all"
+              className="flex-1 py-2.5 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-sm font-bold"
             >
               Cancelar
             </button>
             <button
               onClick={handleLogout}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold transition-all"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-red-500 hover:bg-red-600 text-white text-sm font-bold"
             >
               <LogOut className="h-3.5 w-3.5" />
               Sí, salir
@@ -539,4 +524,3 @@ export function SettingsPage() {
     </div>
   );
 }
- 
