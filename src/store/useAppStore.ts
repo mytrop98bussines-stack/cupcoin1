@@ -532,10 +532,10 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   subscribeToProducts: () => {
+    // Eliminamos el orderBy de la consulta de Firestore
     const q = query(
       collection(db, "products"),
-      where("status", "==", "active"),
-      orderBy("createdAt", "desc")
+      where("status", "==", "active")
     );
 
     return onSnapshot(
@@ -545,6 +545,10 @@ export const useAppStore = create<AppState>((set, get) => ({
           id: docSnap.id,
           ...docSnap.data(),
         } as Product));
+
+        // Ordenamos por fecha en memoria de forma segura
+        productsList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+
         set({ products: productsList });
         console.log(`✅ [Products] ${productsList.length} productos`);
       },
@@ -553,6 +557,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     );
   },
+
 
   // ─── NOTIFICACIONES ──────────────────────────────────────
   setNotifications: (notifications) => set({ notifications }),
