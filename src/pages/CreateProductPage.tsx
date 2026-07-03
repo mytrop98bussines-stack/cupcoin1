@@ -15,6 +15,7 @@ import {
   Shield,
   Loader2,
   X,
+  Crown,
 } from "lucide-react";
 import type { CryptoAsset, ProductCategory, Product } from "@/types";
 
@@ -39,35 +40,91 @@ export function CreateProductPage() {
   // Referencia para disparar el input de archivos oculto
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // ─── 1. ESPERAR A QUE LA CUENTA CARGUE COMPLEMENTE ───────────
+  if (!user || !(user as any).membership) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+        <p className="text-xs text-gray-400">Verificando cuenta...</p>
+      </div>
+    );
+  }
+
+  // ─── 2. EVALUAR ESTADOS DE SEGURIDAD (Aquí 'user' ya existe) ───
+  const membershipActive = (() => {
+    const m = (user as any).membership;
+    if (!m) return false;
+    if (m.status === "expired") return false;
+    if (m.expiresAt < Date.now()) return false;
+    return true;
+  })();
+
+  const kycVerified = user?.kycStatus === "verified";
+
+  // ─── 3. PRIORIDAD 1: BLOQUEO DE MEMBRESÍA ────────────────────
+  if (!membershipActive) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
+          <Crown className="h-8 w-8 text-brand-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          Membresía requerida
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Necesitas una membresía activa para publicar anuncios.
+          El primer mes es gratis.
+        </p>
+        <Button size="lg" onClick={() => navigate("membership")}>
+          Ver membresía
+        </Button>
+      </div>
+    );
+  }
+
+  // ─── 4. PRIORIDAD 2: BLOQUEO DE KYC ──────────────────────────
+  if (!kycVerified) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center">
+        <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+          <Shield className="h-8 w-8 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          KYC requerido
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Debes verificar tu identidad para poder publicar anuncios.
+        </p>
+        <Button size="lg" onClick={() => navigate("kyc")}>
+          Verificar identidad
+        </Button>
+      </div>
+    );
+  }
+
+  // ─── Callbacks e Interacciones del Formulario ────────────────
   const toggleCrypto = useCallback((crypto: CryptoAsset) => {
     setAcceptedCryptos((prev) =>
       prev.includes(crypto) ? prev.filter((c) => c !== crypto) : [...prev, crypto]
     );
   }, []);
 
-  // Capturar imágenes del sistema de archivos o cámara
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files) {
       const filesArray = Array.from(e.target.files);
-      
-      // Controlar el límite estricto de 5 imágenes máximo
       const availableSlots = 5 - selectedFiles.length;
       const filesToProcess = filesArray.slice(0, availableSlots);
 
       filesToProcess.forEach((file) => {
         setSelectedFiles((prev) => [...prev, file]);
-        
-        // Crear URLs locales temporales para ver la miniatura de la imagen antes de subirla
         const objectUrl = URL.createObjectURL(file);
         setPreviews((prev) => [...prev, objectUrl]);
       });
     }
   };
 
-  // Eliminar una imagen seleccionada antes de publicar
   const removeImage = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
-    // Revocamos la URL local para liberar memoria ram del dispositivo
     URL.revokeObjectURL(previews[index]);
     setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
@@ -80,12 +137,9 @@ export function CreateProductPage() {
     try {
       const uploadedImageUrls: string[] = [];
 
-      // ➡️ 1. SUBIDA MULTIPART REAL A CLOUDINARY
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file", file);
-        
-        // Clave oficial obligatoria apuntando a tu preset unsigned corregido
         formData.append("upload_preset", "cubax_unsigned");
         formData.append("folder", "cubax/products");
 
@@ -103,10 +157,9 @@ export function CreateProductPage() {
         }
 
         const imageData = await cloudinaryRes.json();
-        uploadedImageUrls.push(imageData.secure_url); // URL segura HTTPS final
+        uploadedImageUrls.push(imageData.secure_url);
       }
 
-      // ➡️ 2. GUARDADO DE DOCUMENTO FINAL EN FIRESTORE
       const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
@@ -117,7 +170,7 @@ export function CreateProductPage() {
         description,
         priceUSD: parseFloat(price),
         acceptedCryptos,
-        images: uploadedImageUrls, // Array de URLs seguras reales
+        images: uploadedImageUrls,
         category,
         condition,
         location,
@@ -127,7 +180,6 @@ export function CreateProductPage() {
 
       await setDoc(productRef, newProduct);
 
-      // Limpieza de URLs temporales
       previews.forEach((url) => URL.revokeObjectURL(url));
 
       setLoading(false);
@@ -140,6 +192,7 @@ export function CreateProductPage() {
     }
   }, [title, description, price, location, user, acceptedCryptos, selectedFiles, category, condition, navigate, previews]);
 
+  // ─── Vista de éxito ──────────────────────────────────────────
   if (success) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
@@ -155,56 +208,8 @@ export function CreateProductPage() {
       </div>
     );
   }
- // Al inicio del componente, antes del return
-const membershipActive = (() => {
-  const m = (user as any)?.membership;
-  if (!m) return false;
-  if (m.status === "expired") return false;
-  if (m.expiresAt < Date.now()) return false;
-  return true;
-})();
 
-const kycVerified = user?.kycStatus === "verified";
-
-// Si no tiene KYC o membresía mostrar bloqueo
-if (!kycVerified) {
-  return (
-    <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-        <Shield className="h-8 w-8 text-amber-500" />
-      </div>
-      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-        KYC requerido
-      </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Debes verificar tu identidad para poder publicar anuncios.
-      </p>
-      <Button size="lg" onClick={() => navigate("kyc")}>
-        Verificar identidad
-      </Button>
-    </div>
-  );
-}
-
-if (!membershipActive) {
-  return (
-    <div className="max-w-lg mx-auto px-4 py-16 text-center">
-      <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
-        <Crown className="h-8 w-8 text-brand-500" />
-      </div>
-      <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
-        Membresía requerida
-      </h2>
-      <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
-        Necesitas una membresía activa para publicar anuncios.
-        El primer mes es gratis.
-      </p>
-      <Button size="lg" onClick={() => navigate("membership")}>
-        Ver membresía
-      </Button>
-    </div>
-  );
-}
+  // ─── RENDER DEL FORMULARIO PRINCIPAL ──────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
       <h1 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -222,7 +227,6 @@ if (!membershipActive) {
         </div>
       </Card>
 
-      {/* Input nativo oculto para invocar el selector de archivos o la cámara del móvil */}
       <input
         type="file"
         ref={fileInputRef}
@@ -300,7 +304,6 @@ if (!membershipActive) {
         rightElement={<span className="text-xs font-medium text-gray-400">USD</span>}
       />
 
-      {/* 🪙 Previsualización matemática de la conversión en vivo basada en el store global */}
       {price && parseFloat(price) > 0 && (
         <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 space-y-1.5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">Equivalencia aproximada en vivo:</p>
@@ -360,7 +363,6 @@ if (!membershipActive) {
         onChange={(e) => setLocation(e.target.value)}
       />
 
-      {/* Accepted Cryptos */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
           Criptomonedas aceptadas
@@ -395,5 +397,5 @@ if (!membershipActive) {
       </Button>
     </div>
   );
-            }
-      
+          }
+                                   
