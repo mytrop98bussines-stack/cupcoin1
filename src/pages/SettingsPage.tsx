@@ -33,24 +33,29 @@ export function SettingsPage() {
 
   // ─── Listener perfil en tiempo real ──────────────────────
   useEffect(() => {
-    if (!user?.uid || user.uid === "invitado") return;
+  if (!user?.uid || user.uid === "invitado") return;
 
-    const unsubscribe = onSnapshot(
-      doc(db, "users", user.uid),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          setUser({ ...user, ...docSnap.data() });
+  const unsubscribe = onSnapshot(
+    doc(db, "users", user.uid),
+    (docSnap) => {
+      if (docSnap.exists()) {
+        // ✅ Solo actualizar si hay datos
+        const newData = docSnap.data();
+        if (newData) {
+          useAppStore.setState((state) => ({
+            user: state.user ? { ...state.user, ...newData } : null,
+          }));
         }
-      },
-      (error) => {
-        console.error("Error sincronizando perfil:", error);
       }
-    );
+    },
+    (error) => {
+      // ✅ Error silencioso — no romper la UI
+      console.warn("Error sincronizando perfil (no crítico):", error.message);
+    }
+  );
 
-    return () => unsubscribe();
-  }, [user?.uid]);
-
-  if (!user) return null;
+  return () => unsubscribe();
+}, [user?.uid]);
 
   // ─── KYC config ──────────────────────────────────────────
   const kycConfig = {
