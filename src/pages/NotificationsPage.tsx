@@ -1,16 +1,9 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
 import {
-  ArrowLeftRight,
-  Shield,
-  TrendingUp,
-  Bell,
-  ShoppingBag,
-  CheckCheck,
-  Trash2,
-  AlertTriangle,
-  Info,
-  Package,
+  ArrowLeftRight, Shield, TrendingUp, Bell,
+  ShoppingBag, CheckCheck, AlertTriangle,
+  Info, Package, Crown,
 } from "lucide-react";
 import { useEffect, useState } from "react";
 
@@ -44,7 +37,7 @@ export function NotificationsPage() {
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
-  // ─── Marcar todas como leídas ────────────────────────────
+  // ─── Marcar todas como leídas ─────────────────────────────
   const handleMarkAllRead = () => {
     notifications
       .filter((n) => !n.read)
@@ -56,6 +49,9 @@ export function NotificationsPage() {
     const base = "h-4 w-4";
     switch (type) {
       case "trade":
+      case "new_trade":
+      case "payment_sent":
+      case "trade_completed":
         return (
           <div className="h-9 w-9 rounded-xl bg-blue-500/10 flex items-center justify-center flex-shrink-0">
             <ArrowLeftRight className={`${base} text-blue-500`} />
@@ -71,6 +67,12 @@ export function NotificationsPage() {
         return (
           <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
             <ShoppingBag className={`${base} text-emerald-500`} />
+          </div>
+        );
+      case "membership":
+        return (
+          <div className="h-9 w-9 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
+            <Crown className={`${base} text-brand-500`} />
           </div>
         );
       case "alert":
@@ -137,7 +139,7 @@ export function NotificationsPage() {
         {unreadCount > 0 && (
           <button
             onClick={handleMarkAllRead}
-            className="text-xs text-brand-500 hover:text-brand-400 font-semibold flex items-center gap-1 transition-colors active:opacity-70"
+            className="text-xs text-brand-500 hover:text-brand-400 font-semibold flex items-center gap-1 transition-colors"
           >
             <CheckCheck className="h-3.5 w-3.5" />
             Marcar todas
@@ -175,7 +177,7 @@ export function NotificationsPage() {
         </div>
       )}
 
-      {/* ═══ LISTA DE NOTIFICACIONES ═════════════════════════ */}
+      {/* ═══ LISTA ═══════════════════════════════════════════ */}
       {sortedNotifications.length === 0 ? (
         <Card padding="lg" className="text-center">
           <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center mx-auto mb-3">
@@ -226,24 +228,23 @@ export function NotificationsPage() {
               {/* Contenido */}
               <div className="flex-1 min-w-0">
                 <div className="flex items-start justify-between gap-2 mb-0.5">
-                  <p
-                    className={`text-sm leading-tight truncate ${
-                      notif.read
-                        ? "font-medium text-gray-700 dark:text-gray-300"
-                        : "font-bold text-gray-900 dark:text-white"
-                    }`}
-                  >
+                  <p className={`text-sm leading-tight truncate ${
+                    notif.read
+                      ? "font-medium text-gray-700 dark:text-gray-300"
+                      : "font-bold text-gray-900 dark:text-white"
+                  }`}>
                     {notif.title}
                   </p>
                   <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">
                     {getTimeAgo(notif.createdAt)}
                   </span>
                 </div>
+
+                {/* ✅ Corregido: usa body en vez de message */}
                 <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                  {notif.message}
+                  {notif.body}
                 </p>
 
-                {/* Link si tiene */}
                 {notif.link && (
                   <p className="text-[10px] text-brand-500 font-semibold mt-1.5">
                     Ver detalles →
@@ -251,7 +252,7 @@ export function NotificationsPage() {
                 )}
               </div>
 
-              {/* Punto de no leída */}
+              {/* Punto no leída */}
               {!notif.read && (
                 <div className="h-2 w-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5 animate-pulse" />
               )}
@@ -260,7 +261,7 @@ export function NotificationsPage() {
         </div>
       )}
 
-      {/* ═══ FOOTER INFO ═════════════════════════════════════ */}
+      {/* ═══ FOOTER ══════════════════════════════════════════ */}
       {sortedNotifications.length > 0 && (
         <p className="text-center text-[10px] text-gray-400 pb-2">
           Mostrando {sortedNotifications.length} de {notifications.length} notificaciones
@@ -268,4 +269,4 @@ export function NotificationsPage() {
       )}
     </div>
   );
-}
+      }
