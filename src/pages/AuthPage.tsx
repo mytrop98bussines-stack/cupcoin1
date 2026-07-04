@@ -2,9 +2,8 @@ import { useState, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
-import { db } from "@/lib/firebase/config";
-import { getAuth, signInWithCustomToken } from "firebase/auth";
-import { doc, onSnapshot } from "firebase/firestore";
+import { auth } from "@/lib/firebase/config";
+import { signInWithCustomToken } from "firebase/auth";
 import {
   Mail, Lock, User, Eye, EyeOff,
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
@@ -57,6 +56,28 @@ export function AuthPage() {
     return Object.keys(newErrors).length === 0;
   }, [email, password, name, isLogin]);
 
+  // ─── Autenticar SDK del cliente con custom token ──────────
+  // Esto permite que las reglas de Firestore funcionen
+  const authenticateFirebaseSDK = async (uid: string) => {
+    try {
+      const ctRes  = await fetch(`${BACKEND_URL}/api/auth/custom-token`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ uid }),
+      });
+      const ctData = await ctRes.json();
+
+      if (ctData.success && ctData.customToken) {
+        await signInWithCustomToken(auth, ctData.customToken);
+        console.log("✅ SDK Firestore autenticado correctamente");
+      }
+    } catch (err) {
+      // No es crítico — la app funciona igual
+      // El backend usa Admin SDK que bypasea las reglas
+      console.warn("⚠️ Auth SDK opcional falló:", err);
+    }
+  };
+
   // ─── Login / Registro via backend ─────────────────────────
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -85,7 +106,6 @@ export function AuthPage() {
         const data = await res.json();
 
         if (!data.success) {
-          // ✅ Mostrar error en el campo correcto
           if (
             data.code === "EMAIL_EXISTS" ||
             data.code === "INVALID_EMAIL"
@@ -103,19 +123,24 @@ export function AuthPage() {
           return;
         }
 
-        // ✅ Guardar token en localStorage para persistencia
+        // ✅ Guardar en localStorage
         localStorage.setItem("cubax_token",        data.token);
         localStorage.setItem("cubax_refresh_token", data.refreshToken);
         localStorage.setItem("cubax_uid",           data.uid);
-        localStorage.setItem("cubax_email",         data.email);       // ✅
-        localStorage.setItem("cubax_name",          data.displayName); // ✅
+        localStorage.setItem("cubax_email",         data.email);
+        localStorage.setItem("cubax_name",          data.displayName);
+
+        // ✅ Autenticar SDK del cliente para que las reglas
+        // de Firestore funcionen correctamente
+        await authenticateFirebaseSDK(data.uid);
+
         // ✅ Construir objeto de usuario
         const userData = data.userData || {};
         const appUser: AppUser = {
           uid:           data.uid,
           email:         data.email,
           displayName:   data.displayName,
-          photoURL:      data.photoURL || null,
+          photoURL:      data.photoURL    || null,
           kycStatus:     userData.kycStatus     || "unverified",
           createdAt:     userData.createdAt     || Date.now(),
           totalTrades:   userData.totalTrades   || 0,
@@ -124,7 +149,6 @@ export function AuthPage() {
           role:          userData.role          || "user",
         };
 
-        // ✅ Loguear en el store
         login(appUser);
         navigate("dashboard");
 
@@ -137,7 +161,7 @@ export function AuthPage() {
     [email, password, name, isLogin, validate, login, navigate]
   );
 
-  // ─── Reset de contraseña via backend ─────────────────────
+  // ─── Reset de contraseña ──────────────────────────────────
   const handlePasswordReset = useCallback(async () => {
     if (
       !resetEmail.trim() ||
@@ -222,10 +246,7 @@ export function AuthPage() {
                 </p>
               </div>
               <button
-                onClick={() => {
-                  setShowReset(false);
-                  setResetSent(false);
-                }}
+                onClick={() => { setShowReset(false); setResetSent(false); }}
                 className="text-sm text-brand-500 font-semibold"
               >
                 Volver al inicio de sesión →
@@ -465,4 +486,4 @@ export function AuthPage() {
       </div>
     </div>
   );
-                     }
+          }
