@@ -3,6 +3,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { db } from "@/lib/firebase/config";
+import { getAuth, signInWithCustomToken } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
 import {
   Mail, Lock, User, Eye, EyeOff,
