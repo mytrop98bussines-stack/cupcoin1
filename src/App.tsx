@@ -35,7 +35,8 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 import { AdminKYCPage } from "@/pages/AdminKYCPage";
 
 // ─── Firebase ─────────────────────────────────────────────
-import { db }                      from "@/lib/firebase/config";
+import { auth, db }                from "@/lib/firebase/config";
+import { signInWithCustomToken }   from "firebase/auth";
 import { doc, onSnapshot, setDoc } from "firebase/firestore";
 import {
   requestNotificationPermission,
@@ -44,9 +45,6 @@ import {
 
 import { MOCK_USER }            from "@/data/mock";
 import type { User as AppUser } from "@/types";
-
-// ✅ Ya no importamos getDoc ni auth de Firebase
-// El guardián usa el backend en vez de Firestore directamente
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
@@ -119,6 +117,28 @@ const AUTHENTICATED_VIEWS = [
   "my-orders",
   "membership",
 ];
+
+// =========================================================
+// HELPER — Autenticar SDK del cliente con custom token
+// =========================================================
+async function authenticateFirebaseSDK(uid: string): Promise<void> {
+  try {
+    const ctRes  = await fetch(`${BACKEND_URL}/api/auth/custom-token`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ uid }),
+    });
+    const ctData = await ctRes.json();
+
+    if (ctData.success && ctData.customToken) {
+      await signInWithCustomToken(auth, ctData.customToken);
+      console.log("✅ SDK Firestore autenticado");
+    }
+  } catch (err) {
+    // No es crítico — el backend usa Admin SDK que bypasea las reglas
+    console.warn("⚠️ Auth SDK no crítico:", err);
+  }
+}
 
 // =========================================================
 // APP CONTENT
@@ -233,8 +253,6 @@ export default function App() {
   }, [theme]);
 
   // ─── Guardián de autenticación ────────────────────────────
-  // ✅ Usa el backend en vez de Firestore directamente
-  // Así no hay problemas de autenticación del SDK del cliente
   useEffect(() => {
     const savedToken = localStorage.getItem("cubax_token");
     const savedUid   = localStorage.getItem("cubax_uid");
@@ -242,7 +260,11 @@ export default function App() {
     if (savedToken && savedUid) {
       const verifySession = async () => {
         try {
-          // ✅ Leer datos desde el backend (bypasea las reglas de Firestore)
+          // ✅ Re-autenticar SDK del cliente para que las reglas
+          // de Firestore funcionen correctamente
+          await authenticateFirebaseSDK(savedUid);
+
+          // ✅ Leer datos desde el backend
           const res  = await fetch(`${BACKEND_URL}/api/auth/me`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
@@ -252,7 +274,6 @@ export default function App() {
           const data = await res.json();
 
           if (data.success && data.userData) {
-            // ✅ Usuario encontrado — restaurar sesión
             useAppStore.setState({
               user:            data.userData as AppUser,
               isAuthenticated: true,
@@ -260,10 +281,10 @@ export default function App() {
             });
 
           } else {
-            // ✅ No existe en Firestore — crear documento básico
+            // No existe en Firestore — crear documento básico
             console.warn("[Auth] Usuario no en Firestore — creando documento");
 
-            const createRes = await fetch(
+            const createRes  = await fetch(
               `${BACKEND_URL}/api/auth/register-basic`,
               {
                 method:  "POST",
@@ -275,7 +296,6 @@ export default function App() {
                 }),
               }
             );
-
             const createData = await createRes.json();
 
             if (createData.success) {
@@ -285,7 +305,6 @@ export default function App() {
                 currentView:     "dashboard",
               });
             } else {
-              // Usar datos mínimos del localStorage como último recurso
               const basicUser: AppUser = {
                 uid:           savedUid,
                 email:         localStorage.getItem("cubax_email") || "",
@@ -309,12 +328,10 @@ export default function App() {
         } catch (error: any) {
           console.error("Error verificando sesión:", error.message);
 
-          // ✅ Si hay error de red usar datos del localStorage
           const emailSaved = localStorage.getItem("cubax_email");
           const nameSaved  = localStorage.getItem("cubax_name");
 
           if (emailSaved) {
-            // Tenemos datos suficientes para no cerrar sesión
             const basicUser: AppUser = {
               uid:           savedUid,
               email:         emailSaved,
@@ -333,11 +350,12 @@ export default function App() {
               currentView:     "dashboard",
             });
           } else {
-            // Sin datos — cerrar sesión
             localStorage.removeItem("cubax_token");
             localStorage.removeItem("cubax_refresh_token");
             localStorage.removeItem("cubax_uid");
             localStorage.removeItem("cubax_last_view");
+            localStorage.removeItem("cubax_email");
+            localStorage.removeItem("cubax_name");
             navigate("landing");
           }
         } finally {
@@ -363,18 +381,20 @@ export default function App() {
       if (!refreshToken) return;
 
       try {
-        const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+        const res  = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ refreshToken }),
         });
-
         const data = await res.json();
 
         if (data.success) {
           localStorage.setItem("cubax_token",         data.token);
           localStorage.setItem("cubax_refresh_token", data.refreshToken);
           console.log("✅ Token refrescado");
+
+          // ✅ Re-autenticar SDK también al refrescar el token
+          await authenticateFirebaseSDK(user.uid);
         } else {
           console.warn("⚠️ Token expirado — cerrando sesión");
           localStorage.removeItem("cubax_token");
@@ -405,9 +425,6 @@ export default function App() {
   }, [user?.uid]);
 
   // ─── Sincronización Firestore en tiempo real ──────────────
-  // ✅ onSnapshot funciona porque Firestore permite lectura
-  // del propio documento cuando el usuario está autenticado
-  // via Firebase Auth (que sigue activo en el backend)
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
 
@@ -442,9 +459,7 @@ export default function App() {
             setWalletData(firestoreBalances, depositAddresses);
 
           } else {
-            // ✅ Documento no existe — crear via backend
-            console.warn(`[Firebase] Documento no existe para ${uid} — creando via backend`);
-
+            console.warn(`[Firebase] Documento no existe para ${uid}`);
             await fetch(`${BACKEND_URL}/api/auth/register-basic`, {
               method:  "POST",
               headers: { "Content-Type": "application/json" },
@@ -460,7 +475,6 @@ export default function App() {
         }
       },
       (err) => {
-        // ✅ Si falla el listener no hacemos nada crítico
         console.warn("Error en listener de usuario (no crítico):", err.message);
       }
     );
@@ -508,4 +522,4 @@ export default function App() {
   }
 
   return <AppContent />;
-                }
+}
