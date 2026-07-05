@@ -19,6 +19,7 @@ import {
   RefreshCw, DollarSign, Edit2, Save,
 } from "lucide-react";
 import type { Dispute, MembershipPayment } from "@/types";
+import { MessageSquare, Zap } from "lucide-react"; // ✅ añadir
 
 type AdminTab = "kyc" | "disputes" | "memberships";
 
@@ -56,6 +57,17 @@ export function AdminKYCPage() {
   const [successMsg, setSuccessMsg]       = useState<string | null>(null);
   const [rejectReason, setRejectReason]   = useState<Record<string, string>>({});
   const [showRejectForm, setShowRejectForm] = useState<string | null>(null);
+  // ✅ Mensajes del chat por tradeId
+  const [disputeMessages, setDisputeMessages] = useState<
+  Record<string, Array<{
+    id:         string;
+    senderId:   string;
+    senderName: string;
+    text:       string;
+    createdAt:  number;
+    type:       string;
+  }>>
+>({});
 
   // ─── Config editable ──────────────────────────────────────
   const [config, setConfig]               = useState({
@@ -874,68 +886,247 @@ const handleSaveConfig = async () => {
                             </div>
                           ))}
                         </div>
+{/* ═══ PESTAÑA DISPUTAS ═══════════════════════════════ */}
+{activeTab === "disputes" && (
+  <div className="space-y-4">
+    <div className="flex items-center justify-between">
+      <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+        Disputas abiertas
+      </h2>
+      <Badge variant="danger" size="sm">
+        {disputes.length} pendientes
+      </Badge>
+    </div>
 
-                        {/* Link al trade */}
-                        <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl">
-                          <p className="text-[10px] text-gray-400 font-mono flex-1 truncate">
-                            Trade ID: {dispute.tradeId}
-                          </p>
-                        </div>
+    {loading ? (
+      <div className="flex flex-col items-center justify-center py-16">
+        <div className="h-8 w-8 border-4 border-red-500 border-t-transparent rounded-full animate-spin mb-3" />
+        <p className="text-sm text-gray-400">Cargando disputas...</p>
+      </div>
+    ) : disputes.length === 0 ? (
+      <Card padding="lg" className="text-center">
+        <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          Sin disputas activas
+        </p>
+        <p className="text-xs text-gray-400">
+          No hay disputas pendientes de resolución.
+        </p>
+      </Card>
+    ) : (
+      <div className="space-y-3">
+        {disputes.map((dispute) => {
+          const isExpanded  = expandedId === dispute.id;
+          const isActioning = actionLoading === dispute.id;
 
-                        {/* Aviso al admin */}
-                        <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                          <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1">
-                            ⚠️ Instrucciones para el moderador
-                          </p>
-                          <p className="text-[11px] text-gray-600 dark:text-gray-400">
-                            Revisa el chat del trade y los comprobantes antes de resolver.
-                            La decisión es irreversible.
-                          </p>
-                        </div>
+          return (
+            <Card
+              key={dispute.id}
+              padding="md"
+              className="border-red-500/20 bg-red-500/[0.01]"
+            >
+              {/* ─── Cabecera de la disputa ─────────────── */}
+              <button
+                onClick={() => {
+                  setExpandedId(isExpanded ? null : dispute.id);
+                  // ✅ Cargar mensajes del chat cuando se expande
+                  if (!isExpanded && dispute.tradeId) {
+                    loadDisputeMessages(dispute.tradeId);
+                  }
+                }}
+                className="w-full flex items-center gap-3 text-left"
+              >
+                <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                  <Gavel className="h-5 w-5 text-red-500" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      Trade #{dispute.tradeId?.slice(-6)}
+                    </p>
+                    <Badge variant="danger" size="sm">En disputa</Badge>
+                  </div>
+                  <p className="text-[11px] text-gray-400">
+                    {dispute.buyerName} vs {dispute.sellerName}
+                  </p>
+                  <p className="text-[10px] text-gray-400 mt-0.5">
+                    {dispute.amount} {dispute.asset} en juego
+                  </p>
+                </div>
+                {isExpanded
+                  ? <ChevronUp   className="h-4 w-4 text-gray-400" />
+                  : <ChevronDown className="h-4 w-4 text-gray-400" />
+                }
+              </button>
 
-                        {/* Botones de resolución */}
-                        <div className="space-y-2">
-                          <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                            Resolver a favor de:
-                          </p>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() =>
-                                handleResolveDispute(dispute.id, dispute.tradeId, "buyer")
-                              }
-                              disabled={isActioning}
-                              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 text-white text-sm font-bold disabled:opacity-50"
-                            >
-                              {isActioning
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <Check className="h-4 w-4" />
-                              }
-                              Comprador
-                            </button>
-                            <button
-                              onClick={() =>
-                                handleResolveDispute(dispute.id, dispute.tradeId, "seller")
-                              }
-                              disabled={isActioning}
-                              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-500 text-white text-sm font-bold disabled:opacity-50"
-                            >
-                              {isActioning
-                                ? <Loader2 className="h-4 w-4 animate-spin" />
-                                : <Check className="h-4 w-4" />
-                              }
-                              Vendedor
-                            </button>
-                          </div>
-                        </div>
+              {/* ─── Contenido expandido ─────────────────── */}
+              {isExpanded && (
+                <div className="mt-4 pt-4 border-t border-gray-100 dark:border-white/[0.06] space-y-4">
+
+                  {/* Info del trade */}
+                  <div className="grid grid-cols-2 gap-3">
+                    {[
+                      { label: "Comprador",  value: dispute.buyerName  },
+                      { label: "Vendedor",   value: dispute.sellerName },
+                      { label: "Activo",     value: dispute.asset      },
+                      { label: "Monto",      value: `${dispute.amount} ${dispute.asset}` },
+                    ].map((item) => (
+                      <div key={item.label} className="bg-gray-50 dark:bg-white/5 rounded-xl p-3">
+                        <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wider mb-0.5">
+                          {item.label}
+                        </p>
+                        <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                          {item.value}
+                        </p>
                       </div>
-                    )}
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-      )}
+                    ))}
+                  </div>
+
+                  {/* Trade ID */}
+                  <div className="flex items-center gap-2 p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl">
+                    <p className="text-[10px] text-gray-400 font-mono flex-1 truncate">
+                      Trade ID: {dispute.tradeId}
+                    </p>
+                  </div>
+
+                  {/* ✅ CHAT DEL TRADE ─────────────────────── */}
+                  <div>
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+                      <MessageSquare className="h-3.5 w-3.5" />
+                      Chat entre usuarios
+                    </p>
+
+                    <div className="rounded-xl border border-gray-200 dark:border-white/10 overflow-hidden">
+
+                      {/* Mensajes */}
+                      <div className="h-64 overflow-y-auto p-3 space-y-2 bg-gray-50 dark:bg-white/[0.02]">
+                        {disputeMessages[dispute.tradeId]?.length === 0 ? (
+                          <div className="h-full flex items-center justify-center">
+                            <p className="text-xs text-gray-400">
+                              Sin mensajes en este trade
+                            </p>
+                          </div>
+                        ) : disputeMessages[dispute.tradeId] ? (
+                          disputeMessages[dispute.tradeId].map((msg, idx) => {
+                            const isSystem = msg.senderId === "SYSTEM";
+                            const isBuyer  = msg.senderId === dispute.buyerId;
+
+                            if (isSystem) {
+                              return (
+                                <div key={idx} className="flex justify-center">
+                                  <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-gray-200 dark:bg-white/10 max-w-[90%]">
+                                    <Zap className="h-3 w-3 text-brand-500 flex-shrink-0" />
+                                    <p className="text-[10px] font-semibold text-gray-500 dark:text-gray-400 text-center">
+                                      {msg.text}
+                                    </p>
+                                  </div>
+                                </div>
+                              );
+                            }
+
+                            return (
+                              <div
+                                key={idx}
+                                className={`flex flex-col ${isBuyer ? "items-start" : "items-end"}`}
+                              >
+                                <div className="flex items-center gap-1 mb-0.5 px-1">
+                                  <span className={`text-[10px] font-bold ${
+                                    isBuyer
+                                      ? "text-emerald-500"
+                                      : "text-blue-500"
+                                  }`}>
+                                    {isBuyer
+                                      ? `🟢 ${dispute.buyerName} (Comprador)`
+                                      : `🔵 ${dispute.sellerName} (Vendedor)`}
+                                  </span>
+                                  <span className="text-[9px] text-gray-400 font-mono">
+                                    {new Date(msg.createdAt).toLocaleTimeString([], {
+                                      hour:   "2-digit",
+                                      minute: "2-digit",
+                                    })}
+                                  </span>
+                                </div>
+                                <div className={`max-w-[85%] px-3 py-2 rounded-2xl text-xs font-medium leading-relaxed shadow-sm ${
+                                  isBuyer
+                                    ? "bg-emerald-500/10 text-gray-800 dark:text-gray-200 rounded-tl-none border border-emerald-500/20"
+                                    : "bg-blue-500/10 text-gray-800 dark:text-gray-200 rounded-tr-none border border-blue-500/20"
+                                }`}>
+                                  {msg.text}
+                                </div>
+                              </div>
+                            );
+                          })
+                        ) : (
+                          <div className="h-full flex items-center justify-center">
+                            <div className="h-5 w-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Footer del chat */}
+                      <div className="px-3 py-2 bg-white dark:bg-navy-900 border-t border-gray-100 dark:border-white/[0.06]">
+                        <p className="text-[10px] text-gray-400 text-center">
+                          Vista de solo lectura — Chat del trade en disputa
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Aviso al admin */}
+                  <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+                    <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1">
+                      ⚠️ Instrucciones para el moderador
+                    </p>
+                    <p className="text-[11px] text-gray-600 dark:text-gray-400">
+                      Revisa el chat completo antes de resolver.
+                      Considera quién tiene más evidencias.
+                      La decisión es irreversible.
+                    </p>
+                  </div>
+
+                  {/* Botones de resolución */}
+                  <div className="space-y-2">
+                    <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Resolver a favor de:
+                    </p>
+                    <div className="flex gap-2">
+                      <button
+                        onClick={() =>
+                          handleResolveDispute(dispute.id, dispute.tradeId, "buyer")
+                        }
+                        disabled={isActioning}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-sm font-bold disabled:opacity-50 transition-colors"
+                      >
+                        {isActioning
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Check className="h-4 w-4" />
+                        }
+                        Comprador
+                      </button>
+                      <button
+                        onClick={() =>
+                          handleResolveDispute(dispute.id, dispute.tradeId, "seller")
+                        }
+                        disabled={isActioning}
+                        className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-blue-500 hover:bg-blue-600 text-white text-sm font-bold disabled:opacity-50 transition-colors"
+                      >
+                        {isActioning
+                          ? <Loader2 className="h-4 w-4 animate-spin" />
+                          : <Check className="h-4 w-4" />
+                        }
+                        Vendedor
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </Card>
+          );
+        })}
+      </div>
+    )}
+  </div>
+)}
 
       {/* ═══ PESTAÑA MEMBRESÍAS ══════════════════════════════ */}
       {activeTab === "memberships" && (
