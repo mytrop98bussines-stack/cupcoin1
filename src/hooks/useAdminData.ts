@@ -3,44 +3,19 @@ import { db } from "@/lib/firebase/config";
 import { collection, query, onSnapshot, orderBy } from "firebase/firestore";
 
 export function useAdminData() {
-  const [data, setData] = useState({
-    pendingUsers: [],
-    disputes: [],
-    payments: [],
-    loading: true,
-  });
+  const [data, setData] = useState({ pendingUsers: [], disputes: [], payments: [], loading: true });
 
   useEffect(() => {
-    // Suscripción a usuarios pendientes (KYC)
-    const unsubUsers = onSnapshot(collection(db, "users"), (snapshot) => {
-      const users = snapshot.docs
-        .map(doc => ({ id: doc.id, ...doc.data() }))
-        .filter((u: any) => u.kycStatus === "pending");
-      setData(prev => ({ ...prev, pendingUsers: users as any }));
+    const unsubUsers = onSnapshot(collection(db, "users"), (s) => {
+      setData(prev => ({ ...prev, pendingUsers: s.docs.map(d => ({ id: d.id, ...d.data() })).filter((u: any) => u.kycStatus === "pending") as any }));
     });
-
-    // Suscripción a disputas
-    const unsubDisputes = onSnapshot(
-      query(collection(db, "system_alerts"), orderBy("createdAt", "desc")),
-      (snapshot) => {
-        const d = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-        setData(prev => ({ ...prev, disputes: d as any }));
-      }
-    );
-
-    // Suscripción a pagos (Memberships)
-    const unsubPayments = onSnapshot(collection(db, "memberships"), (snapshot) => {
-      const p = snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() }));
-      setData(prev => ({ ...prev, payments: p as any, loading: false }));
+    const unsubDisputes = onSnapshot(query(collection(db, "system_alerts"), orderBy("createdAt", "desc")), (s) => {
+      setData(prev => ({ ...prev, disputes: s.docs.map(d => ({ id: d.id, ...d.data() })) as any }));
     });
-
-    return () => {
-      unsubUsers();
-      unsubDisputes();
-      unsubPayments();
-    };
+    const unsubPayments = onSnapshot(collection(db, "memberships"), (s) => {
+      setData(prev => ({ ...prev, payments: s.docs.map(d => ({ id: d.id, ...d.data() })) as any, loading: false }));
+    });
+    return () => { unsubUsers(); unsubDisputes(); unsubPayments(); };
   }, []);
-
   return data;
 }
-
