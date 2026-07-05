@@ -6,8 +6,11 @@ import { Button } from "@/components/ui/Button";
 export function MembershipList({ payments }: { payments: any[] }) {
   const approveMembership = async (payment: any) => {
     try {
-      // 1. Confirmar pago
-      await updateDoc(doc(db, "memberships", payment.id), { status: "completed" });
+      // 1. Confirmar pago (Nombre de colección corregido a 'membership_payments')
+      await updateDoc(doc(db, "membership_payments", payment.id), { 
+        status: "completed",
+        reviewedAt: serverTimestamp()
+      });
 
       // 2. Activar membresía en perfil del usuario
       await updateDoc(doc(db, "users", payment.userId), {
@@ -24,12 +27,16 @@ export function MembershipList({ payments }: { payments: any[] }) {
         read: false,
         createdAt: serverTimestamp()
       });
-    } catch (e) { console.error(e); }
+    } catch (e) { 
+      console.error("Error al aprobar membresía:", e); 
+      alert("Error al procesar la aprobación");
+    }
   };
 
   return (
     <div className="space-y-4">
-      {payments.map((p) => (
+      {/* Filtramos solo los pendientes para que no aparezcan los ya aprobados */}
+      {payments.filter(p => p.status === "pending").map((p) => (
         <Card key={p.id} className="p-4 flex justify-between items-center">
           <div>
             <p className="font-bold">{p.userName}</p>
