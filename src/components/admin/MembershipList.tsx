@@ -6,35 +6,54 @@ import { CheckCircle2, X, ExternalLink } from "lucide-react";
 
 export function MembershipList({ payments }: { payments: any[] }) {
   
+  // Función para aprobar
   const approveMembership = async (payment: any) => {
     try {
-      // 1. Confirmar pago en la colección de pagos
       await updateDoc(doc(db, "membership_payments", payment.id), { 
         status: "completed",
         reviewedAt: serverTimestamp()
       });
-
-      // 2. Activar membresía en el perfil del usuario
       await updateDoc(doc(db, "users", payment.userId), {
         "membership.status": "active",
-        "membership.expiresAt": Date.now() + 30 * 24 * 60 * 60 * 1000 // 30 días
+        "membership.expiresAt": Date.now() + 30 * 24 * 60 * 60 * 1000
       });
-
-      // 3. Notificar al usuario
       await addDoc(collection(db, "notifications"), {
         userId: payment.userId,
         title: "¡Membresía activada!",
-        body: "Tu pago ha sido verificado y tu membresía está activa por 30 días.",
+        body: "Tu pago ha sido verificado.",
+        type: "membership",
+        read: false,
+        createdAt: serverTimestamp()
+      });
+    } catch (e) { console.error("Error al aprobar:", e); }
+  };
+
+  // Función para RECHAZAR (Nueva)
+  const rejectMembership = async (payment: any) => {
+    if (!confirm("¿Estás seguro de que deseas RECHAZAR este pago?")) return;
+    
+    try {
+      // 1. Marcar el pago como rechazado
+      await updateDoc(doc(db, "membership_payments", payment.id), { 
+        status: "rejected",
+        reviewedAt: serverTimestamp()
+      });
+
+      // 2. Notificar al usuario
+      await addDoc(collection(db, "notifications"), {
+        userId: payment.userId,
+        title: "Pago rechazado",
+        body: "Tu comprobante de pago no pudo ser verificado. Por favor, contacta a soporte.",
         type: "membership",
         read: false,
         createdAt: serverTimestamp()
       });
     } catch (e) { 
-      console.error("Error al aprobar:", e); 
+      console.error("Error al rechazar:", e); 
+      alert("Error al procesar el rechazo.");
     }
   };
 
-  // Filtramos para ver solo los pendientes
   const pendingPayments = payments.filter(p => p.status === "pending");
 
   return (
@@ -62,24 +81,20 @@ export function MembershipList({ payments }: { payments: any[] }) {
             </div>
           </div>
 
-          {/* Visualización del Comprobante */}
           {p.screenshot && (
             <div className="mt-2">
-              <p className="text-gray-500 text-xs mb-1">Comprobante:</p>
-              <a href={p.screenshot} target="_blank" rel="noreferrer" className="block relative group">
-                <img src={p.screenshot} alt="Comprobante" className="w-full h-48 object-cover rounded-lg border" />
-                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 flex items-center justify-center transition-opacity">
-                  <ExternalLink className="text-white" />
-                </div>
+              <a href={p.screenshot} target="_blank" rel="noreferrer" className="block text-blue-500 underline text-xs">
+                Ver comprobante de pago <ExternalLink className="inline h-3 w-3" />
               </a>
             </div>
           )}
 
           <div className="flex gap-2 pt-2">
-            <Button className="flex-1" onClick={() => approveMembership(p)}>
+            <Button className="flex-1 bg-green-600" onClick={() => approveMembership(p)}>
               <CheckCircle2 className="mr-2 h-4 w-4" /> Aprobar
             </Button>
-            <Button variant="destructive" className="flex-1">
+            {/* Botón de rechazar conectado */}
+            <Button variant="destructive" className="flex-1" onClick={() => rejectMembership(p)}>
               <X className="mr-2 h-4 w-4" /> Rechazar
             </Button>
           </div>
@@ -87,8 +102,8 @@ export function MembershipList({ payments }: { payments: any[] }) {
       ))}
       
       {pendingPayments.length === 0 && (
-        <p className="text-center text-gray-400 py-10">No hay pagos pendientes de revisión.</p>
+        <p className="text-center text-gray-400 py-10">No hay pagos pendientes.</p>
       )}
     </div>
   );
-              }
+}
