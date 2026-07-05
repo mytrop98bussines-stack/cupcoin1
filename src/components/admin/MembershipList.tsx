@@ -1,28 +1,26 @@
-// src/components/admin/MembershipList.tsx
-import React from "react";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
+import { MembershipPayment } from "@/types";
 import { Card } from "@/components/ui/Card";
-import { DollarSign } from "lucide-react";
+import { Button } from "@/components/ui/Button";
 
-interface MembershipListProps {
-  payments: any[];
-}
+export function MembershipList({ payments }: { payments: MembershipPayment[] }) {
+  const approvePayment = async (paymentId: string) => {
+    await updateDoc(doc(db, "memberships", paymentId), { status: "completed" });
+    // Aquí normalmente actualizarías el campo membership.status en la colección 'users'
+  };
 
-export function MembershipList({ payments }: MembershipListProps) {
   return (
-    <div className="space-y-3">
-      {payments.map((pay) => (
-        <Card key={pay.id} padding="md" className="flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <DollarSign className="text-emerald-500" />
-            <div>
-              <p className="font-bold text-sm">Pago de Membresía</p>
-              <p className="text-xs text-gray-400">Usuario: {pay.userId}</p>
-            </div>
+    <div className="space-y-4">
+      {payments.filter(p => p.status === "pending").map(p => (
+        <Card key={p.id} className="p-4 flex justify-between items-center">
+          <div>
+            <p className="font-bold">{p.userName}</p>
+            <p>{p.amount} {p.currency} - Método: {p.method}</p>
           </div>
-          <span className="font-mono text-sm">{pay.amount} USD</span>
+          <Button onClick={() => approvePayment(p.id)}>Confirmar Pago</Button>
         </Card>
       ))}
     </div>
   );
 }
-
