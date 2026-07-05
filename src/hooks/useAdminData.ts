@@ -18,7 +18,7 @@ export function useAdminData() {
     const unsubDisputes = onSnapshot(query(collection(db, "system_alerts"), orderBy("createdAt", "desc")), (s) => {
       setData(prev => ({ ...prev, disputes: s.docs.map(d => ({ id: d.id, ...d.data() })) as Dispute[] }));
     });
-    const unsubPayments = onSnapshot(collection(db, "memberships"), (s) => {
+    const unsubPayments = onSnapshot(collection(db, "membership_payments"), (s) => {
       setData(prev => ({ ...prev, payments: s.docs.map(d => ({ id: d.id, ...d.data() })) as MembershipPayment[], loading: false }));
     });
     return () => { unsubUsers(); unsubDisputes(); unsubPayments(); };
