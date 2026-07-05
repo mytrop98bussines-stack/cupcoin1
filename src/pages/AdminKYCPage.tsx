@@ -366,7 +366,46 @@ const handleSaveConfig = async () => {
     setActionLoading(null);
   }
 };
+  // ✅ Cargar mensajes del chat de una disputa
+const loadDisputeMessages = useCallback(async (tradeId: string) => {
+  if (disputeMessages[tradeId]) return; // Ya cargados
 
+  try {
+    // Marcar como cargando
+    setDisputeMessages((prev) => ({ ...prev, [tradeId]: [] }));
+
+    const q = query(
+      collection(db, "trades", tradeId, "messages"),
+      orderBy("createdAt", "asc")
+    );
+
+    // ✅ Listener en tiempo real para el chat de la disputa
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      const msgs = snapshot.docs.map((docSnap) => {
+        const data = docSnap.data();
+        return {
+          id:         docSnap.id,
+          senderId:   data.senderId   ?? "SYSTEM",
+          senderName: data.senderName ?? "Sistema",
+          text:       data.text       ?? data.message ?? "",
+          createdAt:  data.createdAt  ?? data.timestamp ?? Date.now(),
+          type:       data.type       ?? "text",
+        };
+      });
+
+      setDisputeMessages((prev) => ({ ...prev, [tradeId]: msgs }));
+    });
+
+    // Guardar el unsubscribe para limpiarlo después
+    // (simplificado — en producción guardar referencia)
+    return unsubscribe;
+
+  } catch (err: any) {
+    console.error("Error cargando mensajes de disputa:", err.message);
+    setDisputeMessages((prev) => ({ ...prev, [tradeId]: [] }));
+  }
+}, [disputeMessages]);
+  
   // ─── Aprobar pago de membresía ────────────────────────────
   const handleApprovePayment = async (payment: MembershipPayment) => {
     setActionLoading(payment.id);
