@@ -11,6 +11,7 @@ import { Card } from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { Badge } from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
+import { useCallback } from "react";
 import {
   Shield, Check, X, Eye, ExternalLink,
   AlertTriangle, CheckCircle2, Clock, User,
@@ -263,36 +264,108 @@ const handleSaveConfig = async () => {
 
   // ─── Resolver disputa ─────────────────────────────────────
   const handleResolveDispute = async (
-    disputeId: string,
-    tradeId:   string,
-    favor:     "buyer" | "seller"
-  ) => {
-    setActionLoading(disputeId);
-    try {
-      // Marcar alerta como resuelta
-      await updateDoc(doc(db, "system_alerts", disputeId), {
-        resuelto:   true,
-        resolvedBy: user?.uid,
-        resolvedAt: Date.now(),
-        resolution: favor,
-      });
+  disputeId: string,
+  tradeId:   string,
+  favor:     "buyer" | "seller"
+) => {
+  setActionLoading(disputeId);
+  try {
+    // ✅ Leer el trade para obtener los UIDs
+    const tradeSnap = await getDoc(doc(db, "trades", tradeId));
+    if (!tradeSnap.exists()) throw new Error("Trade no encontrado");
 
-      // Actualizar estado del trade
-      await updateDoc(doc(db, "trades", tradeId), {
-        status:     favor === "buyer" ? "crypto_released" : "cancelled",
-        resolvedBy: user?.uid,
-        resolvedAt: Date.now(),
-        updatedAt:  Date.now(),
-      });
+    const tradeData = tradeSnap.data();
+    const winnerId  = favor === "buyer" ? tradeData.buyerId  : tradeData.sellerId;
+    const loserId   = favor === "buyer" ? tradeData.sellerId : tradeData.buyerId;
+    const winnerName = favor === "buyer" ? tradeData.buyerName : tradeData.sellerName;
+    const loserName  = favor === "buyer" ? tradeData.sellerName : tradeData.buyerName;
 
-      setSuccessMsg(`✅ Disputa resuelta a favor del ${favor === "buyer" ? "comprador" : "vendedor"}.`);
-      setTimeout(() => setSuccessMsg(null), 4000);
-    } catch (err: any) {
-      setError("Error resolviendo disputa: " + err.message);
-    } finally {
-      setActionLoading(null);
+    // ✅ Marcar alerta como resuelta
+    await updateDoc(doc(db, "system_alerts", disputeId), {
+      resuelto:   true,
+      resolvedBy: user?.uid,
+      resolvedAt: Date.now(),
+      resolution: favor,
+    });
+
+    // ✅ Actualizar estado del trade
+    await updateDoc(doc(db, "trades", tradeId), {
+      status:     favor === "buyer" ? "crypto_released" : "cancelled",
+      resolvedBy: user?.uid,
+      resolvedAt: Date.now(),
+      updatedAt:  Date.now(),
+    });
+
+    // ✅ Si gana el comprador — transferir fondos
+    if (favor === "buyer" && tradeData.escrowAmount > 0) {
+      const buyerRef  = doc(db, "users", tradeData.buyerId);
+      const buyerSnap = await getDoc(buyerRef);
+      if (buyerSnap.exists()) {
+        const currentBalance = buyerSnap.data().balances?.[tradeData.asset] || 0;
+        await updateDoc(buyerRef, {
+          [`balances.${tradeData.asset}`]: currentBalance + tradeData.amount,
+        });
+      }
     }
-  };
+
+    // ✅ Si gana el vendedor — devolver fondos al vendedor
+    if (favor === "seller" && tradeData.escrowAmount > 0) {
+      const sellerRef  = doc(db, "users", tradeData.sellerId);
+      const sellerSnap = await getDoc(sellerRef);
+      if (sellerSnap.exists()) {
+        const currentBalance = sellerSnap.data().balances?.[tradeData.asset] || 0;
+        await updateDoc(sellerRef, {
+          [`balances.${tradeData.asset}`]: currentBalance + tradeData.amount,
+        });
+      }
+    }
+
+    // ✅ Notificar al ganador
+    await addDoc(collection(db, "notifications"), {
+      userId:    winnerId,
+      title:     "✅ Disputa resuelta a tu favor",
+      body:      `El moderador resolvió la disputa del trade #${tradeId.slice(-6)} a tu favor. Los fondos han sido procesados.`,
+      type:      "trade",
+      read:      false,
+      createdAt: Date.now(),
+      data:      { tradeId, resolution: "won" },
+    });
+
+    // ✅ Notificar al perdedor
+    await addDoc(collection(db, "notifications"), {
+      userId:    loserId,
+      title:     "❌ Disputa resuelta",
+      body:      `El moderador resolvió la disputa del trade #${tradeId.slice(-6)} a favor de ${winnerName}.`,
+      type:      "trade",
+      read:      false,
+      createdAt: Date.now(),
+      data:      { tradeId, resolution: "lost" },
+    });
+
+    // ✅ Mensaje del sistema en el chat
+    await addDoc(collection(db, "trades", tradeId, "messages"), {
+      senderId:   "SYSTEM",
+      senderName: "CubaX Admin",
+      text:       `⚖️ RESOLUCIÓN: El moderador resolvió la disputa a favor del ${
+        favor === "buyer" ? "comprador" : "vendedor"
+      }. ${favor === "buyer"
+        ? `${tradeData.buyerName} recibe los fondos.`
+        : `Los fondos son devueltos a ${tradeData.sellerName}.`}`,
+      createdAt:  Date.now(),
+      type:       "system",
+    });
+
+    setSuccessMsg(
+      `✅ Disputa resuelta a favor del ${favor === "buyer" ? "comprador" : "vendedor"}.`
+    );
+    setTimeout(() => setSuccessMsg(null), 4000);
+
+  } catch (err: any) {
+    setError("Error resolviendo disputa: " + err.message);
+  } finally {
+    setActionLoading(null);
+  }
+};
 
   // ─── Aprobar pago de membresía ────────────────────────────
   const handleApprovePayment = async (payment: MembershipPayment) => {
