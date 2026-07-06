@@ -40,7 +40,6 @@ export type ProductCategory =
 
 export type ThemeMode = "light" | "dark";
 
-// ✅ Añadidas nuevas vistas
 export type AppView =
   | "landing"
   | "login"
@@ -66,21 +65,20 @@ export type AppView =
   | "kyc"
   | "admin-kyc"
   | "admin-disputes"
-  | "membership"; // ✅ nueva
+  | "membership";
 
-// ✅ Tipos de membresía
 export type MembershipStatus =
-  | "free_trial"  // primer mes gratis
-  | "active"      // pagado y activo
-  | "expired"     // vencido sin pagar
-  | "grace"       // vencido con 3 días de gracia
-  | "manual";     // dado por el admin
+  | "free_trial"
+  | "active"
+  | "expired"
+  | "grace"
+  | "manual";
 
 export type MembershipPaymentMethod =
-  | "wallet_usdt"    // descuento del saldo
-  | "transfermovil"  // pago móvil manual
-  | "enzona"         // pago móvil manual
-  | "manual_admin";  // dado gratis por admin
+  | "wallet_usdt"
+  | "transfermovil"
+  | "enzona"
+  | "manual_admin";
 
 // ─── Entidades ────────────────────────────────────────────
 
@@ -96,8 +94,8 @@ export interface User {
   walletAddress:    string | null;
   role?:            "user" | "admin";
   fcmToken?:        string;
+  balances?:        Record<string, number>; // ✅ Sincronización habilitada
   depositAddresses?: Record<string, string>;
-  // ✅ Membresía embebida en el usuario
   membership?: {
     status:      MembershipStatus;
     startedAt:   number;
@@ -215,19 +213,16 @@ export interface Notification {
   link?:     string;
 }
 
-// ✅ Configuración global editable por el admin
 export interface AppConfig {
   membership: {
-    priceCUP:       number;  // precio en pesos cubanos
-    priceUSDT:      number;  // precio en USDT
-    freeTrialDays:  number;  // días de prueba gratis
-    graceDays:      number;  // días de gracia al vencer
-    warnDaysBefore: number;  // días antes de vencer para avisar
+    priceCUP:       number;
+    priceUSDT:      number;
+    freeTrialDays:  number;
+    graceDays:      number;
+    warnDaysBefore: number;
   };
-  // Se puede ampliar con más configuraciones en el futuro
 }
 
-// ✅ Pago de membresía
 export interface MembershipPayment {
   id:          string;
   userId:      string;
@@ -236,15 +231,14 @@ export interface MembershipPayment {
   currency:    "CUP" | "USDT";
   method:      MembershipPaymentMethod;
   status:      "pending" | "completed" | "rejected";
-  reference?:  string;   // número de confirmación Transfermóvil/Enzona
-  screenshot?: string;   // captura de pantalla del pago
-  period:      string;   // "2026-06" mes que cubre
+  reference?:  string;
+  screenshot?: string;
+  period:      string;
   createdAt:   number;
   reviewedAt?: number;
   reviewedBy?: string;
 }
 
-// ✅ Disputa de trade
 export interface Dispute {
   id:          string;
   tradeId:     string;
