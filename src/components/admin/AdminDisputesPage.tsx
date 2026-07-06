@@ -1,44 +1,66 @@
-import { useState } from "react";
-import { AdminLayout } from "@/components/admin/AdminLayout";
-import { DisputeList } from "@/components/admin/DisputeList";
+import { useEffect, useState } from "react";
+import { collection, onSnapshot, query, orderBy } from "firebase/firestore";
+import { db } from "@/lib/firebase/config";
+import type { Dispute } from "@/types";
 
 export function AdminDisputesPage() {
-  const [activeTab, setActiveTab] = useState<"KYC" | "Disputas" | "Membresías">("Disputas");
+  const [disputes, setDisputes] = useState<Dispute[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    // Consulta: traer todas las disputas ordenadas por fecha
+    const q = query(collection(db, "disputes"), orderBy("createdAt", "desc"));
+
+    const unsubscribe = onSnapshot(
+      q,
+      (snapshot) => {
+        const list: Dispute[] = snapshot.docs.map((doc) => ({
+          id: doc.id,
+          ...doc.data(),
+        } as Dispute));
+        
+        setDisputes(list);
+        setLoading(false);
+      },
+      (error) => {
+        console.error("❌ Error cargando disputas:", error);
+        setLoading(false);
+      }
+    );
+
+    return () => unsubscribe();
+  }, []);
+
+  if (loading) return <div className="p-4 text-center">Cargando disputas...</div>;
 
   return (
-    <AdminLayout>
-      {/* Encabezado del panel */}
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Panel Administrativo</h1>
-        <p className="text-xs text-gray-400">Gestión centralizada de operaciones</p>
-      </div>
-
-      {/* Pestañas de navegación */}
-      <div className="flex gap-6 border-b border-gray-200 dark:border-white/10 mb-8 overflow-x-auto">
-        {(["KYC", "Disputas", "Membresías"] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className={`pb-3 text-sm font-bold transition-all ${
-              activeTab === tab
-                ? "text-brand-500 border-b-2 border-brand-500"
-                : "text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-            }`}
-          >
-            {tab}
-          </button>
-        ))}
-      </div>
-
-      {/* Contenido dinámico */}
-      <div className="animate-in fade-in duration-300">
-        {activeTab === "Disputas" && <DisputeList />}
-        
-        {/* Aquí irán tus otras vistas cuando las crees */}
-        {activeTab === "KYC" && <div className="text-center py-10 text-gray-400">KYC en desarrollo...</div>}
-        {activeTab === "Membresías" && <div className="text-center py-10 text-gray-400">Membresías en desarrollo...</div>}
-      </div>
-    </AdminLayout>
+    <div className="p-4 space-y-4">
+      <h2 className="text-xl font-bold dark:text-white">Gestión de Disputas</h2>
+      
+      {disputes.length === 0 ? (
+        <p className="text-gray-500 dark:text-gray-400">No hay disputas abiertas.</p>
+      ) : (
+        <div className="grid gap-4">
+          {disputes.map((dispute) => (
+            <div key={dispute.id} className="p-4 bg-white dark:bg-navy-800 rounded-lg shadow border border-gray-200 dark:border-navy-700">
+              <div className="flex justify-between items-start">
+                <div>
+                  <h3 className="font-semibold dark:text-white">Trade: {dispute.tradeId}</h3>
+                  <p className="text-sm text-gray-600 dark:text-gray-300">Razón: {dispute.reason}</p>
+                </div>
+                <span className={`px-2 py-1 text-xs rounded ${
+                  dispute.status === 'open' ? 'bg-yellow-100 text-yellow-800' : 'bg-green-100 text-green-800'
+                }`}>
+                  {dispute.status}
+                </span>
+              </div>
+              <div className="mt-2 text-xs text-gray-500">
+                Iniciada por: {dispute.initiatedBy}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
   );
-}
-
+              }
