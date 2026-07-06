@@ -1,35 +1,107 @@
 import { useState } from "react";
 import { useAdminData } from "@/hooks/useAdminData";
-import { KYCList } from "@/components/admin/KYCList";
-import { DisputeList } from "@/components/admin/DisputeList";
+import { AdminLayout }  from "@/components/admin/AdminLayout";
+import { KYCList }        from "@/components/admin/KYCList";
+import { DisputeList }    from "@/components/admin/DisputeList";
 import { MembershipList } from "@/components/admin/MembershipList";
-import { Loader2 } from "lucide-react";
+import { Badge }   from "@/components/ui/Badge";
+import { Shield, Gavel, Crown, Loader2 } from "lucide-react";
+
+type AdminTab = "kyc" | "disputes" | "memberships";
 
 export function AdminKYCPage() {
   const { pendingUsers, disputes, payments, loading } = useAdminData();
-  const [activeTab, setActiveTab] = useState<"kyc" | "disputes" | "memberships">("kyc");
+  const [activeTab, setActiveTab] = useState<AdminTab>("kyc");
 
   if (loading) {
     return (
-      <div className="flex justify-center items-center h-screen">
-        <Loader2 className="h-10 w-10 animate-spin text-blue-500" />
-      </div>
+      <AdminLayout>
+        <div className="flex flex-col items-center justify-center py-32 space-y-3">
+          <Loader2 className="h-10 w-10 animate-spin text-brand-500" />
+          <p className="text-sm text-gray-400">Cargando panel admin...</p>
+        </div>
+      </AdminLayout>
     );
   }
 
+  const tabs = [
+    {
+      key:   "kyc"         as AdminTab,
+      label: "KYC",
+      icon:  <Shield className="h-3.5 w-3.5" />,
+      count: pendingUsers.length,
+      color: "text-amber-500",
+    },
+    {
+      key:   "disputes"    as AdminTab,
+      label: "Disputas",
+      icon:  <Gavel  className="h-3.5 w-3.5" />,
+      count: disputes.length,
+      color: "text-red-500",
+    },
+    {
+      key:   "memberships" as AdminTab,
+      label: "Membresías",
+      icon:  <Crown  className="h-3.5 w-3.5" />,
+      count: payments.length,
+      color: "text-blue-500",
+    },
+  ];
+
   return (
-    <div className="container mx-auto p-6">
-      <h1 className="text-2xl font-bold mb-6">Panel Administrativo</h1>
-      
-      <div className="flex gap-4 border-b mb-6 pb-2">
-        <button onClick={() => setActiveTab("kyc")} className={activeTab === "kyc" ? "font-bold text-blue-600" : ""}>KYC ({pendingUsers.length})</button>
-        <button onClick={() => setActiveTab("disputes")} className={activeTab === "disputes" ? "font-bold text-blue-600" : ""}>Disputas ({disputes.length})</button>
-        <button onClick={() => setActiveTab("memberships")} className={activeTab === "memberships" ? "font-bold text-blue-600" : ""}>Membresías ({payments.length})</button>
+    <AdminLayout>
+      {/* Header */}
+      <div className="flex items-center justify-between mb-6">
+        <div className="flex items-center gap-3">
+          <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center">
+            <Shield className="h-5 w-5 text-amber-500" />
+          </div>
+          <div>
+            <h1 className="text-xl font-bold text-gray-900 dark:text-white">
+              Panel Admin
+            </h1>
+            <p className="text-xs text-gray-400">
+              Administración interna de CubaX
+            </p>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5 text-[11px] text-gray-400">
+          <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          En tiempo real
+        </div>
       </div>
 
-      {activeTab === "kyc" && <KYCList users={pendingUsers} />}
-      {activeTab === "disputes" && <DisputeList disputes={disputes} />}
-      {activeTab === "memberships" && <MembershipList payments={payments} />}
-    </div>
+      {/* Pestañas */}
+      <div className="flex bg-gray-100 dark:bg-white/5 rounded-xl p-1 mb-6">
+        {tabs.map((tab) => (
+          <button
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-bold transition-all ${
+              activeTab === tab.key
+                ? "bg-white dark:bg-white/10 text-gray-900 dark:text-white shadow-sm"
+                : "text-gray-500 dark:text-gray-400"
+            }`}
+          >
+            {tab.icon}
+            {tab.label}
+            {tab.count > 0 && (
+              <span className={`h-4 w-4 rounded-full text-white text-[9px] font-black flex items-center justify-center ${
+                tab.key === "kyc"         ? "bg-amber-500" :
+                tab.key === "disputes"    ? "bg-red-500"   :
+                                           "bg-blue-500"
+              }`}>
+                {tab.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* Contenido */}
+      {activeTab === "kyc"         && <KYCList        users={pendingUsers} />}
+      {activeTab === "disputes"    && <DisputeList     disputes={disputes}  />}
+      {activeTab === "memberships" && <MembershipList  payments={payments}  />}
+    </AdminLayout>
   );
-          }
+                }
