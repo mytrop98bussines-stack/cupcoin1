@@ -65,6 +65,7 @@ export type AppView =
   | "my-orders"
   | "kyc"
   | "admin-kyc"
+  | "admin-disputes"
   | "membership"; // ✅ nueva
 
 // ✅ Tipos de membresía
