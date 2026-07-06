@@ -9,8 +9,8 @@ import { PAYMENT_METHOD_LABELS } from "@/data/mock";
 import { notifyUser } from "@/lib/firebase/messaging";
 import { db } from "@/lib/firebase/config";
 import {
-  doc, getDoc, updateDoc, runTransaction,
-  onSnapshot, collection, addDoc,
+  doc, updateDoc, onSnapshot,
+  collection, addDoc,
 } from "firebase/firestore";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
@@ -18,6 +18,9 @@ import {
   Loader2, ArrowLeft,
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
+
+// ─── Backend URL ──────────────────────────────────────────
+const BACKEND_URL = "https://cubax-backend.onrender.com";
 
 // ─── Configuración de estados ─────────────────────────────
 const STATUS_CONFIG: Record<
@@ -79,7 +82,7 @@ export function TradePage() {
   const [error, setError]     = useState<string | null>(null);
   const [copied, setCopied]   = useState(false);
 
-  // ─── Cargar trade desde Firestore en tiempo real ──────────
+  // ─── Cargar trade en tiempo real ──────────────────────────
   useEffect(() => {
     const tradeId = selectedTradeId || activeTrade?.id;
     if (!tradeId) {
@@ -107,7 +110,7 @@ export function TradePage() {
     return () => unsubscribe();
   }, [selectedTradeId, activeTrade?.id]);
 
-  // ─── Validaciones de seguridad ────────────────────────────
+  // ─── Validaciones ─────────────────────────────────────────
   const isBuyer       = user?.uid === trade?.buyerId;
   const isSeller      = user?.uid === trade?.sellerId;
   const isParticipant = isBuyer || isSeller;
@@ -130,13 +133,12 @@ export function TradePage() {
   }, []);
 
   // ─── Mensaje del sistema al chat ──────────────────────────
-  // ✅ Campos unificados: text y createdAt
   const sendSystemMessage = async (tradeId: string, msg: string) => {
     await addDoc(collection(db, "trades", tradeId, "messages"), {
       senderId:   "SYSTEM",
       senderName: "CubaX Sistema",
-      text:       msg,        // ✅ unificado
-      createdAt:  Date.now(), // ✅ unificado
+      text:       msg,
+      createdAt:  Date.now(),
       type:       "system",
     });
   };
@@ -154,124 +156,65 @@ export function TradePage() {
     setError(null);
 
     try {
-      const tradeRef  = doc(db, "trades",  trade.id);
-      const buyerRef  = doc(db, "users",   trade.buyerId);
-      const sellerRef = doc(db, "users",   trade.sellerId);
+      const tradeRef = doc(db, "trades", trade.id);
 
       switch (action) {
 
-        // ✅ Vendedor fondea el escrow
+        // ✅ ESCROW — via backend (Admin SDK bypasea reglas)
         case "fund_escrow": {
           if (!isSeller) throw new Error("Solo el vendedor puede fondear el escrow.");
           if (trade.status !== "awaiting_escrow") throw new Error("Estado inválido.");
 
-          await runTransaction(db, async (tx) => {
-            const sellerDoc = await tx.get(sellerRef);
-            if (!sellerDoc.exists()) throw new Error("Vendedor no encontrado.");
-
-            const balances     = sellerDoc.data().balances || {};
-            const assetBalance = balances[trade.asset] || 0;
-
-            if (assetBalance < trade.amount) {
-              throw new Error(
-                `Saldo insuficiente. Tienes ${assetBalance} ${trade.asset} y necesitas ${trade.amount}.`
-              );
-            }
-
-            tx.update(sellerRef, {
-              [`balances.${trade.asset}`]: assetBalance - trade.amount,
-            });
-
-            tx.update(tradeRef, {
-              status:         "escrow_funded",
-              escrowAmount:   trade.amount,
-              escrowAsset:    trade.asset,
-              escrowFundedAt: Date.now(),
-              updatedAt:      Date.now(),
-            });
+          const res  = await fetch(`${BACKEND_URL}/api/trade/fund-escrow`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              tradeId:  trade.id,
+              sellerId: user.uid,
+            }),
           });
-
-          await sendSystemMessage(
-            trade.id,
-            `🔒 ESCROW: El vendedor depositó ${trade.amount} ${trade.asset} en garantía. Comprador, ya puedes enviar el pago en CUP.`
-          );
-
-          // ✅ Notificar al comprador
-          await notifyUser(
-            trade.buyerId,
-            "🔒 Escrow fondeado",
-            `El vendedor depositó ${trade.amount} ${trade.asset}. Ya puedes enviar el pago.`,
-            { tradeId: trade.id, type: "trade" }
-          );
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
           break;
         }
 
-        // ✅ Comprador marca el pago como enviado
+        // ✅ MARCAR PAGO — via backend
         case "mark_paid": {
           if (!isBuyer) throw new Error("Solo el comprador puede marcar el pago.");
           if (trade.status !== "escrow_funded") throw new Error("Estado inválido.");
 
-          await updateDoc(tradeRef, {
-            status:        "payment_sent",
-            paymentSentAt: Date.now(),
-            updatedAt:     Date.now(),
+          const res  = await fetch(`${BACKEND_URL}/api/trade/mark-paid`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              tradeId: trade.id,
+              buyerId: user.uid,
+            }),
           });
-
-          await sendSystemMessage(
-            trade.id,
-            `💸 PAGO: El comprador marcó el pago como enviado. Vendedor, verifica en Transfermóvil o Enzona antes de liberar.`
-          );
-
-          // ✅ Notificar al vendedor
-          await notifyUser(
-            trade.sellerId,
-            "💸 Pago enviado",
-            `${trade.buyerName} marcó el pago como enviado. Verifica antes de liberar.`,
-            { tradeId: trade.id, type: "payment_sent" }
-          );
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
           break;
         }
 
-        // ✅ Vendedor libera los fondos al comprador
+        // ✅ LIBERAR FONDOS — via backend (Admin SDK bypasea reglas)
         case "release": {
           if (!isSeller) throw new Error("Solo el vendedor puede liberar los fondos.");
           if (trade.status !== "payment_sent") throw new Error("Estado inválido.");
 
-          await runTransaction(db, async (tx) => {
-            const buyerDoc = await tx.get(buyerRef);
-            if (!buyerDoc.exists()) throw new Error("Comprador no encontrado.");
-
-            const buyerBalances     = buyerDoc.data().balances || {};
-            const buyerAssetBalance = buyerBalances[trade.asset] || 0;
-
-            tx.update(buyerRef, {
-              [`balances.${trade.asset}`]: buyerAssetBalance + trade.amount,
-            });
-
-            tx.update(tradeRef, {
-              status:       "crypto_released",
-              releasedAt:   Date.now(),
-              updatedAt:    Date.now(),
-              escrowAmount: 0,
-            });
+          const res  = await fetch(`${BACKEND_URL}/api/trade/release`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({
+              tradeId:  trade.id,
+              sellerId: user.uid,
+            }),
           });
-
-          await sendSystemMessage(
-            trade.id,
-            `🎉 COMPLETADO: ${trade.amount} ${trade.asset} liberados al comprador. ¡Operación exitosa!`
-          );
-
-          // ✅ Notificar al comprador
-          await notifyUser(
-            trade.buyerId,
-            "✅ Trade completado",
-            `Recibiste ${trade.amount} ${trade.asset} en tu wallet. ¡Gracias por usar CubaX!`,
-            { tradeId: trade.id, type: "trade_completed" }
-          );
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
           break;
         }
 
-        // ✅ Disputa
+        // ✅ DISPUTA — directo en Firestore (solo escribe en su propio trade)
         case "dispute": {
           if (!isParticipant) throw new Error("No autorizado.");
           if (["crypto_released", "cancelled", "disputed"].includes(trade.status)) {
@@ -290,7 +233,9 @@ export function TradePage() {
             descripcion: `Trade ${trade.id} en disputa por ${user.displayName || user.uid}.`,
             tradeId:     trade.id,
             buyerId:     trade.buyerId,
+            buyerName:   trade.buyerName,
             sellerId:    trade.sellerId,
+            sellerName:  trade.sellerName,
             asset:       trade.asset,
             amount:      trade.amount,
             timestamp:   Date.now(),
@@ -300,16 +245,25 @@ export function TradePage() {
 
           await sendSystemMessage(
             trade.id,
-            `⚠️ DISPUTA: Trade en revisión por un moderador de CubaX. No realices más acciones hasta recibir instrucciones.`
+            `⚠️ DISPUTA: Trade en revisión por un moderador de CubaX. No realices más acciones.`
+          );
+
+          // ✅ Notificar a la contraparte
+          const counterpartyId = isBuyer ? trade.sellerId : trade.buyerId;
+          await notifyUser(
+            counterpartyId,
+            "⚠️ Disputa iniciada",
+            `${user.displayName} ha iniciado una disputa en el trade #${trade.id.slice(-6)}.`,
+            { tradeId: trade.id, type: "trade" }
           );
           break;
         }
 
-        // ✅ Cancelar
+        // ✅ CANCELAR — directo en Firestore
         case "cancel": {
           if (trade.status !== "awaiting_escrow") {
             throw new Error(
-              "Solo se puede cancelar antes de fondear el escrow. Si ya pagaste, abre una disputa."
+              "Solo se puede cancelar antes de fondear el escrow."
             );
           }
 
@@ -514,7 +468,10 @@ export function TradePage() {
         {/* Contraparte */}
         <Card padding="sm">
           <div className="flex items-center gap-3">
-            <Avatar name={isBuyer ? trade.sellerName : trade.buyerName} size="sm" />
+            <Avatar
+              name={isBuyer ? trade.sellerName : trade.buyerName}
+              size="sm"
+            />
             <div className="flex-1">
               <p className="font-bold text-sm text-gray-900 dark:text-white">
                 {isBuyer ? trade.sellerName : trade.buyerName}
@@ -541,7 +498,7 @@ export function TradePage() {
             </Button>
           )}
 
-          {/* Comprador espera que el vendedor fondee */}
+          {/* Comprador espera escrow */}
           {trade.status === "awaiting_escrow" && isBuyer && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
               <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 text-center">
@@ -551,7 +508,7 @@ export function TradePage() {
             </div>
           )}
 
-          {/* ✅ Comprador marca el pago como enviado — BOTÓN QUE FALTABA */}
+          {/* Comprador marca pago */}
           {trade.status === "escrow_funded" && isBuyer && (
             <div className="space-y-2">
               <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
@@ -577,7 +534,7 @@ export function TradePage() {
             </div>
           )}
 
-          {/* Vendedor espera confirmación del escrow */}
+          {/* Vendedor espera pago */}
           {trade.status === "escrow_funded" && isSeller && (
             <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
               <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
@@ -710,4 +667,5 @@ export function TradePage() {
       </div>
     </div>
   );
-}
+          }
+  
