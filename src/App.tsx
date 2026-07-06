@@ -1,9 +1,9 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 
-// ... (Todos tus imports de páginas igual que antes)
+// ─── Páginas públicas y principales ───────────────────────
 import { LandingPage } from "@/pages/LandingPage";
 import { AuthPage }    from "@/pages/AuthPage";
 import { DashboardPage }     from "@/pages/DashboardPage";
@@ -18,6 +18,8 @@ import { WalletPage }        from "@/pages/WalletPage";
 import { SettingsPage }      from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { MembershipPage }    from "@/pages/MembershipPage";
+
+// ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
 import { SecurityPage }             from "@/pages/SecurityPage";
 import { HelpPage }                 from "@/pages/HelpPage";
@@ -26,70 +28,171 @@ import { LanguagePage }             from "@/pages/LanguagePage";
 import { NotificationSettingsPage } from "@/pages/NotificationSettingsPage";
 import { TradeHistoryPage }         from "@/pages/TradeHistoryPage";
 import { MyOrdersPage }             from "@/pages/MyOrdersPage";
+
+// ─── Admin ────────────────────────────────────────────────
 import { AdminKYCPage }       from "@/pages/AdminKYCPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
+// ─── Firebase y Utils ─────────────────────────────────────
+import { auth, db } from "@/lib/firebase/config";
+import { onAuthStateChanged } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
 import type { User as AppUser } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com";
+
+const VIEW_TITLES: Record<string, string> = {
+  dashboard:               "",
+  p2p:                     "",
+  marketplace:             "",
+  "create-order":          "Nueva oferta P2P",
+  trade:                   "Trade en curso",
+  kyc:                     "Verificación KYC",
+  "product-detail":        "Detalle del producto",
+  "create-product":        "Publicar producto",
+  wallet:                  "Mi Wallet",
+  settings:                "Ajustes",
+  notifications:           "Notificaciones",
+  "admin-kyc":             "Panel KYC Admin",
+  "admin-disputes":        "Panel Disputas Admin",
+  profile:                 "Mi Perfil",
+  security:                "Seguridad",
+  help:                    "Centro de ayuda",
+  terms:                   "Términos y Privacidad",
+  language:                "Idioma",
+  "notification-settings": "Notificaciones",
+  "trade-history":         "Historial de Trades",
+  "my-orders":             "Mis Anuncios P2P",
+  membership:              "Membresía CubaX",
+};
+
+const SHOW_BACK_VIEWS = [
+  "create-order", "trade", "kyc", "product-detail", "create-product", "notifications",
+  "admin-kyc", "admin-disputes", "profile", "security", "help", "terms", "language",
+  "notification-settings", "trade-history", "my-orders", "membership",
+];
+
+const AUTHENTICATED_VIEWS = [
+  "dashboard", "p2p", "marketplace", "create-order", "trade", "kyc", "product-detail",
+  "create-product", "wallet", "settings", "notifications", "admin-kyc", "admin-disputes",
+  "profile", "security", "help", "terms", "language", "notification-settings",
+  "trade-history", "my-orders", "membership",
+];
 
 function AppContent() {
   const { currentView, user, navigate, modalOpen, setWalletData, theme } = useAppStore();
 
-  // ─── 1. GESTIÓN DEL MODO OSCURO (GLOBAL) ────────────────
+  // ─── Sincronización del Modo Oscuro ─────────────────────
   useEffect(() => {
-    const root = window.document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // ─── 2. SINCRONIZACIÓN FIREBASE ─────────────────────────
+  // ─── Sincronización en tiempo real (Balances y Usuario) ───
   useEffect(() => {
     if (!user?.uid) return;
+
     const userDocRef = doc(db, "users", user.uid);
     const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
       if (docSnap.exists()) {
         const fullUserData = docSnap.data() as AppUser;
+        
         useAppStore.setState({ user: fullUserData });
+
         const balances = (fullUserData as any).balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
         const depositAddresses = (fullUserData as any).depositAddresses || {};
+        
         setWalletData(balances, depositAddresses);
       }
     });
+
     return () => unsubscribe();
   }, [user?.uid, setWalletData]);
 
-  // ... (Resto de tu lógica: useEffect seguridad, AUTHENTICATED_VIEWS, etc.)
-  
-  // ─── SEGURIDAD ───────────────────────────────────────────
+  // ─── Seguridad: solo admin ────────────────────────────────
   useEffect(() => {
     if ((currentView === "admin-kyc" || currentView === "admin-disputes") && user?.role !== "admin") {
       navigate("dashboard");
     }
   }, [currentView, user, navigate]);
 
+  if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
+    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+  }
+
   const isAdminView = currentView.startsWith("admin-");
-  const showBottomNav = currentView !== "landing" && currentView !== "login" && currentView !== "register" && !isAdminView;
+  const showBottomNav = AUTHENTICATED_VIEWS.includes(currentView) && !isAdminView;
 
   if (currentView === "landing") return <LandingPage />;
   if (currentView === "login" || currentView === "register") return <AuthPage />;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950 transition-colors duration-300">
-      <Header /> 
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950">
+      <Header title={VIEW_TITLES[currentView] || ""} showBack={SHOW_BACK_VIEWS.includes(currentView)} />
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
-        {/* ... (Tus renderizados de páginas: <DashboardPage />, etc.) */}
-        {currentView === "dashboard" && <DashboardPage />}
-        {/* ... resto de vistas ... */}
+        {currentView === "dashboard"      && <DashboardPage />}
+        {currentView === "p2p"            && <P2PPage />}
+        {currentView === "create-order"   && <CreateOrderPage />}
+        {currentView === "trade"          && <TradePage />}
+        {currentView === "kyc"            && <KYCPage />}
+        {currentView === "marketplace"    && <MarketplacePage />}
+        {currentView === "product-detail" && <ProductDetailPage />}
+        {currentView === "create-product" && <CreateProductPage />}
+        {currentView === "wallet"         && <WalletPage />}
+        {currentView === "settings"       && <SettingsPage />}
+        {currentView === "notifications"  && <NotificationsPage />}
+        {currentView === "membership"     && <MembershipPage />}
+        {currentView === "profile"        && <ProfilePage />}
+        {currentView === "security"       && <SecurityPage />}
+        {currentView === "help"           && <HelpPage />}
+        {currentView === "terms"          && <TermsPage />}
+        {currentView === "language"       && <LanguagePage />}
+        {currentView === "notification-settings" && <NotificationSettingsPage />}
+        {currentView === "trade-history"  && <TradeHistoryPage />}
+        {currentView === "my-orders"      && <MyOrdersPage />}
+        {currentView === "admin-kyc"      && user?.role === "admin" && <AdminKYCPage />}
+        {currentView === "admin-disputes" && user?.role === "admin" && <AdminDisputesPage />}
       </main>
+
       {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
 }
 
 export default function App() {
-  return <AppContent />;
+  const [isInitializing, setIsInitializing] = useState(true);
+  const { setUser, navigate } = useAppStore();
+
+  useEffect(() => {
+    const unsubscribe = onAuthStateChanged(auth, async (firebaseUser) => {
+      if (firebaseUser) {
+        setUser({
+          uid: firebaseUser.uid,
+          email: firebaseUser.email || "",
+          displayName: firebaseUser.displayName || "Usuario",
+        } as any);
+
+        const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
+        
+        // Evitamos mandar al usuario a la vista de login/landing si ya está autenticado
+        if (lastView === "landing" || lastView === "login" || lastView === "register") {
+          navigate("dashboard");
+        } else {
+          navigate(lastView as any);
         }
+      } else {
+        localStorage.removeItem("cubax_last_view");
+        navigate("landing");
+      }
+      setIsInitializing(false);
+    });
+
+    return () => unsubscribe();
+  }, [setUser, navigate]);
+
+  if (isInitializing) {
+    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-navy-950 dark:text-white">Cargando CubaX...</div>;
+  }
+
+  return <AppContent />;
+  }
+          
