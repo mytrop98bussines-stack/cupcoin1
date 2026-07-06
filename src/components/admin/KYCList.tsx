@@ -1,103 +1,219 @@
 import { useState } from "react";
 import { db } from "@/lib/firebase/config";
-import { doc, updateDoc, addDoc, collection, serverTimestamp } from "firebase/firestore";
-import { Card } from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import {
+  doc, updateDoc, addDoc,
+  collection, serverTimestamp,
+} from "firebase/firestore";
+import { Card }  from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
-import { CheckCircle2, X, ExternalLink, ShieldAlert } from "lucide-react";
+import { Button } from "@/components/ui/Button";
+import { CheckCircle2, X, ShieldAlert, Eye } from "lucide-react";
 
-export function KYCList({ users }: { users: any[] }) {
-  const [loading, setLoading] = useState<string | null>(null);
+interface Props {
+  users: any[];
+}
 
-  const handleKYCAction = async (user: any, status: "verified" | "rejected") => {
+export function KYCList({ users }: Props) {
+  const [loading, setLoading]           = useState<string | null>(null);
+  const [rejectReason, setRejectReason] = useState<Record<string, string>>({});
+  const [showReject, setShowReject]     = useState<string | null>(null);
+
+  const pendingKYCs = users.filter(
+    (u) => u.kycStatus === "pending_verification"
+  );
+
+  const handleKYCAction = async (
+    user:   any,
+    status: "verified" | "rejected"
+  ) => {
+    if (status === "rejected" && !rejectReason[user.id]?.trim()) {
+      alert("Escribe el motivo del rechazo.");
+      return;
+    }
+
     setLoading(user.id);
     try {
-      // 1. Actualizar estado del usuario en Firestore
+      // ✅ Actualizar estado KYC
       await updateDoc(doc(db, "users", user.id), {
-        kycStatus: status,
-        reviewedAt: serverTimestamp()
+        kycStatus:       status,
+        kycReviewedAt:   serverTimestamp(),
+        ...(status === "rejected" && {
+          kycRejectReason: rejectReason[user.id],
+        }),
       });
 
-      // 2. Notificar al usuario automáticamente
+      // ✅ Notificar al usuario
       await addDoc(collection(db, "notifications"), {
-        userId: user.id,
-        title: status === "verified" ? "✅ Identidad Verificada" : "❌ Verificación Rechazada",
-        body: status === "verified" 
+        userId:    user.id,
+        title:     status === "verified"
+          ? "✅ Identidad Verificada"
+          : "❌ Verificación Rechazada",
+        body: status === "verified"
           ? "Tu identidad ha sido aprobada. Ya puedes operar sin límites en CubaX."
-          : "Tu solicitud de KYC fue rechazada. Por favor, revisa tus documentos e intenta de nuevo.",
-        type: "kyc",
-        createdAt: serverTimestamp()
+          : `Tu solicitud KYC fue rechazada. Motivo: ${rejectReason[user.id]}. Puedes volver a intentarlo.`,
+        type:      "kyc",
+        read:      false,
+        createdAt: Date.now(),
       });
-    } catch (e) {
+
+      setShowReject(null);
+    } catch (e: any) {
       console.error("Error al procesar KYC:", e);
-      alert("Hubo un error al procesar la acción.");
+      alert("Hubo un error: " + e.message);
     } finally {
       setLoading(null);
     }
   };
 
-  const pendingKYCs = users.filter(u => u.kycStatus === "pending_verification");
-
   if (pendingKYCs.length === 0) {
     return (
-      <div className="text-center py-10 text-gray-400">
-        <ShieldAlert className="mx-auto h-12 w-12 opacity-20 mb-2" />
-        <p>No hay solicitudes KYC pendientes.</p>
+      <div className="text-center py-16 text-gray-400">
+        <ShieldAlert className="mx-auto h-12 w-12 opacity-20 mb-3" />
+        <p className="font-semibold">No hay solicitudes KYC pendientes.</p>
+        <p className="text-xs mt-1">¡Todo está al día!</p>
       </div>
     );
   }
 
   return (
-    <div className="space-y-6">
-      <h2 className="text-xl font-bold">Solicitudes Pendientes ({pendingKYCs.length})</h2>
-      
+    <div className="space-y-5">
+      <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+        Solicitudes pendientes ({pendingKYCs.length})
+      </h2>
+
       {pendingKYCs.map((user) => (
-        <Card key={user.id} className="p-5 space-y-4 border-l-4 border-l-blue-500">
+        <Card
+          key={user.id}
+          padding="md"
+          className="border-l-4 border-l-blue-500 space-y-4"
+        >
+          {/* Header */}
           <div className="flex justify-between items-start">
             <div>
-              <p className="font-bold text-lg">{user.kycData?.fullName || "Usuario sin nombre"}</p>
-              <p className="text-sm text-gray-500">CI: {user.kycData?.idNumber}</p>
+              <p className="font-bold text-gray-900 dark:text-white">
+                {user.kycData?.fullName || "Sin nombre"}
+              </p>
+              <p className="text-xs text-gray-500">
+                CI: {user.kycData?.idNumber || "—"}
+              </p>
+              <p className="text-xs text-gray-500">
+                {user.kycData?.address || "—"}
+              </p>
             </div>
-            <Badge variant="warning">Pendiente</Badge>
+            <Badge variant="warning" size="sm">Pendiente</Badge>
           </div>
 
-          <p className="text-sm text-gray-600">Dirección: {user.kycData?.address}</p>
+          {/* UID */}
+          <p className="text-[10px] font-mono text-gray-400 bg-gray-50 dark:bg-white/5 px-2 py-1 rounded">
+            UID: {user.id}
+          </p>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-gray-400">Documento (CI)</p>
-              <a href={user.kycDocuments?.idFront} target="_blank" rel="noreferrer">
-                <img src={user.kycDocuments?.idFront} className="w-full h-32 object-cover rounded-lg border hover:opacity-80 transition-opacity" />
-              </a>
-            </div>
-            <div className="space-y-1">
-              <p className="text-xs font-bold text-gray-400">Selfie</p>
-              <a href={user.kycDocuments?.selfie} target="_blank" rel="noreferrer">
-                <img src={user.kycDocuments?.selfie} className="w-full h-32 object-cover rounded-lg border hover:opacity-80 transition-opacity" />
-              </a>
-            </div>
+          {/* Documentos */}
+          <div className="grid grid-cols-2 gap-3">
+            {[
+              { label: "Documento (CI)", url: user.kycDocuments?.idFront },
+              { label: "Selfie con CI",  url: user.kycDocuments?.selfie  },
+            ].map((doc) => (
+              <div key={doc.label} className="space-y-1">
+                <p className="text-[10px] font-bold text-gray-400 uppercase">
+                  {doc.label}
+                </p>
+                {doc.url ? (
+                  <a
+                    href={doc.url}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="block relative group"
+                  >
+                    <img
+                      src={doc.url}
+                      alt={doc.label}
+                      className="w-full h-32 object-cover rounded-xl border border-gray-200 dark:border-white/10 group-hover:opacity-80 transition-opacity"
+                    />
+                    <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-xl">
+                      <Eye className="h-5 w-5 text-white" />
+                    </div>
+                  </a>
+                ) : (
+                  <div className="w-full h-32 rounded-xl bg-gray-100 dark:bg-white/5 flex items-center justify-center">
+                    <p className="text-xs text-gray-400">Sin imagen</p>
+                  </div>
+                )}
+              </div>
+            ))}
           </div>
 
-          <div className="flex gap-3 pt-2">
-            <Button 
-              className="flex-1 bg-emerald-600" 
-              loading={loading === user.id} 
-              onClick={() => handleKYCAction(user, "verified")}
-            >
-              <CheckCircle2 className="mr-2 h-4 w-4" /> Aprobar
-            </Button>
-            <Button 
-              variant="destructive" 
-              className="flex-1" 
-              loading={loading === user.id} 
-              onClick={() => handleKYCAction(user, "rejected")}
-            >
-              <X className="mr-2 h-4 w-4" /> Rechazar
-            </Button>
+          {/* Formulario de rechazo */}
+          {showReject === user.id && (
+            <div className="space-y-2">
+              <label className="text-xs font-bold text-gray-500 uppercase tracking-wider">
+                Motivo del rechazo
+              </label>
+              <textarea
+                value={rejectReason[user.id] || ""}
+                onChange={(e) =>
+                  setRejectReason((prev) => ({
+                    ...prev,
+                    [user.id]: e.target.value,
+                  }))
+                }
+                placeholder="Ej: Documento no legible, foto borrosa..."
+                rows={3}
+                className="w-full text-sm bg-gray-50 dark:bg-white/5 border border-red-300 dark:border-red-500/30 rounded-xl px-3 py-2 text-gray-900 dark:text-white placeholder:text-gray-400 focus:outline-none resize-none"
+              />
+            </div>
+          )}
+
+          {/* Botones */}
+          <div className="flex gap-2">
+            {showReject === user.id ? (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1"
+                  onClick={() => setShowReject(null)}
+                  disabled={loading === user.id}
+                >
+                  Cancelar
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-red-500 hover:bg-red-600 text-white"
+                  loading={loading === user.id}
+                  onClick={() => handleKYCAction(user, "rejected")}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Confirmar rechazo
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  className="flex-1 border-red-200 text-red-500 hover:bg-red-50"
+                  onClick={() => setShowReject(user.id)}
+                  disabled={loading === user.id}
+                >
+                  <X className="h-4 w-4 mr-1" />
+                  Rechazar
+                </Button>
+                <Button
+                  size="sm"
+                  className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+                  loading={loading === user.id}
+                  onClick={() => handleKYCAction(user, "verified")}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-1" />
+                  Aprobar
+                </Button>
+              </>
+            )}
           </div>
         </Card>
       ))}
     </div>
   );
-      }
+          }
     
