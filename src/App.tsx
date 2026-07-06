@@ -37,8 +37,6 @@ import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 import { auth, db } from "@/lib/firebase/config";
 import { signInWithCustomToken } from "firebase/auth";
 import { doc, onSnapshot } from "firebase/firestore";
-import { requestNotificationPermission, onForegroundMessage } from "@/lib/firebase/messaging";
-import { MOCK_USER } from "@/data/mock";
 import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
@@ -58,7 +56,7 @@ const VIEW_TITLES: Record<string, string> = {
   "admin-kyc":             "Panel KYC Admin",
   "admin-disputes":        "Panel Disputas Admin",
   profile:                 "Mi Perfil",
-  security:                 "Seguridad",
+  security:                "Seguridad",
   help:                    "Centro de ayuda",
   terms:                   "Términos y Privacidad",
   language:                "Idioma",
@@ -81,24 +79,33 @@ const AUTHENTICATED_VIEWS = [
   "trade-history", "my-orders", "membership",
 ];
 
-async function authenticateFirebaseSDK(uid: string): Promise<void> {
-  try {
-    const ctRes = await fetch(`${BACKEND_URL}/api/auth/custom-token`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ uid }),
-    });
-    const ctData = await ctRes.json();
-    if (ctData.success && ctData.customToken) {
-      await signInWithCustomToken(auth, ctData.customToken);
-    }
-  } catch (err) { console.warn("Auth SDK no crítico:", err); }
-}
-
 function AppContent() {
-  const { currentView, user, navigate, modalOpen } = useAppStore();
+  const { currentView, user, navigate, modalOpen, setWalletData } = useAppStore();
 
-  // Seguridad: solo admin
+  // ─── Sincronización en tiempo real (Balances y Usuario) ───
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const userDocRef = doc(db, "users", user.uid);
+    const unsubscribe = onSnapshot(userDocRef, (docSnap) => {
+      if (docSnap.exists()) {
+        const fullUserData = docSnap.data() as AppUser;
+        
+        // Actualizar usuario en el store
+        useAppStore.setState({ user: fullUserData });
+
+        // Actualizar saldos y direcciones
+        const balances = (fullUserData as any).balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
+        const depositAddresses = (fullUserData as any).depositAddresses || {};
+        
+        setWalletData(balances, depositAddresses);
+      }
+    });
+
+    return () => unsubscribe();
+  }, [user?.uid, setWalletData]);
+
+  // ─── Seguridad: solo admin ────────────────────────────────
   useEffect(() => {
     if ((currentView === "admin-kyc" || currentView === "admin-disputes") && user?.role !== "admin") {
       navigate("dashboard");
@@ -149,6 +156,5 @@ function AppContent() {
 }
 
 export default function App() {
-  /* ... (Resto de tu lógica de App raíz se mantiene igual) ... */
   return <AppContent />;
 }
