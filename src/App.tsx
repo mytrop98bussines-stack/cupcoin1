@@ -31,7 +31,7 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 
 // ─── Admin ────────────────────────────────────────────────
 import { AdminKYCPage }       from "@/pages/AdminKYCPage";
-import { AdminDisputesPage }  from "@/pages/admin/AdminDisputesPage";
+import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
 // ─── Firebase y Utils ─────────────────────────────────────
 import { auth, db } from "@/lib/firebase/config";
