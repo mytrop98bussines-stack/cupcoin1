@@ -1,15 +1,15 @@
-// public/firebase-messaging-sw.js
+// src/firebase-messaging-sw.js
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// 💡 Tus credenciales reales inyectadas directamente
+// 💡 Ahora lee dinámicamente las variables globales inyectadas por Vite en el 'build'
 firebase.initializeApp({
-  apiKey: "AIzaSyAxUOLLm72in2-OM30Ywrxq9-QBuYdH334",
-  authDomain: "cupcoin-b2b4f.firebaseapp.com",
-  projectId: "cupcoin-b2b4f",
-  storageBucket: "cupcoin-b2b4f.firebasestorage.app",
-  messagingSenderId: "502564207166",
-  appId: "1:502564207166:web:ef81ebbebf6e390142ef6f"
+  apiKey: self.VITE_FIREBASE_API_KEY,
+  authDomain: self.VITE_FIREBASE_AUTH_DOMAIN,
+  projectId: self.VITE_FIREBASE_PROJECT_ID,
+  storageBucket: self.VITE_FIREBASE_STORAGE_BUCKET,
+  messagingSenderId: self.VITE_FIREBASE_MESSAGING_SENDER_ID,
+  appId: self.VITE_FIREBASE_APP_ID
 });
 
 const messaging = firebase.messaging();
@@ -21,7 +21,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || "CupCoin Alerta";
   const notificationOptions = {
     body: payload.notification?.body || "Tienes una nueva actualización.",
-    icon: '/logo.png', // Asegúrate de tener un icono en tu carpeta public o cámbialo
+    icon: '/logo.png', 
     badge: '/logo.png'
   };
 
