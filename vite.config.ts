@@ -1,5 +1,6 @@
 import path from "path";
 import { fileURLToPath } from "url";
+import fs from "fs"; // 💡 Importación limpia y nativa de Node
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, loadEnv } from "vite";
@@ -15,12 +16,10 @@ export default defineConfig(({ mode }) => {
     plugins: [
       react(), 
       tailwindcss(),
-      // 💡 Este mini-plugin inyecta los secretos de GitHub en el Service Worker solo al compilar (build)
+      // ⚡ Plugin limpio sin 'require' para no romper la pantalla en local
       {
         name: "transform-service-worker",
-        transformIndexHtml(html) { return html; }, // No hace nada en el HTML
         closeBundle() {
-          const fs = require("fs");
           const swPath = path.resolve(__dirname, "dist/firebase-messaging-sw.js");
           if (fs.existsSync(swPath)) {
             let swContent = fs.readFileSync(swPath, "utf8");
