@@ -173,7 +173,6 @@ export default function App() {
 
         const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
         
-        // Evitamos mandar al usuario a la vista de login/landing si ya está autenticado
         if (lastView === "landing" || lastView === "login" || lastView === "register") {
           navigate("dashboard");
         } else {
@@ -194,5 +193,4 @@ export default function App() {
   }
 
   return <AppContent />;
-  }
-          
+}
