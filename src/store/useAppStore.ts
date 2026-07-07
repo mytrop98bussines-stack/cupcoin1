@@ -118,7 +118,21 @@ const getInitialTheme = (): ThemeMode => {
 
 const getInitialView = (): AppView => {
   if (typeof window !== "undefined") {
-    return (localStorage.getItem("cubax_last_view") as AppView) || "landing";
+    const stored = localStorage.getItem("cubax_last_view") as AppView | null;
+    
+    // 🛡️ Filtro de seguridad: Vistas reales definidas en tu App.tsx
+    const validViews = [
+      "landing", "login", "register", "dashboard", "p2p", "create-order", 
+      "trade", "kyc", "marketplace", "product-detail", "create-product", 
+      "wallet", "settings", "notifications", "membership", "profile", 
+      "security", "help", "terms", "language", "notification-settings", 
+      "trade-history", "my-orders", "admin-kyc", "admin-disputes"
+    ];
+
+    // Si la vista en memoria existe y es válida, la usamos; si es basura, va a landing
+    if (stored && validViews.includes(stored)) {
+      return stored;
+    }
   }
   return "landing";
 };
@@ -461,4 +475,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMobileMenuOpen:    (open)    => set({ mobileMenuOpen:    open }),
   setModalOpen:         (open)    => set({ modalOpen:         open }),
 }));
-    
+  
