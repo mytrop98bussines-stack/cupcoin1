@@ -2,48 +2,47 @@ import path from "path";
 import { fileURLToPath } from "url";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
-import { defineConfig, loadEnv } from "vite"; // 👈 Añade loadEnv aquí
+import { defineConfig, loadEnv } from "vite";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig(({ mode }) => {
-  // 💡 Esto carga el archivo .env local en desarrollo y los secretos en producción
   const env = loadEnv(mode, process.cwd(), "");
 
   return {
     base: "./", 
-    plugins: [react(), tailwindcss()],
+    plugins: [
+      react(), 
+      tailwindcss(),
+      // 💡 Este mini-plugin inyecta los secretos de GitHub en el Service Worker solo al compilar (build)
+      {
+        name: "transform-service-worker",
+        transformIndexHtml(html) { return html; }, // No hace nada en el HTML
+        closeBundle() {
+          const fs = require("fs");
+          const swPath = path.resolve(__dirname, "dist/firebase-messaging-sw.js");
+          if (fs.existsSync(swPath)) {
+            let swContent = fs.readFileSync(swPath, "utf8");
+            swContent = swContent.replace("VITE_FIREBASE_API_KEY_PLACEHOLDER", env.VITE_FIREBASE_API_KEY || "");
+            swContent = swContent.replace("VITE_FIREBASE_AUTH_DOMAIN_PLACEHOLDER", env.VITE_FIREBASE_AUTH_DOMAIN || "");
+            swContent = swContent.replace("VITE_FIREBASE_PROJECT_ID_PLACEHOLDER", env.VITE_FIREBASE_PROJECT_ID || "");
+            swContent = swContent.replace("VITE_FIREBASE_STORAGE_BUCKET_PLACEHOLDER", env.VITE_FIREBASE_STORAGE_BUCKET || "");
+            swContent = swContent.replace("VITE_FIREBASE_MESSAGING_SENDER_ID_PLACEHOLDER", env.VITE_FIREBASE_MESSAGING_SENDER_ID || "");
+            swContent = swContent.replace("VITE_FIREBASE_APP_ID_PLACEHOLDER", env.VITE_FIREBASE_APP_ID || "");
+            fs.writeFileSync(swPath, swContent, "utf8");
+          }
+        }
+      }
+    ],
     resolve: {
       alias: {
         "@": path.resolve(__dirname, "src"),
       },
     },
-    // 💡 Cambiamos process.env por env
-    define: {
-      "self.VITE_FIREBASE_API_KEY": JSON.stringify(env.VITE_FIREBASE_API_KEY),
-      "self.VITE_FIREBASE_AUTH_DOMAIN": JSON.stringify(env.VITE_FIREBASE_AUTH_DOMAIN),
-      "self.VITE_FIREBASE_PROJECT_ID": JSON.stringify(env.VITE_FIREBASE_PROJECT_ID),
-      "self.VITE_FIREBASE_STORAGE_BUCKET": JSON.stringify(env.VITE_FIREBASE_STORAGE_BUCKET),
-      "self.VITE_FIREBASE_MESSAGING_SENDER_ID": JSON.stringify(env.VITE_FIREBASE_MESSAGING_SENDER_ID),
-      "self.VITE_FIREBASE_APP_ID": JSON.stringify(env.VITE_FIREBASE_APP_ID),
-    },
     build: {
       chunkSizeWarningLimit: 1000,
       assetsDir: "assets",
-      rollupOptions: {
-        input: {
-          main: path.resolve(__dirname, "index.html"),
-          "firebase-messaging-sw": path.resolve(__dirname, "src/firebase-messaging-sw.js"),
-        },
-        output: {
-          entryFileNames: (chunkInfo) => {
-            return chunkInfo.name === "firebase-messaging-sw" 
-              ? "[name].js" 
-              : "assets/[name]-[hash].js";
-          },
-        },
-      },
     }
   };
 });

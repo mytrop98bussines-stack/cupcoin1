@@ -1,15 +1,15 @@
-// src/firebase-messaging-sw.js
+// public/firebase-messaging-sw.js
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// 💡 Ahora lee dinámicamente las variables globales inyectadas por Vite en el 'build'
+// 💡 Dejamos los placeholders. El plugin de Vite los cambiará por tus secretos reales al compilar.
 firebase.initializeApp({
-  apiKey: self.VITE_FIREBASE_API_KEY,
-  authDomain: self.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: self.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: self.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: self.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: self.VITE_FIREBASE_APP_ID
+  apiKey: "VITE_FIREBASE_API_KEY_PLACEHOLDER",
+  authDomain: "VITE_FIREBASE_AUTH_DOMAIN_PLACEHOLDER",
+  projectId: "VITE_FIREBASE_PROJECT_ID_PLACEHOLDER",
+  storageBucket: "VITE_FIREBASE_STORAGE_BUCKET_PLACEHOLDER",
+  messagingSenderId: "VITE_FIREBASE_MESSAGING_SENDER_ID_PLACEHOLDER",
+  appId: "VITE_FIREBASE_APP_ID_PLACEHOLDER"
 });
 
 const messaging = firebase.messaging();
@@ -21,7 +21,7 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || "CupCoin Alerta";
   const notificationOptions = {
     body: payload.notification?.body || "Tienes una nueva actualización.",
-    icon: '/logo.png', 
+    icon: '/logo.png', // Icono público de tu app
     badge: '/logo.png'
   };
 
