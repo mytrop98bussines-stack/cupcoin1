@@ -21,8 +21,8 @@ messaging.onBackgroundMessage((payload) => {
   const notificationTitle = payload.notification?.title || "CupCoin Alerta";
   const notificationOptions = {
     body: payload.notification?.body || "Tienes una nueva actualización.",
-    icon: '/logo.png',
-    badge: '/logo.png'
+    icon: '/favicon.svg',
+    badge: '/favicon.svg'
   };
 
   self.registration.showNotification(notificationTitle, notificationOptions);
