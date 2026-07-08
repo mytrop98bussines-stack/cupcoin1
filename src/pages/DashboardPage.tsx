@@ -3,7 +3,7 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
-import { CRYPTO_ICONS } from "@/data/mock";
+import { CryptoIcon } from "@/components/ui/CryptoIcon"; // Integrado componente unificado
 import {
   TrendingUp,
   TrendingDown,
@@ -349,9 +349,8 @@ export function DashboardPage() {
                     className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-gray-200 dark:hover:border-white/10 transition-all text-left active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      <div className="h-10 w-10 rounded-full bg-brand-500/10 flex items-center justify-center text-xl">
-                        {CRYPTO_ICONS[balance.asset] || "🪙"}
-                      </div>
+                      {/* OPTIMIZADO: Ahora usa tu componente CryptoIcon global con el asset dinámico */}
+                      <CryptoIcon symbol={balance.asset} size={40} />
                       <div>
                         <p className="font-bold text-sm text-gray-900 dark:text-white">
                           {balance.asset}
@@ -466,9 +465,8 @@ export function DashboardPage() {
                   className="flex flex-col p-3.5 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <div className="h-7 w-7 rounded-full bg-brand-500/10 flex items-center justify-center text-base">
-                      {CRYPTO_ICONS[symbolUpper] || symbolUpper.charAt(0)}
-                    </div>
+                    {/* OPTIMIZADO: Implementado CryptoIcon global para los logos en la cuadrícula de mercado */}
+                    <CryptoIcon symbol={symbolUpper} size={28} />
                     <div>
                       <p className="text-xs font-bold text-gray-900 dark:text-white">
                         {symbolUpper}
@@ -624,4 +622,4 @@ export function DashboardPage() {
       </button>
     </div>
   );
-}
+      }
