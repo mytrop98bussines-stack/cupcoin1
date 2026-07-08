@@ -1,0 +1,18 @@
+{
+  "name": "CubaX — Plataforma P2P & Crypto",
+  "short_name": "CubaX",
+  "description": "Plataforma integral de finanzas, P2P y comercio cripto para el mercado cubano",
+  "icons": [
+    {
+      "src": "/favicon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#030712",
+  "theme_color": "#3b82f6",
+  "orientation": "portrait-primary"
+}
