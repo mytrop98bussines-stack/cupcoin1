@@ -32,12 +32,13 @@ function CubaXLogo({ size = 32 }: { size?: number }) {
   );
 }
 
-// ─── MAPEO DINÁMICO DE ICONOS CRYPTO (SVG LOCALES DESDE /public) ───
+// ─── MAPEO DINÁMICO DE ICONOS CRYPTO (LLAVES EN MAYÚSCULAS) ───
 const MAPEO_CRYPTO_SVG: Record<string, string> = {
   BTC: "/crypto/btc.svg",
   USDT: "/crypto/usdt.svg",
   ETH: "/crypto/eth.svg",
   USDC: "/crypto/usdc.svg",
+  TRX: "/crypto/trx.svg"
 };
 
 export function LandingPage() {
@@ -224,7 +225,9 @@ export function LandingPage() {
         ) : (
           <div className="space-y-2">
             {cryptoPrices?.slice(0, 4).map((coin) => {
+              // ─── NORMALIZACIÓN CORREGIDA ───────────────────────────
               const symbolUpper = coin.symbol.toUpperCase();
+              const symbolLower = coin.symbol.toLowerCase(); // Forzamos minúsculas para buscar tu archivo real
               const isUp        = coin.price_change_percentage_24h >= 0;
               const tieneIconoSvg = !!MAPEO_CRYPTO_SVG[symbolUpper];
 
@@ -234,11 +237,11 @@ export function LandingPage() {
                   className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-all hover:shadow-sm"
                 >
                   <div className="flex items-center gap-3">
-                    {/* SECCIÓN OPTIMIZADA: Renderiza tus SVGs locales de la carpeta public */}
                     <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center p-1.5 overflow-hidden">
                       {tieneIconoSvg ? (
                         <img 
-                          src={MAPEO_CRYPTO_SVG[symbolUpper]} 
+                          // Apunta dinámicamente a tu archivo local en minúscula (ej: /crypto/usdt.svg)
+                          src={`/crypto/${symbolLower}.svg`} 
                           alt={symbolUpper} 
                           className="h-full w-full object-contain"
                         />
@@ -345,7 +348,7 @@ export function LandingPage() {
               {trustBadges.map((badge) => (
                 <div
                   key={badge}
-                  className="flex items-center gap-1 text-[10px] font-white/70"
+                  className="flex items-center gap-1 text-[10px] font-semibold text-white/70"
                 >
                   <CheckCircle2 className="h-3 w-3 text-white/50" />
                   {badge}
@@ -391,5 +394,4 @@ export function LandingPage() {
       </footer>
     </div>
   );
-                    }
-      
+                          }
