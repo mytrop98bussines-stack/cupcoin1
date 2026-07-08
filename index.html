@@ -2,7 +2,6 @@
 <html lang="es">
   <head>
     <meta charset="UTF-8" />
-    <!-- CORREGIDO: Declaramos soporte para ambos modos para bloquear el auto-dark forzado de Android -->
     <meta name="color-scheme" content="light dark" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="CubaX — Plataforma integral de finanzas, P2P y comercio cripto para el mercado cubano" />
@@ -12,22 +11,17 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-    <!-- FAVICON: Referencia a favicon.svg en public -->
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-    <!-- PWA: Manifest para Progressive Web App -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- Apple Touch Icon -->
     <link rel="apple-touch-icon" href="/favicon.svg" />
 
-    <!-- Android & Branding -->
-    <meta name="theme-color" content="#3b82f6" />
+    <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
 
-    <!-- CORREGIDO: Alineado para navegadores Chromium móviles -->
     <meta name="supported-color-schemes" content="light dark" />
 
     <style>
@@ -36,9 +30,9 @@
         padding: 0;
         background-color: #f9fafb; /* Equivale a tu bg-gray-50 base */
       }
-      /* Si el usuario tenía guardado el tema oscuro, React inyectará 'dark' inmediatamente */
+      /* CORREGIDO: Sincronizado el fondo oscuro nativo con el fondo negro de la X monolítica */
       html.dark, html.dark body {
-        background-color: #030712 !important; /* Equivale a tu bg-navy-950 real de CubaX */
+        background-color: #000000 !important; 
       }
     </style>
   </head>
