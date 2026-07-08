@@ -490,55 +490,62 @@ export function WalletPage() {
       )}
 
       {/* ═══ LISTA DE ACTIVOS ════════════════════════════ */}
-      <div>
-        <div className="flex items-center justify-between mb-3">
-          <h2 className="text-sm font-bold text-gray-900 dark:text-white">Mis Activos</h2>
-          <span className="text-[10px] text-gray-400 font-medium">{balancesList.length} activos</span>
-        </div>
+<div>
+  <div className="flex items-center justify-between mb-3">
+    <h2 className="text-sm font-bold text-gray-900 dark:text-white">Mis Activos</h2>
+    <span className="text-[10px] text-gray-400 font-medium">{balancesList.length} activos</span>
+  </div>
 
-        <div className="space-y-2">
-          {balancesList.map((balance) => {
-            const colors     = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
-            const isUp       = balance.change24h >= 0;
-            const isExpanded = expandedAsset === balance.asset;
+  <div className="space-y-2">
+    {balancesList.map((balance) => {
+      const colors     = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
+      const isUp       = balance.change24h >= 0;
+      const isExpanded = expandedAsset === balance.asset;
 
-            return (
-              <div key={balance.asset} className={`rounded-2xl border transition-all ${isExpanded ? `${colors.border} bg-gradient-to-r ${colors.gradient}` : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"}`}>
-                <button onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)} className="w-full flex items-center justify-between p-4">
-                  <div className="flex items-center gap-3">
-                    <div className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center text-xl`}>{CRYPTO_ICONS[balance.asset] || "🪙"}</div>
-                    <div className="text-left">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
-                      <p className="text-[11px] text-gray-400">{hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 6 : balance.asset === "ETH" ? 4 : 2)} ${balance.asset}`}</p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}</p>
-                      <div className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                        {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-                        {Math.abs(balance.change24h).toFixed(2)}%
-                      </div>
-                    </div>
-                    {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-                  </div>
-                </button>
-
-                {isExpanded && (
-                  <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
-                    <button onClick={() => handleOpenDeposit(balance.asset)} className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-bold transition-all ${colors.bg} ${colors.text} hover:opacity-80`}>
-                      <ArrowDownLeft className="h-3.5 w-3.5" /> Depositar
-                    </button>
-                    <button onClick={() => handleOpenWithdraw(balance.asset)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
-                      <ArrowUpRight className="h-3.5 w-3.5" /> Retirar
-                    </button>
-                  </div>
-                )}
+      return (
+        <div key={balance.asset} className={`rounded-2xl border transition-all ${isExpanded ? `${colors.border} bg-gradient-to-r ${colors.gradient}` : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"}`}>
+          <button onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)} className="w-full flex items-center justify-between p-4">
+            <div className="flex items-center gap-3">
+              {/* Icono del Activo desde tus Mocks */}
+              <div className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center text-xl`}>
+                {CRYPTO_ICONS[balance.asset] || "🪙"}
               </div>
-            );
-          })}
+              <div className="text-left">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
+                <p className="text-[11px] text-gray-400">{hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 6 : balance.asset === "ETH" ? 4 : 2)} ${balance.asset}`}</p>
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <div className="text-right">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">{hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}</p>
+                <div className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                  {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                  {Math.abs(balance.change24h).toFixed(2)}%
+                </div>
+              </div>
+              {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+            </div>
+          </button>
+
+          {/* Botones de acción expandidos con sus iconos Lucide explícitos */}
+          {isExpanded && (
+            <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
+              <button onClick={() => handleOpenDeposit(balance.asset)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold transition-all ${colors.bg} ${colors.text} hover:opacity-80`}>
+                <ArrowDownLeft className="h-3.5 w-3.5 block" /> 
+                <span>Depositar</span>
+              </button>
+              <button onClick={() => handleOpenWithdraw(balance.asset)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
+                <ArrowUpRight className="h-3.5 w-3.5 block" /> 
+                <span>Retirar</span>
+              </button>
+            </div>
+          )}
         </div>
-      </div>
+      );
+    })}
+  </div>
+</div>
+
 
       {/* ═══ INFO BANNER ═════════════════════════════════ */}
       <div className="flex items-start gap-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] rounded-2xl p-4">
