@@ -189,7 +189,12 @@ export default function App() {
   }, [setUser, navigate]);
 
   if (isInitializing) {
-    return <div className="min-h-screen flex items-center justify-center bg-gray-50 dark:bg-navy-950 dark:text-white">Cargando CubaX...</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950 dark:text-white gap-4">
+        <img src="/favicon.svg" alt="CubaX" className="h-12 w-12 animate-pulse" />
+        <p className="text-sm font-medium">Cargando CubaX...</p>
+      </div>
+    );
   }
 
   return <AppContent />;
