@@ -79,9 +79,11 @@ export function LandingPage() {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-navy-950/80 backdrop-blur-md border-b border-gray-100 dark:border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-1.5">
-            <div className="h-8 w-8 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center shadow-lg shadow-brand-500/20">
-              <span className="text-white font-black text-sm">CX</span>
-            </div>
+            <img 
+              src="/favicon.svg" 
+              alt="CubaX Logo" 
+              className="h-8 w-8 rounded-lg shadow-lg shadow-brand-500/20"
+            />
             <span className="font-bold text-lg tracking-tight">
               Cuba<span className="text-brand-500">X</span>
             </span>
@@ -215,7 +217,7 @@ export function LandingPage() {
               return (
                 <div
                   key={coin.id}
-                  className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-all"
+                  className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-all hover:shadow-sm"
                 >
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-brand-500/10 flex items-center justify-center text-xl">
@@ -344,9 +346,11 @@ export function LandingPage() {
       <footer className="border-t border-gray-100 dark:border-white/[0.06] py-6">
         <div className="max-w-lg mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-1.5 mb-2">
-            <div className="h-6 w-6 rounded-md bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
-              <span className="text-white font-black text-[9px]">CX</span>
-            </div>
+            <img 
+              src="/favicon.svg" 
+              alt="CubaX Logo" 
+              className="h-6 w-6 rounded-md"
+            />
             <span className="font-bold text-sm">
               Cuba<span className="text-brand-500">X</span>
             </span>
