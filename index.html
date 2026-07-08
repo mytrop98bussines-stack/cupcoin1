@@ -11,11 +11,13 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <!-- CORREGIDO: Forzamos la destrucción de la caché usando ?v=1 -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1" />
 
     <link rel="manifest" href="/manifest.json" />
 
-    <link rel="apple-touch-icon" href="/favicon.svg" />
+    <!-- CORREGIDO: También forzamos la actualización en dispositivos iOS -->
+    <link rel="apple-touch-icon" href="/favicon.svg?v=1" />
 
     <meta name="theme-color" content="#000000" />
     <meta name="mobile-web-app-capable" content="yes" />
@@ -30,7 +32,7 @@
         padding: 0;
         background-color: #f9fafb; /* Equivale a tu bg-gray-50 base */
       }
-      /* CORREGIDO: Sincronizado el fondo oscuro nativo con el fondo negro de la X monolítica */
+      /* Sincronizado el fondo oscuro nativo con el fondo negro de la X monolítica */
       html.dark, html.dark body {
         background-color: #000000 !important; 
       }
