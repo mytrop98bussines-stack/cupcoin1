@@ -3,6 +3,23 @@ import { useAppStore } from "@/store/useAppStore";
 import { Header } from "@/components/layout/Header";
 import { BottomNav } from "@/components/layout/BottomNav";
 
+// ─── Componente Interno del Logo de CubaX ─────────────────
+function CubaXLogo({ size = 48 }: { size?: number }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 100 100" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M15 15H42L85 85H58L15 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
+      <path d="M85 15H58L45.5 35L57.5 45L85 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
+      <path d="M15 85H42L54.5 65L42.5 55L15 85Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
+    </svg>
+  );
+}
+
 // ─── Páginas públicas y principales ───────────────────────
 import { LandingPage } from "@/pages/LandingPage";
 import { AuthPage }    from "@/pages/AuthPage";
@@ -115,8 +132,14 @@ function AppContent() {
     }
   }, [currentView, user, navigate]);
 
+  // CORREGIDO: Pantalla de carga autenticando con el nuevo logo
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
-    return <div className="min-h-screen flex items-center justify-center">Cargando...</div>;
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black text-gray-900 dark:text-white gap-4">
+        <CubaXLogo size={48} />
+        <p className="text-sm font-semibold tracking-wide animate-pulse">Sincronizando cuenta...</p>
+      </div>
+    );
   }
 
   const isAdminView = currentView.startsWith("admin-");
@@ -126,7 +149,7 @@ function AppContent() {
   if (currentView === "login" || currentView === "register") return <AuthPage />;
 
   return (
-    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-navy-950">
+    <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-black">
       <Header title={VIEW_TITLES[currentView] || ""} showBack={SHOW_BACK_VIEWS.includes(currentView)} />
       <main className="flex-1 min-h-0 overflow-y-auto overscroll-contain pb-16">
         {currentView === "dashboard"      && <DashboardPage />}
@@ -188,14 +211,19 @@ export default function App() {
     return () => unsubscribe();
   }, [setUser, navigate]);
 
+  // CORREGIDO: Pantalla de inicialización de la App ("Cargando CubaX") optimizada con SVG y fondo oscuro puro
   if (isInitializing) {
     return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-navy-950 dark:text-white gap-4">
-        <img src="/favicon.svg" alt="CubaX" className="h-12 w-12 animate-pulse" />
-        <p className="text-sm font-medium">Cargando CubaX...</p>
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black text-gray-900 dark:text-white gap-4">
+        <div className="flex flex-col items-center gap-3 animate-pulse">
+          <CubaXLogo size={56} />
+          <h2 className="text-lg font-black tracking-tight mt-1">
+            Cargando <span className="text-brand-500">CubaX</span>
+          </h2>
+        </div>
       </div>
     );
   }
 
   return <AppContent />;
-}
+        }
