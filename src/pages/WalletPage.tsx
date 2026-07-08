@@ -19,13 +19,13 @@ interface BalanceItem {
   price:     number;
 }
 
-// ✅ Mapeo de tus nuevos iconos en la carpeta public (por si acaso el import no viene en mayúsculas)
+// ✅ Corregido: Nombres limpios de los archivos para construir la ruta dinámica
 const LOCAL_ICONS: Record<string, string> = {
-  USDT: "/usdt.svg",
-  USDC: "/usdc.svg",
-  BTC:  "/btc.svg",
-  ETH:  "/eth.svg",
-  USD:  "/usd.svg",
+  USDT: "usdt.svg",
+  USDC: "usdc.svg",
+  BTC:  "btc.svg",
+  ETH:  "eth.svg",
+  USD:  "usd.svg",
 };
 
 const CHAIN_OPTIONS: Record<
@@ -111,11 +111,16 @@ export function WalletPage() {
     setTimeout(() => setRefreshing(false), 1000);
   }, [fetchPrices]);
 
-  // Helper dinámico para resolver la ruta de la imagen pública
+  // ✅ Corregido: Helper dinámico con la ruta absoluta hacia /crypto/ y fallbacks controlados
   const getAssetIcon = (asset: string) => {
     const upper = asset.toUpperCase();
+    
+    if (LOCAL_ICONS[upper]) {
+      return `/crypto/${LOCAL_ICONS[upper]}`;
+    }
+    
     const lower = asset.toLowerCase();
-    return LOCAL_ICONS[upper] || CRYPTO_ICONS[upper] || CRYPTO_ICONS[lower] || "/usd.svg";
+    return CRYPTO_ICONS[upper] || CRYPTO_ICONS[lower] || "/crypto/usd.svg";
   };
 
   const handleOpenDeposit = async (asset: string) => {
@@ -285,8 +290,13 @@ export function WalletPage() {
           return (
             <div key={b.asset} className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`} onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}>
               <div className="flex items-center gap-2 mb-2">
-                {/* Cargando imágenes públicas */}
-                <img src={getAssetIcon(b.asset)} alt={b.asset} className="h-5 w-5 object-contain" />
+                {/* ✅ Corregido: Se añade onError para evitar la vista de imagen rota */}
+                <img 
+                  src={getAssetIcon(b.asset)} 
+                  alt={b.asset} 
+                  className="h-5 w-5 object-contain" 
+                  onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
+                />
                 <span className="text-xs font-bold text-gray-900 dark:text-white">{b.asset}</span>
               </div>
               <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
@@ -328,8 +338,13 @@ export function WalletPage() {
                   const selected = depositAsset === asset;
                   return (
                     <button key={asset} onClick={() => handleOpenDeposit(asset)} className={`flex flex-col items-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${selected ? `${colors.bg} ${colors.text} ring-2 ring-current` : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"}`}>
-                      {/* Cargando imágenes públicas */}
-                      <img src={getAssetIcon(asset)} alt={asset} className="h-6 w-6 object-contain" />
+                      {/* ✅ Corregido: Cargando con fallback controlado en modales */}
+                      <img 
+                        src={getAssetIcon(asset)} 
+                        alt={asset} 
+                        className="h-6 w-6 object-contain" 
+                        onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
+                      />
                       {asset}
                     </button>
                   );
@@ -523,9 +538,14 @@ export function WalletPage() {
               <div key={balance.asset} className={`rounded-2xl border transition-all ${isExpanded ? `${colors.border} bg-gradient-to-r ${colors.gradient}` : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"}`}>
                 <button onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)} className="w-full flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
-                    {/* Cargando imágenes públicas en el contenedor redondo */}
+                    {/* ✅ Corregido: Cargando imágenes con fallback controlado en la lista */}
                     <div className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center overflow-hidden`}>
-                      <img src={getAssetIcon(balance.asset)} alt={balance.asset} className="h-6 w-6 object-contain" />
+                      <img 
+                        src={getAssetIcon(balance.asset)} 
+                        alt={balance.asset} 
+                        className="h-6 w-6 object-contain" 
+                        onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
+                      />
                     </div>
                     <div className="text-left">
                       <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
@@ -572,4 +592,4 @@ export function WalletPage() {
       </div>
     </div>
   );
-}
+                        }
