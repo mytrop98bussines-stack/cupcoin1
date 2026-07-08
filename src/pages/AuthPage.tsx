@@ -12,6 +12,23 @@ import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
+// ─── COMPONENTE INTERNO DEL LOGO DE CUBAX ─────────────────
+function CubaXLogo({ size = 32 }: { size?: number }) {
+  return (
+    <svg 
+      width={size} 
+      height={size} 
+      viewBox="0 0 100 100" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      <path d="M15 15H42L85 85H58L15 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
+      <path d="M85 15H58L45.5 35L57.5 45L85 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
+      <path d="M15 85H42L54.5 65L42.5 55L15 85Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
+    </svg>
+  );
+}
+
 export function AuthPage() {
   const { currentView, navigate, login } = useAppStore();
   const isLogin = currentView === "login";
@@ -57,7 +74,6 @@ export function AuthPage() {
   }, [email, password, name, isLogin]);
 
   // ─── Autenticar SDK del cliente con custom token ──────────
-  // Esto permite que las reglas de Firestore funcionen
   const authenticateFirebaseSDK = async (uid: string) => {
     try {
       const ctRes  = await fetch(`${BACKEND_URL}/api/auth/custom-token`, {
@@ -72,8 +88,6 @@ export function AuthPage() {
         console.log("✅ SDK Firestore autenticado correctamente");
       }
     } catch (err) {
-      // No es crítico — la app funciona igual
-      // El backend usa Admin SDK que bypasea las reglas
       console.warn("⚠️ Auth SDK opcional falló:", err);
     }
   };
@@ -123,18 +137,14 @@ export function AuthPage() {
           return;
         }
 
-        // ✅ Guardar en localStorage
         localStorage.setItem("cubax_token",        data.token);
         localStorage.setItem("cubax_refresh_token", data.refreshToken);
         localStorage.setItem("cubax_uid",           data.uid);
         localStorage.setItem("cubax_email",         data.email);
         localStorage.setItem("cubax_name",          data.displayName);
 
-        // ✅ Autenticar SDK del cliente para que las reglas
-        // de Firestore funcionen correctamente
         await authenticateFirebaseSDK(data.uid);
 
-        // ✅ Construir objeto de usuario
         const userData = data.userData || {};
         const appUser: AppUser = {
           uid:           data.uid,
@@ -192,7 +202,6 @@ export function AuthPage() {
     }
   }, [resetEmail]);
 
-  // ─── Limpiar al cambiar de vista ──────────────────────────
   const handleSwitchView = () => {
     setErrors({});
     setGlobalError(null);
@@ -204,7 +213,7 @@ export function AuthPage() {
   // ─── PANTALLA DE RESET ────────────────────────────────────
   if (showReset) {
     return (
-      <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col">
+      <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
         <div className="px-4 pt-4">
           <button
             onClick={() => {
@@ -287,7 +296,7 @@ export function AuthPage() {
 
   // ─── RENDER PRINCIPAL ─────────────────────────────────────
   return (
-    <div className="min-h-screen bg-white dark:bg-navy-950 flex flex-col">
+    <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
 
       <div className="px-4 pt-4">
         <button
@@ -300,10 +309,10 @@ export function AuthPage() {
 
       <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
 
-        {/* Logo */}
+        {/* CORREGIDO: Logo oficial incrustado directamente en vez del div de texto CX */}
         <div className="text-center mb-8">
-          <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center mx-auto mb-4 shadow-lg shadow-brand-500/20">
-            <span className="text-white font-black text-xl">CX</span>
+          <div className="inline-flex p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
+            <CubaXLogo size={36} />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isLogin ? "Bienvenido de vuelta" : "Crear cuenta"}
@@ -486,4 +495,5 @@ export function AuthPage() {
       </div>
     </div>
   );
-          }
+     }
+      
