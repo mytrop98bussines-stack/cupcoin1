@@ -58,9 +58,11 @@ export function Header({ title, showBack = false }: HeaderProps) {
 
           {showLogo && !showBack && (
             <div className="flex items-center gap-1.5">
-              <div className="h-7 w-7 rounded-lg bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
-                <span className="text-white font-black text-xs">CX</span>
-              </div>
+              <img 
+                src="/favicon.svg" 
+                alt="CubaX Logo" 
+                className="h-7 w-7 rounded-lg"
+              />
               <span className="font-bold text-gray-900 dark:text-white text-lg tracking-tight">
                 Cuba<span className="text-brand-500">X</span>
               </span>
