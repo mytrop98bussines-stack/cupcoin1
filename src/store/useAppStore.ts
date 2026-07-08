@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { CryptoIcon } from "@/components/ui/CryptoIcon";
 import type {
   User,
   CryptoBalance,
