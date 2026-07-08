@@ -1,7 +1,6 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
-import { CRYPTO_ICONS } from "@/data/mock";
 import {
   Shield,
   ArrowLeftRight,
@@ -33,8 +32,7 @@ function CubaXLogo({ size = 32 }: { size?: number }) {
   );
 }
 
-// ─── MAPEO DINÁMICO DE ICONOS CRYPTO (SVG LOCALES) ──────────
-// RECOMENDACIÓN: Guarda tus SVGs descargados en /public/crypto/ para consumirlos así
+// ─── MAPEO DINÁMICO DE ICONOS CRYPTO (SVG LOCALES DESDE /public) ───
 const MAPEO_CRYPTO_SVG: Record<string, string> = {
   BTC: "/crypto/btc.svg",
   USDT: "/crypto/usdt.svg",
@@ -105,7 +103,6 @@ export function LandingPage() {
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-100 dark:border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
           <div className="flex items-center gap-2">
-            {/* CORREGIDO: Logo SVG incrustado nativamente */}
             <CubaXLogo size={28} />
             <span className="font-bold text-lg tracking-tight">
               Cuba<span className="text-brand-500">X</span>
@@ -237,7 +234,7 @@ export function LandingPage() {
                   className="flex items-center justify-between p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-all hover:shadow-sm"
                 >
                   <div className="flex items-center gap-3">
-                    {/* CORREGIDO: Renderizado dinámico de logos cripto en alta definición */}
+                    {/* SECCIÓN OPTIMIZADA: Renderiza tus SVGs locales de la carpeta public */}
                     <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center p-1.5 overflow-hidden">
                       {tieneIconoSvg ? (
                         <img 
@@ -348,7 +345,7 @@ export function LandingPage() {
               {trustBadges.map((badge) => (
                 <div
                   key={badge}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-white/70"
+                  className="flex items-center gap-1 text-[10px] font-white/70"
                 >
                   <CheckCircle2 className="h-3 w-3 text-white/50" />
                   {badge}
@@ -372,7 +369,6 @@ export function LandingPage() {
       <footer className="border-t border-gray-100 dark:border-white/[0.06] py-6">
         <div className="max-w-lg mx-auto px-4 text-center">
           <div className="flex items-center justify-center gap-2 mb-2">
-            {/* CORREGIDO: Logo unificado en el pie de página */}
             <CubaXLogo size={22} />
             <span className="font-bold text-sm">
               Cuba<span className="text-brand-500">X</span>
@@ -395,4 +391,5 @@ export function LandingPage() {
       </footer>
     </div>
   );
-}
+                    }
+      
