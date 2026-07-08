@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { CRYPTO_ICONS } from "@/data/mock";
 import {
-  Wallet, Copy, QrCode, ArrowUpRight, ArrowDownLeft,
+  Wallet, Copy, ArrowUpRight, ArrowDownLeft,
   TrendingUp, TrendingDown, Shield, Loader2, Check,
   Eye, EyeOff, RefreshCw, ChevronDown, ChevronUp,
   AlertTriangle, X, Sparkles, ArrowRight,
@@ -18,6 +18,15 @@ interface BalanceItem {
   change24h: number;
   price:     number;
 }
+
+// ✅ Mapeo de tus nuevos iconos en la carpeta public (por si acaso el import no viene en mayúsculas)
+const LOCAL_ICONS: Record<string, string> = {
+  USDT: "/usdt.svg",
+  USDC: "/usdc.svg",
+  BTC:  "/btc.svg",
+  ETH:  "/eth.svg",
+  USD:  "/usd.svg",
+};
 
 const CHAIN_OPTIONS: Record<
   string,
@@ -65,7 +74,6 @@ export function WalletPage() {
   const [withdrawError, setWithdrawError]       = useState<string | null>(null);
   const [depositAddress, setDepositAddress]     = useState<string | null>(null);
 
-  // Fallback seguro de tipado para Firebase Auth / Firestore integration
   const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
 
   const balancesList: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map((asset) => {
@@ -103,6 +111,13 @@ export function WalletPage() {
     setTimeout(() => setRefreshing(false), 1000);
   }, [fetchPrices]);
 
+  // Helper dinámico para resolver la ruta de la imagen pública
+  const getAssetIcon = (asset: string) => {
+    const upper = asset.toUpperCase();
+    const lower = asset.toLowerCase();
+    return LOCAL_ICONS[upper] || CRYPTO_ICONS[upper] || CRYPTO_ICONS[lower] || "/usd.svg";
+  };
+
   const handleOpenDeposit = async (asset: string) => {
     const assetUpper = asset.toUpperCase();
     setDepositAsset(assetUpper);
@@ -129,7 +144,7 @@ export function WalletPage() {
         setDepositAddress(data.coin_address);
       }
     } catch (err: any) {
-      console.error("Error de red TronGrid:", err.message);
+      console.error("Error de red:", err.message);
     } finally {
       setIsLoadingAddress(false);
     }
@@ -195,7 +210,7 @@ export function WalletPage() {
         setWithdrawError(data.error || "Error procesando el retiro.");
       }
     } catch (err) {
-      setWithdrawError("Error de conexión con el servidor backend.");
+      setWithdrawError("Error de conexión con el servidor.");
     } finally {
       setIsSubmitting(false);
     }
@@ -269,8 +284,9 @@ export function WalletPage() {
           const isUp   = b.change24h >= 0;
           return (
             <div key={b.asset} className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`} onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}>
-              <div className="flex items-center gap-1.5 mb-2">
-                <span className="text-lg">{CRYPTO_ICONS[b.asset] || "🪙"}</span>
+              <div className="flex items-center gap-2 mb-2">
+                {/* Cargando imágenes públicas */}
+                <img src={getAssetIcon(b.asset)} alt={b.asset} className="h-5 w-5 object-contain" />
                 <span className="text-xs font-bold text-gray-900 dark:text-white">{b.asset}</span>
               </div>
               <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
@@ -311,8 +327,9 @@ export function WalletPage() {
                   const colors   = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
                   const selected = depositAsset === asset;
                   return (
-                    <button key={asset} onClick={() => handleOpenDeposit(asset)} className={`flex flex-col items-center gap-1 py-2.5 rounded-xl text-xs font-bold transition-all ${selected ? `${colors.bg} ${colors.text} ring-2 ring-current` : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"}`}>
-                      <span className="text-base">{CRYPTO_ICONS[asset] || "🪙"}</span>
+                    <button key={asset} onClick={() => handleOpenDeposit(asset)} className={`flex flex-col items-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${selected ? `${colors.bg} ${colors.text} ring-2 ring-current` : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"}`}>
+                      {/* Cargando imágenes públicas */}
+                      <img src={getAssetIcon(asset)} alt={asset} className="h-6 w-6 object-contain" />
                       {asset}
                     </button>
                   );
@@ -490,62 +507,58 @@ export function WalletPage() {
       )}
 
       {/* ═══ LISTA DE ACTIVOS ════════════════════════════ */}
-<div>
-  <div className="flex items-center justify-between mb-3">
-    <h2 className="text-sm font-bold text-gray-900 dark:text-white">Mis Activos</h2>
-    <span className="text-[10px] text-gray-400 font-medium">{balancesList.length} activos</span>
-  </div>
-
-  <div className="space-y-2">
-    {balancesList.map((balance) => {
-      const colors     = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
-      const isUp       = balance.change24h >= 0;
-      const isExpanded = expandedAsset === balance.asset;
-
-      return (
-        <div key={balance.asset} className={`rounded-2xl border transition-all ${isExpanded ? `${colors.border} bg-gradient-to-r ${colors.gradient}` : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"}`}>
-          <button onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)} className="w-full flex items-center justify-between p-4">
-            <div className="flex items-center gap-3">
-              {/* Icono del Activo desde tus Mocks */}
-              <div className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center text-xl`}>
-                {CRYPTO_ICONS[balance.asset] || "🪙"}
-              </div>
-              <div className="text-left">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
-                <p className="text-[11px] text-gray-400">{hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 6 : balance.asset === "ETH" ? 4 : 2)} ${balance.asset}`}</p>
-              </div>
-            </div>
-            <div className="flex items-center gap-3">
-              <div className="text-right">
-                <p className="text-sm font-bold text-gray-900 dark:text-white">{hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}</p>
-                <div className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                  {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-                  {Math.abs(balance.change24h).toFixed(2)}%
-                </div>
-              </div>
-              {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
-            </div>
-          </button>
-
-          {/* Botones de acción expandidos con sus iconos Lucide explícitos */}
-          {isExpanded && (
-            <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
-              <button onClick={() => handleOpenDeposit(balance.asset)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold transition-all ${colors.bg} ${colors.text} hover:opacity-80`}>
-                <ArrowDownLeft className="h-3.5 w-3.5 block" /> 
-                <span>Depositar</span>
-              </button>
-              <button onClick={() => handleOpenWithdraw(balance.asset)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
-                <ArrowUpRight className="h-3.5 w-3.5 block" /> 
-                <span>Retirar</span>
-              </button>
-            </div>
-          )}
+      <div>
+        <div className="flex items-center justify-between mb-3">
+          <h2 className="text-sm font-bold text-gray-900 dark:text-white">Mis Activos</h2>
+          <span className="text-[10px] text-gray-400 font-medium">{balancesList.length} activos</span>
         </div>
-      );
-    })}
-  </div>
-</div>
 
+        <div className="space-y-2">
+          {balancesList.map((balance) => {
+            const colors     = ASSET_COLORS[balance.asset] || ASSET_COLORS.USDT;
+            const isUp       = balance.change24h >= 0;
+            const isExpanded = expandedAsset === balance.asset;
+
+            return (
+              <div key={balance.asset} className={`rounded-2xl border transition-all ${isExpanded ? `${colors.border} bg-gradient-to-r ${colors.gradient}` : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"}`}>
+                <button onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)} className="w-full flex items-center justify-between p-4">
+                  <div className="flex items-center gap-3">
+                    {/* Cargando imágenes públicas en el contenedor redondo */}
+                    <div className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center overflow-hidden`}>
+                      <img src={getAssetIcon(balance.asset)} alt={balance.asset} className="h-6 w-6 object-contain" />
+                    </div>
+                    <div className="text-left">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
+                      <p className="text-[11px] text-gray-400">{hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 6 : balance.asset === "ETH" ? 4 : 2)} ${balance.asset}`}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">{hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}</p>
+                      <div className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
+                        {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
+                        {Math.abs(balance.change24h).toFixed(2)}%
+                      </div>
+                    </div>
+                    {isExpanded ? <ChevronUp className="h-4 w-4 text-gray-400" /> : <ChevronDown className="h-4 w-4 text-gray-400" />}
+                  </div>
+                </button>
+
+                {isExpanded && (
+                  <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
+                    <button onClick={() => handleOpenDeposit(balance.asset)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold transition-all ${colors.bg} ${colors.text} hover:opacity-80`}>
+                      <ArrowDownLeft className="h-3.5 w-3.5 block" /> Depositar
+                    </button>
+                    <button onClick={() => handleOpenWithdraw(balance.asset)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
+                      <ArrowUpRight className="h-3.5 w-3.5 block" /> Retirar
+                    </button>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      </div>
 
       {/* ═══ INFO BANNER ═════════════════════════════════ */}
       <div className="flex items-start gap-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] rounded-2xl p-4">
@@ -559,4 +572,4 @@ export function WalletPage() {
       </div>
     </div>
   );
-            }
+}
