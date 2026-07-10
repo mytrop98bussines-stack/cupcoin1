@@ -39,7 +39,31 @@ CubaX es una aplicación web progresiva (PWA) que permite a los cubanos:
 ---
 
 ## 🏗️ Arquitectura Técnica
-
+┌─────────────────────────────────────────────────────┐
+│ USUARIO EN CUBA │
+│ (Sin VPN, desde cualquier red) │
+└──────────────────────┬──────────────────────────────┘
+│
+▼
+┌─────────────────────────────────────────────────────┐
+│ FRONTEND — Firebase Hosting │
+│ React + TypeScript + Vite + Tailwind │
+│ cupcoin-b2b4f.web.app │
+└──────────────────────┬──────────────────────────────┘
+│
+┌────────────┼────────────┐
+▼ ▼ ▼
+┌──────────────┐ ┌──────────┐ ┌────────────────────┐
+│ BACKEND │ │FIRESTORE │ │ TRONGRID API │
+│ Render.com │ │(Database)│ │ (Red TRON/USDT) │
+│ Node.js + │ │ │ │ │
+│ TypeScript │ │ Reglas │ │ Depósitos TRC20 │
+│ │ │ seguras │ │ Retiros USDT │
+│ Auth Proxy │ │ │ │ Detección auto │
+│ Trade Logic │ └──────────┘ └────────────────────┘
+│ Marketplace │
+│ Membresías │
+└──────────────┘
 ---
 
 ## 🚀 Funcionalidades Implementadas
@@ -159,6 +183,24 @@ CubaX es una aplicación web progresiva (PWA) que permite a los cubanos:
 
 ### Arquitectura de seguridad
 
+Frontend (usuario)
+│
+├── Firestore rules → solo lee/escribe sus propios datos
+├── Custom token Firebase → autenticado via backend
+└── JWT tokens → sesión persistente sin cookies
+
+Backend (Admin SDK)
+│
+├── Bypasea reglas de Firestore → operaciones críticas seguras
+├── Escrow logic → fondos nunca en control del usuario
+├── Validaciones → verifica identidad en cada operación
+└── Claves privadas → encriptadas con AES-256
+
+Wallets
+│
+├── wallets_private/ → colección Firestore solo accesible por backend
+├── Claves privadas encriptadas con AES-256-CBC
+└── Hot wallet → clave privada solo en variables de entorno de Render
 
 ### Reglas de Firestore
 - Cada usuario solo puede leer/escribir sus propios documentos
