@@ -1,4 +1,5 @@
 # CubaX — Plataforma Financiera Descentralizada para Cuba 🇨🇺
+MIT License — Copyright (c) 2026 CubaX
 
 > **La primera plataforma P2P de criptomonedas diseñada específicamente para el mercado cubano.**
 > Sin VPN. Sin restricciones. Sin intermediarios.
@@ -233,5 +234,14 @@ CubaX es una aplicación web progresiva (PWA) que permite a los cubanos:
 ---
 
 ## 📊 Métricas del Proyecto
+Líneas de código: ~15,000+
+Componentes React: 50+
+Endpoints backend: 20+
+Colecciones Firestore: 12
+Tiempo de desarrollo: 3 meses
+Costo de infraestructura: $0/mes
 
+Hecho con ❤️ para Cuba
 
+CubaX no está afiliado con ningún gobierno ni entidad financiera regulada.
+El uso de esta plataforma es responsabilidad del usuario
