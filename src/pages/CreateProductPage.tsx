@@ -169,32 +169,35 @@ export function CreateProductPage() {
       const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
-        id:              productRef.id,
-        sellerId:        user.uid,
-        sellerName:      user.displayName || "Comerciante CubaX",
-        title,
-        description,
-        priceUSD:        parseFloat(price),
-        acceptedCryptos,
-        images:          uploadedImageUrls,
-        category,
-        condition,
-        location,
-        status:          "active",
-        createdAt:       Date.now(),
-        totalSold:       0,
+  id:              productRef.id,
+  sellerId:        user.uid,
+  sellerName:      user.displayName || "Comerciante CubaX",
+  title,
+  description,
+  priceUSD:        parseFloat(price),
+  acceptedCryptos,
+  images:          uploadedImageUrls,
+  category,
+  condition,
+  location,
+  status:          "active",
+  createdAt:       Date.now(),
+  totalSold:       0,
 
-        // ✅ Opciones de entrega
-        delivery: {
-          pickup,
-          homeDelivery,
-          deliveryFee:  homeDelivery && deliveryFee ? parseFloat(deliveryFee) : undefined,
-          deliveryInfo: deliveryInfo || undefined,
-        },
+  // ✅ Sin campos undefined
+  delivery: {
+    pickup,
+    homeDelivery,
+    ...(homeDelivery && deliveryFee && parseFloat(deliveryFee) > 0
+      ? { deliveryFee: parseFloat(deliveryFee) }
+      : { deliveryFee: 0 }),
+    ...(deliveryInfo.trim()
+      ? { deliveryInfo: deliveryInfo.trim() }
+      : {}),
+  },
 
-        // ✅ Opciones de pago
-        paymentTiming,
-      };
+  paymentTiming,
+};
 
       await setDoc(productRef, newProduct);
 
