@@ -6,7 +6,6 @@ import {
   Info, Package, Crown, ChevronRight,
 } from "lucide-react";
 import { useEffect, useState } from "react";
-import type { Trade } from "@/types";
 
 export function NotificationsPage() {
   const {
@@ -17,11 +16,11 @@ export function NotificationsPage() {
     subscribeToNotifications,
     setActiveTrade,
     setSelectedTradeId,
+    setSelectedProductId,
   } = useAppStore();
 
   const [filter, setFilter] = useState<"all" | "unread">("all");
 
-  // ─── Listener en tiempo real ──────────────────────────────
   useEffect(() => {
     if (
       user?.uid &&
@@ -33,61 +32,67 @@ export function NotificationsPage() {
     }
   }, [user?.uid, subscribeToNotifications]);
 
-  // ─── Navegación inteligente por tipo ─────────────────────
+  // ─── Navegación inteligente ───────────────────────────────
   const handleNotificationClick = async (notif: any) => {
-    // ✅ Marcar como leída
     if (!notif.read) markNotificationRead(notif.id);
 
     const data = notif.data || {};
 
-    // ✅ Navegar según el tipo de notificación
     switch (notif.type) {
 
-      // Trades P2P
+      // ✅ Trades P2P — va directo al trade
       case "trade":
       case "new_trade":
       case "payment_sent":
       case "trade_completed": {
         if (data.tradeId) {
-          // Ir directamente al trade
           setSelectedTradeId(data.tradeId);
           navigate("trade");
         } else {
-          // Si no hay tradeId ir al historial
           navigate("trade-history");
         }
         break;
       }
 
-      // KYC
+      // ✅ KYC
       case "kyc": {
         navigate("kyc");
         break;
       }
 
-      // Productos del marketplace
-      case "product": {
+      // ✅ Productos — va al producto con chat abierto
+      case "product":
+      case "marketplace_order": {
         if (data.productId) {
-          // Ir al historial de marketplace
-          navigate("trade-history");
+          setSelectedProductId(data.productId);
+          // ✅ Si tiene chatRoomId guardarlo en sessionStorage
+          // para que ProductDetailPage abra el chat automáticamente
+          if (data.chatRoomId) {
+            sessionStorage.setItem("openChatRoomId", data.chatRoomId);
+            sessionStorage.setItem("openChat", "true");
+          }
+          navigate("product-detail");
         } else {
-          navigate("marketplace");
+          navigate("trade-history");
         }
         break;
       }
 
-      // Membresía
+      // ✅ Membresía
       case "membership": {
         navigate("membership");
         break;
       }
 
-      // Sistema y otros
+      // ✅ Sistema
       case "system":
       default: {
         if (data.tradeId) {
           setSelectedTradeId(data.tradeId);
           navigate("trade");
+        } else if (data.productId) {
+          setSelectedProductId(data.productId);
+          navigate("product-detail");
         } else if (notif.link) {
           navigate(notif.link as any);
         }
@@ -96,21 +101,7 @@ export function NotificationsPage() {
     }
   };
 
-  // ─── Ordenar y filtrar ────────────────────────────────────
-  const sortedNotifications = [...notifications]
-    .sort((a, b) => b.createdAt - a.createdAt)
-    .filter((n) => filter === "all" || !n.read);
-
-  const unreadCount = notifications.filter((n) => !n.read).length;
-
-  // ─── Marcar todas como leídas ─────────────────────────────
-  const handleMarkAllRead = () => {
-    notifications
-      .filter((n) => !n.read)
-      .forEach((n) => markNotificationRead(n.id));
-  };
-
-  // ─── Destino de navegación por tipo ──────────────────────
+  // ─── Label del destino ────────────────────────────────────
   const getDestinationLabel = (notif: any): string | null => {
     const data = notif.data || {};
     switch (notif.type) {
@@ -118,15 +109,16 @@ export function NotificationsPage() {
       case "new_trade":
       case "payment_sent":
       case "trade_completed":
-        return data.tradeId ? "Ver trade →" : "Ver historial →";
+        return data.tradeId ? "Ir al trade →" : "Ver historial →";
       case "kyc":
         return "Ver verificación →";
       case "product":
-        return "Ver historial →";
+      case "marketplace_order":
+        return data.chatRoomId ? "Ir al chat →" : "Ver producto →";
       case "membership":
         return "Ver membresía →";
       default:
-        return data.tradeId || notif.link ? "Ver detalles →" : null;
+        return data.tradeId || data.productId || notif.link ? "Ver detalles →" : null;
     }
   };
 
@@ -150,6 +142,7 @@ export function NotificationsPage() {
           </div>
         );
       case "product":
+      case "marketplace_order":
         return (
           <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
             <ShoppingBag className={`${base} text-emerald-500`} />
@@ -171,12 +164,6 @@ export function NotificationsPage() {
         return (
           <div className="h-9 w-9 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
             <Package className={`${base} text-violet-500`} />
-          </div>
-        );
-      case "info":
-        return (
-          <div className="h-9 w-9 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
-            <Info className={`${base} text-brand-500`} />
           </div>
         );
       default:
@@ -204,11 +191,20 @@ export function NotificationsPage() {
     });
   };
 
-  // ─── RENDER ───────────────────────────────────────────────
+  const sortedNotifications = [...notifications]
+    .sort((a, b) => b.createdAt - a.createdAt)
+    .filter((n) => filter === "all" || !n.read);
+
+  const unreadCount = notifications.filter((n) => !n.read).length;
+
+  const handleMarkAllRead = () => {
+    notifications.filter((n) => !n.read).forEach((n) => markNotificationRead(n.id));
+  };
+
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-      {/* ═══ HEADER ══════════════════════════════════════════ */}
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">
@@ -220,11 +216,10 @@ export function NotificationsPage() {
             </span>
           )}
         </div>
-
         {unreadCount > 0 && (
           <button
             onClick={handleMarkAllRead}
-            className="text-xs text-brand-500 hover:text-brand-400 font-semibold flex items-center gap-1 transition-colors"
+            className="text-xs text-brand-500 hover:text-brand-400 font-semibold flex items-center gap-1"
           >
             <CheckCheck className="h-3.5 w-3.5" />
             Marcar todas
@@ -232,7 +227,7 @@ export function NotificationsPage() {
         )}
       </div>
 
-      {/* ═══ FILTROS ═════════════════════════════════════════ */}
+      {/* Filtros */}
       {notifications.length > 0 && (
         <div className="flex bg-gray-100 dark:bg-white/5 rounded-xl p-1">
           {(["all", "unread"] as const).map((f) => (
@@ -262,28 +257,24 @@ export function NotificationsPage() {
         </div>
       )}
 
-      {/* ═══ LISTA ═══════════════════════════════════════════ */}
+      {/* Lista */}
       {sortedNotifications.length === 0 ? (
         <Card padding="lg" className="text-center">
           <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center mx-auto mb-3">
             <Bell className="h-6 w-6 text-gray-300 dark:text-gray-600" />
           </div>
           <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">
-            {filter === "unread"
-              ? "No tienes notificaciones sin leer"
-              : "No tienes notificaciones"}
+            {filter === "unread" ? "No tienes notificaciones sin leer" : "No tienes notificaciones"}
           </p>
           <p className="text-xs text-gray-400">
-            {filter === "unread"
-              ? "¡Estás al día con todo!"
-              : "Aquí aparecerán tus alertas de trades, KYC y más."}
+            {filter === "unread" ? "¡Estás al día!" : "Aquí aparecerán tus alertas."}
           </p>
           {filter === "unread" && (
             <button
               onClick={() => setFilter("all")}
-              className="text-xs text-brand-500 font-semibold mt-3 hover:text-brand-400"
+              className="text-xs text-brand-500 font-semibold mt-3"
             >
-              Ver todas las notificaciones →
+              Ver todas →
             </button>
           )}
         </Card>
@@ -305,15 +296,12 @@ export function NotificationsPage() {
                     : "bg-brand-500/[0.02] dark:bg-brand-500/[0.05] border-brand-500/20 hover:border-brand-500/40"
                 }`}
               >
-                {/* Línea izquierda si no leída */}
                 {!notif.read && (
                   <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-brand-500 rounded-full" />
                 )}
 
-                {/* Icono */}
                 {getIcon(notif.type)}
 
-                {/* Contenido */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-start justify-between gap-2 mb-0.5">
                     <p className={`text-sm leading-tight ${
@@ -332,7 +320,6 @@ export function NotificationsPage() {
                     {notif.body}
                   </p>
 
-                  {/* ✅ Destino de navegación */}
                   {destinationLabel && (
                     <p className="text-[10px] text-brand-500 font-semibold mt-1.5 flex items-center gap-0.5">
                       {destinationLabel}
@@ -341,7 +328,6 @@ export function NotificationsPage() {
                   )}
                 </div>
 
-                {/* Punto no leída + flecha */}
                 <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-0.5">
                   {!notif.read && (
                     <div className="h-2 w-2 rounded-full bg-brand-500 animate-pulse" />
@@ -356,7 +342,6 @@ export function NotificationsPage() {
         </div>
       )}
 
-      {/* ═══ FOOTER ══════════════════════════════════════════ */}
       {sortedNotifications.length > 0 && (
         <p className="text-center text-[10px] text-gray-400 pb-2">
           Mostrando {sortedNotifications.length} de {notifications.length} notificaciones
@@ -364,4 +349,4 @@ export function NotificationsPage() {
       )}
     </div>
   );
-                 }
+            }
