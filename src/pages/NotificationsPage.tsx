@@ -3,9 +3,10 @@ import { Card } from "@/components/ui/Card";
 import {
   ArrowLeftRight, Shield, TrendingUp, Bell,
   ShoppingBag, CheckCheck, AlertTriangle,
-  Info, Package, Crown,
+  Info, Package, Crown, ChevronRight,
 } from "lucide-react";
 import { useEffect, useState } from "react";
+import type { Trade } from "@/types";
 
 export function NotificationsPage() {
   const {
@@ -14,6 +15,8 @@ export function NotificationsPage() {
     markNotificationRead,
     navigate,
     subscribeToNotifications,
+    setActiveTrade,
+    setSelectedTradeId,
   } = useAppStore();
 
   const [filter, setFilter] = useState<"all" | "unread">("all");
@@ -30,6 +33,69 @@ export function NotificationsPage() {
     }
   }, [user?.uid, subscribeToNotifications]);
 
+  // ─── Navegación inteligente por tipo ─────────────────────
+  const handleNotificationClick = async (notif: any) => {
+    // ✅ Marcar como leída
+    if (!notif.read) markNotificationRead(notif.id);
+
+    const data = notif.data || {};
+
+    // ✅ Navegar según el tipo de notificación
+    switch (notif.type) {
+
+      // Trades P2P
+      case "trade":
+      case "new_trade":
+      case "payment_sent":
+      case "trade_completed": {
+        if (data.tradeId) {
+          // Ir directamente al trade
+          setSelectedTradeId(data.tradeId);
+          navigate("trade");
+        } else {
+          // Si no hay tradeId ir al historial
+          navigate("trade-history");
+        }
+        break;
+      }
+
+      // KYC
+      case "kyc": {
+        navigate("kyc");
+        break;
+      }
+
+      // Productos del marketplace
+      case "product": {
+        if (data.productId) {
+          // Ir al historial de marketplace
+          navigate("trade-history");
+        } else {
+          navigate("marketplace");
+        }
+        break;
+      }
+
+      // Membresía
+      case "membership": {
+        navigate("membership");
+        break;
+      }
+
+      // Sistema y otros
+      case "system":
+      default: {
+        if (data.tradeId) {
+          setSelectedTradeId(data.tradeId);
+          navigate("trade");
+        } else if (notif.link) {
+          navigate(notif.link as any);
+        }
+        break;
+      }
+    }
+  };
+
   // ─── Ordenar y filtrar ────────────────────────────────────
   const sortedNotifications = [...notifications]
     .sort((a, b) => b.createdAt - a.createdAt)
@@ -42,6 +108,26 @@ export function NotificationsPage() {
     notifications
       .filter((n) => !n.read)
       .forEach((n) => markNotificationRead(n.id));
+  };
+
+  // ─── Destino de navegación por tipo ──────────────────────
+  const getDestinationLabel = (notif: any): string | null => {
+    const data = notif.data || {};
+    switch (notif.type) {
+      case "trade":
+      case "new_trade":
+      case "payment_sent":
+      case "trade_completed":
+        return data.tradeId ? "Ver trade →" : "Ver historial →";
+      case "kyc":
+        return "Ver verificación →";
+      case "product":
+        return "Ver historial →";
+      case "membership":
+        return "Ver membresía →";
+      default:
+        return data.tradeId || notif.link ? "Ver detalles →" : null;
+    }
   };
 
   // ─── Icono por tipo ───────────────────────────────────────
@@ -114,8 +200,7 @@ export function NotificationsPage() {
     if (hours   < 24) return `${hours}h`;
     if (days    < 7)  return `${days}d`;
     return new Date(timestamp).toLocaleDateString("es-CU", {
-      day:   "numeric",
-      month: "short",
+      day: "numeric", month: "short",
     });
   };
 
@@ -204,60 +289,70 @@ export function NotificationsPage() {
         </Card>
       ) : (
         <div className="space-y-2">
-          {sortedNotifications.map((notif) => (
-            <div
-              key={notif.id}
-              onClick={() => {
-                if (!notif.read) markNotificationRead(notif.id);
-                if (notif.link) navigate(notif.link as any);
-              }}
-              className={`relative flex items-start gap-3 p-4 rounded-2xl border cursor-pointer transition-all active:scale-[0.98] ${
-                notif.read
-                  ? "bg-white dark:bg-white/[0.02] border-gray-100 dark:border-white/[0.05] opacity-70"
-                  : "bg-brand-500/[0.02] dark:bg-brand-500/[0.05] border-brand-500/20 hover:border-brand-500/40"
-              }`}
-            >
-              {/* Línea izquierda si no leída */}
-              {!notif.read && (
-                <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-brand-500 rounded-full" />
-              )}
+          {sortedNotifications.map((notif) => {
+            const destinationLabel = getDestinationLabel(notif);
+            const isClickable      = !!destinationLabel;
 
-              {/* Icono */}
-              {getIcon(notif.type)}
+            return (
+              <div
+                key={notif.id}
+                onClick={() => handleNotificationClick(notif)}
+                className={`relative flex items-start gap-3 p-4 rounded-2xl border transition-all active:scale-[0.98] ${
+                  isClickable ? "cursor-pointer" : "cursor-default"
+                } ${
+                  notif.read
+                    ? "bg-white dark:bg-white/[0.02] border-gray-100 dark:border-white/[0.05] opacity-70"
+                    : "bg-brand-500/[0.02] dark:bg-brand-500/[0.05] border-brand-500/20 hover:border-brand-500/40"
+                }`}
+              >
+                {/* Línea izquierda si no leída */}
+                {!notif.read && (
+                  <div className="absolute left-0 top-3 bottom-3 w-0.5 bg-brand-500 rounded-full" />
+                )}
 
-              {/* Contenido */}
-              <div className="flex-1 min-w-0">
-                <div className="flex items-start justify-between gap-2 mb-0.5">
-                  <p className={`text-sm leading-tight truncate ${
-                    notif.read
-                      ? "font-medium text-gray-700 dark:text-gray-300"
-                      : "font-bold text-gray-900 dark:text-white"
-                  }`}>
-                    {notif.title}
+                {/* Icono */}
+                {getIcon(notif.type)}
+
+                {/* Contenido */}
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-start justify-between gap-2 mb-0.5">
+                    <p className={`text-sm leading-tight ${
+                      notif.read
+                        ? "font-medium text-gray-700 dark:text-gray-300"
+                        : "font-bold text-gray-900 dark:text-white"
+                    }`}>
+                      {notif.title}
+                    </p>
+                    <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">
+                      {getTimeAgo(notif.createdAt)}
+                    </span>
+                  </div>
+
+                  <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
+                    {notif.body}
                   </p>
-                  <span className="text-[10px] text-gray-400 flex-shrink-0 mt-0.5">
-                    {getTimeAgo(notif.createdAt)}
-                  </span>
+
+                  {/* ✅ Destino de navegación */}
+                  {destinationLabel && (
+                    <p className="text-[10px] text-brand-500 font-semibold mt-1.5 flex items-center gap-0.5">
+                      {destinationLabel}
+                      <ChevronRight className="h-3 w-3" />
+                    </p>
+                  )}
                 </div>
 
-                {/* ✅ Corregido: usa body en vez de message */}
-                <p className="text-xs text-gray-500 dark:text-gray-400 line-clamp-2 leading-relaxed">
-                  {notif.body}
-                </p>
-
-                {notif.link && (
-                  <p className="text-[10px] text-brand-500 font-semibold mt-1.5">
-                    Ver detalles →
-                  </p>
-                )}
+                {/* Punto no leída + flecha */}
+                <div className="flex flex-col items-center gap-1 flex-shrink-0 mt-0.5">
+                  {!notif.read && (
+                    <div className="h-2 w-2 rounded-full bg-brand-500 animate-pulse" />
+                  )}
+                  {isClickable && (
+                    <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600" />
+                  )}
+                </div>
               </div>
-
-              {/* Punto no leída */}
-              {!notif.read && (
-                <div className="h-2 w-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5 animate-pulse" />
-              )}
-            </div>
-          ))}
+            );
+          })}
         </div>
       )}
 
@@ -269,4 +364,4 @@ export function NotificationsPage() {
       )}
     </div>
   );
-      }
+                 }
