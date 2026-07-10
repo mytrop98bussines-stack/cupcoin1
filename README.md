@@ -2,7 +2,7 @@
 MIT License — Copyright (c) 2026 CubaX
 
 > **La primera plataforma P2P de criptomonedas diseñada específicamente para el mercado cubano.**
-> Sin VPN. Sin restricciones. Sin intermediarios.
+> Sin VPN ( EXCEPTO EN LA PRIMERAS PRODUCCIONES DE LA APP YA QUE SE ESTA HACIENDO MIGRACIONES LA VERSIÓN OFICIAL YA NO USARA VPN). Sin restricciones. Sin intermediarios.
 
 ---
 
