@@ -9,15 +9,11 @@ import { db } from "@/lib/firebase/config";
 import { collection, doc, setDoc } from "firebase/firestore";
 import { CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/mock";
 import {
-  Upload,
-  Camera,
-  CheckCircle2,
-  Shield,
-  Loader2,
-  X,
-  Crown,
+  Upload, Camera, CheckCircle2, Shield,
+  Loader2, X, Crown, Truck, MapPin,
+  CreditCard, Clock,
 } from "lucide-react";
-import type { CryptoAsset, ProductCategory, Product } from "@/types";
+import type { CryptoAsset, ProductCategory, Product, ProductPaymentTiming } from "@/types";
 
 export function CreateProductPage() {
   const { navigate, user, prices } = useAppStore();
@@ -33,6 +29,15 @@ export function CreateProductPage() {
   const [previews, setPreviews]               = useState<string[]>([]);
   const [loading, setLoading]           = useState(false);
   const [success, setSuccess]           = useState(false);
+
+  // ✅ Opciones de entrega
+  const [pickup, setPickup]             = useState(true);
+  const [homeDelivery, setHomeDelivery] = useState(false);
+  const [deliveryFee, setDeliveryFee]   = useState("");
+  const [deliveryInfo, setDeliveryInfo] = useState("");
+
+  // ✅ Opciones de pago
+  const [paymentTiming, setPaymentTiming] = useState<ProductPaymentTiming>("flexible");
 
   const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -66,7 +71,7 @@ export function CreateProductPage() {
           Membresía requerida
         </h2>
         <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-          Necesitas una membresía activa para publicar productos en el Marketplace.
+          Necesitas una membresía activa para publicar productos.
         </p>
         <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-6">
           ✨ El primer mes es completamente gratis
@@ -89,36 +94,12 @@ export function CreateProductPage() {
         <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
           Verificación KYC requerida
         </h2>
-        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
-          Debes verificar tu identidad para poder publicar productos.
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Debes verificar tu identidad para publicar productos.
         </p>
-        {user.kycStatus === "pending_verification" ? (
-          <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 mb-6">
-            <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
-              ⏳ Tu solicitud está siendo revisada. Espera la aprobación del equipo.
-            </p>
-          </div>
-        ) : user.kycStatus === "rejected" ? (
-          <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-6">
-            <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
-              ❌ Tu KYC fue rechazado. Vuelve a intentarlo con documentos más claros.
-            </p>
-          </div>
-        ) : (
-          <p className="text-xs text-gray-400 mb-6">
-            El proceso toma menos de 48 horas.
-          </p>
-        )}
-        <Button
-          size="lg"
-          fullWidth
-          onClick={() => navigate("kyc")}
-          disabled={user.kycStatus === "pending_verification"}
-        >
+        <Button size="lg" fullWidth onClick={() => navigate("kyc")}>
           <Shield className="h-4 w-4 mr-2" />
-          {user.kycStatus === "pending_verification"
-            ? "Verificación en proceso..."
-            : "Verificar identidad"}
+          Verificar identidad
         </Button>
       </div>
     );
@@ -155,13 +136,16 @@ export function CreateProductPage() {
 
   const handleSubmit = useCallback(async () => {
     if (!title || !description || !price || !location || !user) return;
+    if (!pickup && !homeDelivery) {
+      alert("Selecciona al menos una opción de entrega.");
+      return;
+    }
 
     setLoading(true);
 
     try {
       const uploadedImageUrls: string[] = [];
 
-      // ✅ Subir imágenes a Cloudinary
       for (const file of selectedFiles) {
         const formData = new FormData();
         formData.append("file",           file);
@@ -175,16 +159,13 @@ export function CreateProductPage() {
 
         if (!cloudinaryRes.ok) {
           const errorData = await cloudinaryRes.json();
-          throw new Error(
-            errorData.error?.message || "Error en Cloudinary"
-          );
+          throw new Error(errorData.error?.message || "Error en Cloudinary");
         }
 
         const imageData = await cloudinaryRes.json();
         uploadedImageUrls.push(imageData.secure_url);
       }
 
-      // ✅ Guardar producto en Firestore
       const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
@@ -201,11 +182,22 @@ export function CreateProductPage() {
         location,
         status:          "active",
         createdAt:       Date.now(),
+        totalSold:       0,
+
+        // ✅ Opciones de entrega
+        delivery: {
+          pickup,
+          homeDelivery,
+          deliveryFee:  homeDelivery && deliveryFee ? parseFloat(deliveryFee) : undefined,
+          deliveryInfo: deliveryInfo || undefined,
+        },
+
+        // ✅ Opciones de pago
+        paymentTiming,
       };
 
       await setDoc(productRef, newProduct);
 
-      // Limpiar URLs temporales
       previews.forEach((url) => URL.revokeObjectURL(url));
 
       setLoading(false);
@@ -221,6 +213,8 @@ export function CreateProductPage() {
     title, description, price, location,
     user, acceptedCryptos, selectedFiles,
     category, condition, navigate, previews,
+    pickup, homeDelivery, deliveryFee, deliveryInfo,
+    paymentTiming,
   ]);
 
   // ─── Pantalla de éxito ────────────────────────────────────
@@ -254,12 +248,12 @@ export function CreateProductPage() {
           <Shield className="h-4 w-4 text-blue-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-gray-600 dark:text-gray-400">
             Las imágenes se suben con firma criptográfica Cloudinary.
-            Tus credenciales están protegidas.
+            Tu producto no desaparecerá al venderse — puedes tener stock ilimitado.
           </p>
         </div>
       </Card>
 
-      {/* Input oculto para archivos */}
+      {/* Input oculto */}
       <input
         type="file"
         ref={fileInputRef}
@@ -276,25 +270,17 @@ export function CreateProductPage() {
         </p>
         <div className="flex gap-2 overflow-x-auto scrollbar-hide py-1">
           {previews.map((url, i) => (
-            <div
-              key={i}
-              className="relative flex-shrink-0 h-20 w-20 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm"
-            >
-              <img
-                src={url}
-                alt="preview"
-                className="h-full w-full object-cover"
-              />
+            <div key={i} className="relative flex-shrink-0 h-20 w-20 rounded-xl overflow-hidden border border-gray-200 dark:border-white/10 shadow-sm">
+              <img src={url} alt="preview" className="h-full w-full object-cover" />
               <button
                 type="button"
                 onClick={() => removeImage(i)}
-                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1 hover:bg-black/80 transition-colors"
+                className="absolute top-1 right-1 bg-black/60 text-white rounded-full p-1"
               >
                 <X className="h-3 w-3" />
               </button>
             </div>
           ))}
-
           {previews.length < 5 && (
             <button
               type="button"
@@ -337,16 +323,14 @@ export function CreateProductPage() {
         placeholder="850"
         value={price}
         onChange={(e) => setPrice(e.target.value)}
-        rightElement={
-          <span className="text-xs font-medium text-gray-400">USD</span>
-        }
+        rightElement={<span className="text-xs font-medium text-gray-400">USD</span>}
       />
 
-      {/* Equivalencia en crypto */}
+      {/* Equivalencia crypto */}
       {price && parseFloat(price) > 0 && (
         <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 space-y-1.5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
-            Equivalencia aproximada en vivo:
+            Equivalencia en vivo:
           </p>
           <div className="grid grid-cols-2 gap-2">
             {acceptedCryptos.map((crypto) => {
@@ -398,11 +382,7 @@ export function CreateProductPage() {
                   : "border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400"
               }`}
             >
-              {cond === "new"
-                ? "Nuevo"
-                : cond === "used"
-                ? "Usado"
-                : "Reacondicionado"}
+              {cond === "new" ? "Nuevo" : cond === "used" ? "Usado" : "Reacondicionado"}
             </button>
           ))}
         </div>
@@ -416,7 +396,150 @@ export function CreateProductPage() {
         onChange={(e) => setLocation(e.target.value)}
       />
 
-      {/* Criptomonedas aceptadas */}
+      {/* ✅ Opciones de entrega */}
+      <div>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+          <Truck className="h-3.5 w-3.5" />
+          Opciones de entrega
+        </p>
+        <div className="space-y-2">
+
+          {/* Recogida en persona */}
+          <button
+            onClick={() => setPickup(!pickup)}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+              pickup
+                ? "border-brand-500 bg-brand-500/5"
+                : "border-gray-200 dark:border-white/10"
+            }`}
+          >
+            <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+              pickup ? "border-brand-500 bg-brand-500" : "border-gray-300 dark:border-gray-600"
+            }`}>
+              {pickup && <div className="h-2 w-2 rounded-full bg-white" />}
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                Recogida en persona
+              </p>
+              <p className="text-[11px] text-gray-400">
+                El comprador recoge el producto en {location || "tu ubicación"}
+              </p>
+            </div>
+            <MapPin className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          </button>
+
+          {/* Envío a domicilio */}
+          <button
+            onClick={() => setHomeDelivery(!homeDelivery)}
+            className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all ${
+              homeDelivery
+                ? "border-brand-500 bg-brand-500/5"
+                : "border-gray-200 dark:border-white/10"
+            }`}
+          >
+            <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+              homeDelivery ? "border-brand-500 bg-brand-500" : "border-gray-300 dark:border-gray-600"
+            }`}>
+              {homeDelivery && <div className="h-2 w-2 rounded-full bg-white" />}
+            </div>
+            <div className="flex-1 text-left">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                Envío a domicilio
+              </p>
+              <p className="text-[11px] text-gray-400">
+                Envías el producto al comprador
+              </p>
+            </div>
+            <Truck className="h-4 w-4 text-gray-400 flex-shrink-0" />
+          </button>
+
+          {/* Detalles del envío */}
+          {homeDelivery && (
+            <div className="pl-3 space-y-2 animate-slide-up">
+              <Input
+                label="Costo de envío (USD) — opcional"
+                type="number"
+                placeholder="0 = envío gratis"
+                value={deliveryFee}
+                onChange={(e) => setDeliveryFee(e.target.value)}
+                rightElement={<span className="text-xs text-gray-400">USD</span>}
+              />
+              <div>
+                <label className="block text-xs font-medium text-gray-600 dark:text-gray-400 uppercase tracking-wide mb-1.5">
+                  Zona de cobertura y tiempo estimado
+                </label>
+                <textarea
+                  placeholder="Ej: Entrego en La Habana en 24h, otras provincias en 3-5 días..."
+                  value={deliveryInfo}
+                  onChange={(e) => setDeliveryInfo(e.target.value)}
+                  rows={2}
+                  className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 px-4 py-2.5 text-sm focus:border-brand-500 outline-none resize-none"
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ✅ Opciones de pago */}
+      <div>
+        <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide flex items-center gap-1.5">
+          <CreditCard className="h-3.5 w-3.5" />
+          Cuándo se paga
+        </p>
+        <div className="space-y-2">
+          {[
+            {
+              value:    "before" as ProductPaymentTiming,
+              label:    "Pago antes de recibir",
+              desc:     "El comprador paga primero y luego recibe el producto",
+              icon:     <CreditCard className="h-4 w-4 text-gray-400" />,
+            },
+            {
+              value:    "on_delivery" as ProductPaymentTiming,
+              label:    "Pago al recibir",
+              desc:     "El comprador paga cuando recibe el producto",
+              icon:     <Truck className="h-4 w-4 text-gray-400" />,
+            },
+            {
+              value:    "flexible" as ProductPaymentTiming,
+              label:    "Flexible — lo coordinan",
+              desc:     "Vendedor y comprador coordinan por chat",
+              icon:     <Clock className="h-4 w-4 text-gray-400" />,
+            },
+          ].map((option) => (
+            <button
+              key={option.value}
+              onClick={() => setPaymentTiming(option.value)}
+              className={`w-full flex items-center gap-3 p-3 rounded-xl border transition-all text-left ${
+                paymentTiming === option.value
+                  ? "border-brand-500 bg-brand-500/5"
+                  : "border-gray-200 dark:border-white/10"
+              }`}
+            >
+              <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center flex-shrink-0 transition-all ${
+                paymentTiming === option.value
+                  ? "border-brand-500 bg-brand-500"
+                  : "border-gray-300 dark:border-gray-600"
+              }`}>
+                {paymentTiming === option.value && (
+                  <div className="h-2 w-2 rounded-full bg-white" />
+                )}
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">
+                  {option.label}
+                </p>
+                <p className="text-[11px] text-gray-400">{option.desc}</p>
+              </div>
+              {option.icon}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Criptomonedas */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
           Criptomonedas aceptadas
@@ -439,20 +562,20 @@ export function CreateProductPage() {
         </div>
       </div>
 
-      {/* Botón publicar */}
       <Button
         size="lg"
         fullWidth
         loading={loading}
         onClick={handleSubmit}
         disabled={
-          !title                         ||
-          !description                   ||
-          !price                         ||
-          parseFloat(price) <= 0         ||
-          !location                      ||
-          acceptedCryptos.length === 0   ||
-          selectedFiles.length === 0
+          !title                       ||
+          !description                 ||
+          !price                       ||
+          parseFloat(price) <= 0       ||
+          !location                    ||
+          acceptedCryptos.length === 0 ||
+          selectedFiles.length === 0   ||
+          (!pickup && !homeDelivery)
         }
         icon={
           loading
@@ -460,8 +583,8 @@ export function CreateProductPage() {
             : <Upload className="h-4 w-4" />
         }
       >
-        {loading ? "Subiendo imágenes a Cloudinary..." : "Publicar producto"}
+        {loading ? "Subiendo imágenes..." : "Publicar producto"}
       </Button>
     </div>
   );
-    }
+}
