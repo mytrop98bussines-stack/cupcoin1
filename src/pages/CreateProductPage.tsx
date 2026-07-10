@@ -130,6 +130,53 @@ export function CreateProductPage() {
 
   const removeImage = (index: number) => {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
+export function CreateProductPage() {
+  const { navigate, user, prices } = useAppStore();
+
+  // ✅ TODOS los estados primero — sin excepción
+  const [title, setTitle]               = useState("");
+  const [description, setDescription]   = useState("");
+  const [price, setPrice]               = useState("");
+  const [category, setCategory]         = useState<ProductCategory>("electronics");
+  const [condition, setCondition]       = useState<"new" | "used" | "refurbished">("new");
+  const [location, setLocation]         = useState("");
+  const [acceptedCryptos, setAcceptedCryptos] = useState<CryptoAsset[]>(["USDT"]);
+  const [selectedFiles, setSelectedFiles]     = useState<File[]>([]);
+  const [previews, setPreviews]               = useState<string[]>([]);
+  const [loading, setLoading]           = useState(false);
+  const [success, setSuccess]           = useState(false);
+  const [pickup, setPickup]             = useState(true);
+  const [homeDelivery, setHomeDelivery] = useState(false);
+  const [deliveryFee, setDeliveryFee]   = useState("");
+  const [deliveryInfo, setDeliveryInfo] = useState("");
+  const [paymentTiming, setPaymentTiming] = useState<ProductPaymentTiming>("flexible");
+
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  // ✅ TODOS los callbacks aquí — antes de cualquier return
+  const toggleCrypto = useCallback((crypto: CryptoAsset) => {
+    setAcceptedCryptos((prev) =>
+      prev.includes(crypto)
+        ? prev.filter((c) => c !== crypto)
+        : [...prev, crypto]
+    );
+  }, []);
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files) {
+      const filesArray     = Array.from(e.target.files);
+      const availableSlots = 5 - selectedFiles.length;
+      const filesToProcess = filesArray.slice(0, availableSlots);
+      filesToProcess.forEach((file) => {
+        setSelectedFiles((prev) => [...prev, file]);
+        const objectUrl = URL.createObjectURL(file);
+        setPreviews((prev) => [...prev, objectUrl]);
+      });
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
     URL.revokeObjectURL(previews[index]);
     setPreviews((prev) => prev.filter((_, i) => i !== index));
   };
@@ -148,9 +195,9 @@ export function CreateProductPage() {
 
       for (const file of selectedFiles) {
         const formData = new FormData();
-        formData.append("file",           file);
-        formData.append("upload_preset",  "cubax_unsigned");
-        formData.append("folder",         "cubax/products");
+        formData.append("file",          file);
+        formData.append("upload_preset", "cubax_unsigned");
+        formData.append("folder",        "cubax/products");
 
         const cloudinaryRes = await fetch(
           "https://api.cloudinary.com/v1_1/dc4caibrn/image/upload",
@@ -169,38 +216,34 @@ export function CreateProductPage() {
       const productRef = doc(collection(db, "products"));
 
       const newProduct: Product = {
-  id:              productRef.id,
-  sellerId:        user.uid,
-  sellerName:      user.displayName || "Comerciante CubaX",
-  title,
-  description,
-  priceUSD:        parseFloat(price),
-  acceptedCryptos,
-  images:          uploadedImageUrls,
-  category,
-  condition,
-  location,
-  status:          "active",
-  createdAt:       Date.now(),
-  totalSold:       0,
-
-  // ✅ Sin campos undefined
-  delivery: {
-    pickup,
-    homeDelivery,
-    ...(homeDelivery && deliveryFee && parseFloat(deliveryFee) > 0
-      ? { deliveryFee: parseFloat(deliveryFee) }
-      : { deliveryFee: 0 }),
-    ...(deliveryInfo.trim()
-      ? { deliveryInfo: deliveryInfo.trim() }
-      : {}),
-  },
-
-  paymentTiming,
-};
+        id:              productRef.id,
+        sellerId:        user.uid,
+        sellerName:      user.displayName || "Comerciante CubaX",
+        title,
+        description,
+        priceUSD:        parseFloat(price),
+        acceptedCryptos,
+        images:          uploadedImageUrls,
+        category,
+        condition,
+        location,
+        status:          "active",
+        createdAt:       Date.now(),
+        totalSold:       0,
+        delivery: {
+          pickup,
+          homeDelivery,
+          ...(homeDelivery && deliveryFee && parseFloat(deliveryFee) > 0
+            ? { deliveryFee: parseFloat(deliveryFee) }
+            : { deliveryFee: 0 }),
+          ...(deliveryInfo.trim()
+            ? { deliveryInfo: deliveryInfo.trim() }
+            : {}),
+        },
+        paymentTiming,
+      };
 
       await setDoc(productRef, newProduct);
-
       previews.forEach((url) => URL.revokeObjectURL(url));
 
       setLoading(false);
@@ -208,19 +251,85 @@ export function CreateProductPage() {
       setTimeout(() => navigate("marketplace"), 1500);
 
     } catch (error: any) {
-      console.error("Error al publicar producto:", error);
-      alert(`Fallo en la publicación: ${error.message || "Revisa tu conexión."}`);
+      console.error("Error al publicar:", error);
+      alert(`Fallo: ${error.message || "Revisa tu conexión."}`);
       setLoading(false);
     }
   }, [
     title, description, price, location,
     user, acceptedCryptos, selectedFiles,
     category, condition, navigate, previews,
-    pickup, homeDelivery, deliveryFee, deliveryInfo,
-    paymentTiming,
+    pickup, homeDelivery, deliveryFee,
+    deliveryInfo, paymentTiming,
   ]);
 
-  // ─── Pantalla de éxito ────────────────────────────────────
+  // ─── AHORA SÍ — returns condicionales DESPUÉS de todos los hooks ──
+
+  // 1. Esperar cuenta
+  if (!user || !(user as any).membership) {
+    return (
+      <div className="flex flex-col items-center justify-center py-32 space-y-4">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+        <p className="text-xs text-gray-400">Verificando cuenta...</p>
+      </div>
+    );
+  }
+
+  // 2. Verificar membresía
+  const membershipActive = (() => {
+    const m = (user as any).membership;
+    if (!m)                       return false;
+    if (m.status === "expired")   return false;
+    if (m.expiresAt < Date.now()) return false;
+    return true;
+  })();
+
+  // 3. Bloqueo membresía
+  if (!membershipActive) {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
+        <div className="h-16 w-16 rounded-full bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
+          <Crown className="h-8 w-8 text-brand-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          Membresía requerida
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-2">
+          Necesitas una membresía activa para publicar productos.
+        </p>
+        <p className="text-xs text-emerald-600 dark:text-emerald-400 font-semibold mb-6">
+          ✨ El primer mes es completamente gratis
+        </p>
+        <Button size="lg" fullWidth onClick={() => navigate("membership")}>
+          <Crown className="h-4 w-4 mr-2" />
+          Activar membresía
+        </Button>
+      </div>
+    );
+  }
+
+  // 4. Bloqueo KYC
+  if (user.kycStatus !== "verified") {
+    return (
+      <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
+        <div className="h-16 w-16 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+          <Shield className="h-8 w-8 text-amber-500" />
+        </div>
+        <h2 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+          Verificación KYC requerida
+        </h2>
+        <p className="text-sm text-gray-500 dark:text-gray-400 mb-6">
+          Debes verificar tu identidad para publicar productos.
+        </p>
+        <Button size="lg" fullWidth onClick={() => navigate("kyc")}>
+          <Shield className="h-4 w-4 mr-2" />
+          Verificar identidad
+        </Button>
+      </div>
+    );
+  }
+
+  // 5. Éxito
   if (success) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center animate-fade-in">
