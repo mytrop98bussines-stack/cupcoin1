@@ -80,27 +80,43 @@ export type MembershipPaymentMethod =
   | "enzona"
   | "manual_admin";
 
+// ✅ Tipos de entrega
+export type DeliveryMethod = "pickup" | "delivery";
+
+// ✅ Tipos de pago del producto
+export type ProductPaymentTiming = "before" | "on_delivery" | "flexible";
+
+// ✅ Estado de orden de marketplace
+export type MarketplaceOrderStatus =
+  | "pending"        // orden creada, esperando coordinación
+  | "paid"           // comprador pagó
+  | "shipped"        // vendedor envió
+  | "delivered"      // producto entregado
+  | "completed"      // ambos confirman
+  | "cancelled"      // cancelada
+  | "disputed";      // en disputa
+
 // ─── Entidades ────────────────────────────────────────────
 
 export interface User {
-  uid:              string;
-  email:            string;
-  displayName:      string;
-  photoURL:         string | null;
-  kycStatus:        KYCStatus;
-  createdAt:        number;
-  totalTrades:      number;
-  rating:           number;
-  walletAddress:    string | null;
-  role?:            "user" | "admin";
-  fcmToken?:        string;
-  balances?:        Record<string, number>; // ✅ Sincronización habilitada
+  uid:               string;
+  email:             string;
+  displayName:       string;
+  photoURL:          string | null;
+  kycStatus:         KYCStatus;
+  createdAt:         number;
+  totalTrades:       number;
+  rating:            number;
+  walletAddress:     string | null;
+  role?:             "user" | "admin";
+  fcmToken?:         string;
+  balances?:         Record<string, number>;
   depositAddresses?: Record<string, string>;
   membership?: {
-    status:      MembershipStatus;
-    startedAt:   number;
-    expiresAt:   number;
-    plan:        "monthly";
+    status:       MembershipStatus;
+    startedAt:    number;
+    expiresAt:    number;
+    plan:         "monthly";
     lastPayment?: number;
   };
 }
@@ -185,6 +201,7 @@ export interface ChatMessage {
   type:       "text" | "system" | "image";
 }
 
+// ✅ Producto actualizado — no desaparece al venderse
 export interface Product {
   id:              string;
   sellerId:        string;
@@ -197,8 +214,55 @@ export interface Product {
   category:        ProductCategory;
   condition:       "new" | "used" | "refurbished";
   location:        string;
-  status:          "active" | "sold" | "paused" | "cancelled";
+  status:          "active" | "paused" | "cancelled";  // ✅ eliminado "sold"
   createdAt:       number;
+  totalSold?:      number;                              // ✅ contador de ventas
+
+  // ✅ Opciones de entrega
+  delivery: {
+    pickup:        boolean;     // recogida en persona
+    homeDelivery:  boolean;     // envío a domicilio
+    deliveryFee?:  number;      // costo de envío en USD
+    deliveryInfo?: string;      // zona de cobertura, tiempo estimado, etc
+  };
+
+  // ✅ Opciones de pago
+  paymentTiming: ProductPaymentTiming;  // antes, al recibir, o flexible
+}
+
+// ✅ Orden de compra en el marketplace
+export interface MarketplaceOrder {
+  id:             string;
+  productId:      string;
+  productTitle:   string;
+  productImage:   string | null;
+  priceUSDT:      number;
+  buyerId:        string;
+  buyerName:      string;
+  sellerId:       string;
+  sellerName:     string;
+  status:         MarketplaceOrderStatus;
+  chatRoomId:     string;     // ✅ ID del chat para navegar directo
+
+  // ✅ Entrega
+  deliveryMethod:  DeliveryMethod;
+  deliveryAddress?: string;
+  deliveryFee?:    number;
+
+  // ✅ Pago
+  paymentTiming:   ProductPaymentTiming;
+  paidAt?:         number;
+  paidAmount?:     number;
+
+  // ✅ Seguimiento
+  shippedAt?:      number;
+  deliveredAt?:    number;
+  completedAt?:    number;
+  cancelledAt?:    number;
+  cancelledBy?:    string;
+
+  createdAt:       number;
+  updatedAt:       number;
 }
 
 export interface Notification {
@@ -206,7 +270,7 @@ export interface Notification {
   userId:    string;
   title:     string;
   body:      string;
-  type:      "trade" | "kyc" | "system" | "product" | "new_trade" | "payment_sent" | "trade_completed" | "membership";
+  type:      "trade" | "kyc" | "system" | "product" | "new_trade" | "payment_sent" | "trade_completed" | "membership" | "marketplace_order";
   read:      boolean;
   createdAt: number;
   data?:     Record<string, string>;
@@ -255,4 +319,18 @@ export interface Dispute {
   createdAt:   number;
   resolvedAt?: number;
   resolvedBy?: string;
+}
+
+// ✅ Chat de producto
+export interface ProductChat {
+  id:             string;
+  productId:      string;
+  productTitle:   string;
+  buyerId:        string;
+  buyerName:      string;
+  sellerId:       string;
+  sellerName:     string;
+  lastMessage?:   string;
+  lastMessageAt?: number;
+  createdAt:      number;
 }
