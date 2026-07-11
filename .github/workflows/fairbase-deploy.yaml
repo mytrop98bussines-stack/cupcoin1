@@ -1,53 +1,81 @@
-steps:
-  - name: Checkout repo
-    uses: actions/checkout@v4
+name: Deploy to Firebase Hosting
 
-  - name: Setup Bun
-    uses: oven-sh/setup-bun@v2
-    with:
-      bun-version: latest
+on:
+  push:
+    branches:
+      - main
 
-  - name: Install dependencies
-    run: bun install
+jobs:
+  build_and_deploy:
+    runs-on: ubuntu-latest
 
-  - name: Create .env file
-    run: |
-      echo "VITE_FIREBASE_API_KEY=${{ secrets.VITE_FIREBASE_API_KEY }}" >> .env
-      echo "VITE_FIREBASE_AUTH_DOMAIN=${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}" >> .env
-      echo "VITE_FIREBASE_PROJECT_ID=${{ secrets.VITE_FIREBASE_PROJECT_ID }}" >> .env
-      echo "VITE_FIREBASE_STORAGE_BUCKET=${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}" >> .env
-      echo "VITE_FIREBASE_MESSAGING_SENDER_ID=${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}" >> .env
-      echo "VITE_FIREBASE_APP_ID=${{ secrets.VITE_FIREBASE_APP_ID }}" >> .env
-      echo "VITE_FIREBASE_VAPID_KEY=${{ secrets.VITE_FIREBASE_VAPID_KEY }}" >> .env
+    env:
+      VITE_FIREBASE_API_KEY: ${{ secrets.VITE_FIREBASE_API_KEY }}
+      VITE_FIREBASE_AUTH_DOMAIN: ${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}
+      VITE_FIREBASE_PROJECT_ID: ${{ secrets.VITE_FIREBASE_PROJECT_ID }}
+      VITE_FIREBASE_STORAGE_BUCKET: ${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}
+      VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
+      VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
+      VITE_FIREBASE_VAPID_KEY: ${{ secrets.VITE_FIREBASE_VAPID_KEY }}
 
-  - name: Inject Firebase config into SW
-    run: |
-      sed -i "s/REPLACE_API_KEY/${{ secrets.VITE_FIREBASE_API_KEY }}/g" public/firebase-messaging-sw.js
-      sed -i "s/REPLACE_AUTH_DOMAIN/${{ secrets.VITE_FIREBASE_AUTH_DOMAIN }}/g" public/firebase-messaging-sw.js
-      sed -i "s/REPLACE_PROJECT_ID/${{ secrets.VITE_FIREBASE_PROJECT_ID }}/g" public/firebase-messaging-sw.js
-      sed -i "s/REPLACE_STORAGE_BUCKET/${{ secrets.VITE_FIREBASE_STORAGE_BUCKET }}/g" public/firebase-messaging-sw.js
-      sed -i "s/REPLACE_MESSAGING_SENDER_ID/${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}/g" public/firebase-messaging-sw.js
-      sed -i "s/REPLACE_APP_ID/${{ secrets.VITE_FIREBASE_APP_ID }}/g" public/firebase-messaging-sw.js
-      sed -i "s/REPLACE_VAPID_KEY/${{ secrets.VITE_FIREBASE_VAPID_KEY }}/g" public/firebase-messaging-sw.js
+    steps:
+      - name: Checkout repo
+        uses: actions/checkout@v4
 
-  - name: Build Project
-    run: bun run --bun vite build
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
 
-  - name: Verify Build Directory
-    run: |
-      echo "Contenido de dist:"
-      ls -la dist
-      test -f dist/index.html && echo "✅ index.html existe"
+      - name: Install dependencies
+        run: bun install
 
-  - name: Setup Node.js
-    uses: actions/setup-node@v4
-    with:
-      node-version: 20
+      - name: Generate firebase-messaging-sw.js
+        run: |
+          cat > public/firebase-messaging-sw.js <<EOF
+          importScripts('https://www.gstatic.com/firebasejs/11.0.0/firebase-app-compat.js');
+          importScripts('https://www.gstatic.com/firebasejs/11.0.0/firebase-messaging-compat.js');
 
-  - name: Deploy to Firebase Hosting
-    uses: FirebaseExtended/action-hosting-deploy@v0
-    with:
-      repoToken: ${{ secrets.GITHUB_TOKEN }}
-      firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CUPCOIN_B2B4F }}
-      projectId: cupcoin-b2b4f
-      channelId: live
+          firebase.initializeApp({
+            apiKey: "$VITE_FIREBASE_API_KEY",
+            authDomain: "$VITE_FIREBASE_AUTH_DOMAIN",
+            projectId: "$VITE_FIREBASE_PROJECT_ID",
+            storageBucket: "$VITE_FIREBASE_STORAGE_BUCKET",
+            messagingSenderId: "$VITE_FIREBASE_MESSAGING_SENDER_ID",
+            appId: "$VITE_FIREBASE_APP_ID"
+          });
+
+          const messaging = firebase.messaging();
+
+          messaging.onBackgroundMessage((payload) => {
+            const notificationTitle = payload.notification?.title || 'Nueva notificación';
+            const notificationOptions = {
+              body: payload.notification?.body || '',
+              icon: '/firebase-logo.png'
+            };
+
+            self.registration.showNotification(notificationTitle, notificationOptions);
+          });
+          EOF
+
+      - name: Build Project
+        run: bun run build
+
+      - name: Verify Build Directory
+        run: |
+          echo "Contenido de dist:"
+          ls -la dist
+          test -f dist/index.html && echo "✅ index.html existe"
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Deploy to Firebase Hosting
+        uses: FirebaseExtended/action-hosting-deploy@v0
+        with:
+          repoToken: ${{ secrets.GITHUB_TOKEN }}
+          firebaseServiceAccount: ${{ secrets.FIREBASE_SERVICE_ACCOUNT_CUPCOIN_B2B4F }}
+          projectId: cupcoin-b2b4f
+          channelId: live
