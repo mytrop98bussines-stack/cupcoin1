@@ -2,14 +2,14 @@
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// 🔐 Tus credenciales reales restauradas directamente
 firebase.initializeApp({
-  apiKey: "AIzaSyAxUOLLm72in2-OM30Ywrxq9-QBuYdH334",
-  authDomain: "cupcoin-b2b4f.firebaseapp.com",
-  projectId: "cupcoin-b2b4f",
-  storageBucket: "cupcoin-b2b4f.firebasestorage.app",
-  messagingSenderId: "502564207166",
-  appId: "1:502564207166:web:ef81ebbebf6e390142ef6f"
+  apiKey: "REPLACE_API_KEY",
+  authDomain: "REPLACE_AUTH_DOMAIN",
+  projectId: "REPLACE_PROJECT_ID",
+  storageBucket: "REPLACE_STORAGE_BUCKET",
+  messagingSenderId: "REPLACE_MESSAGING_SENDER_ID",
+  appId: "REPLACE_APP_ID",
+  vapidKey: "REPLACE_VAPID_KEY"
 });
 
 const messaging = firebase.messaging();
