@@ -1,32 +1,16 @@
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card }   from "@/components/ui/Card";
+import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { db } from "@/lib/firebase/config";
 import {
-  collection,
-  query,
-  where,
-  orderBy,
-  onSnapshot,
-  doc,
-  updateDoc,
-} from "firebase/firestore";
-import {
-  ArrowLeftRight,
-  Plus,
-  Loader2,
-  AlertTriangle,
-  CheckCircle2,
-  X,
-  TrendingUp,
-  TrendingDown,
-  Clock,
-  Trash2,
+  ArrowLeftRight, Plus, Loader2, AlertTriangle,
+  CheckCircle2, X, Clock, Trash2,
 } from "lucide-react";
 import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/mock";
 import type { P2POrder } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 export function MyOrdersPage() {
   const { user, navigate } = useAppStore();
@@ -38,49 +22,68 @@ export function MyOrdersPage() {
   const [success, setSuccess]             = useState<string | null>(null);
   const [confirmCancel, setConfirmCancel] = useState<string | null>(null);
 
-  // ─── Cargar mis órdenes en tiempo real ───────────────────
+  // ─── Cargar mis órdenes via backend ──────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
     setLoading(true);
+    let stopped = false;
 
-    const q = query(
-      collection(db, "orders"),
-      where("userId",  "==", user.uid),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const ordersList = snapshot.docs.map((docSnap) => ({
-          id: docSnap.id,
-          ...docSnap.data(),
-        })) as P2POrder[];
-        setOrders(ordersList);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Error cargando órdenes:", err);
-        setLoading(false);
+    const loadOrders = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/orders/my-orders`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ uid: user.uid }),
+        });
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setOrders(data.orders);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando órdenes:", err);
+      } finally {
+        if (!stopped) setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    void loadOrders();
+    const intervalId = window.setInterval(loadOrders, 30000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [user?.uid]);
 
-  // ─── Cancelar orden (marcar como inactiva) ───────────────
+  // ─── Cancelar orden via backend ───────────────────────────
   const handleCancelOrder = async (orderId: string) => {
     setCancellingId(orderId);
     setError(null);
 
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status:      "cancelled",
-        cancelledAt: Date.now(),
-        cancelledBy: user?.uid,
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/orders/cancel`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ uid: user?.uid, orderId }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
 
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId ? { ...o, status: "cancelled" } : o
+        )
+      );
       setSuccess("Orden cancelada correctamente.");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
@@ -91,13 +94,26 @@ export function MyOrdersPage() {
     }
   };
 
-  // ─── Reactivar orden ─────────────────────────────────────
+  // ─── Reactivar orden via backend ──────────────────────────
   const handleReactivateOrder = async (orderId: string) => {
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status:      "active",
-        cancelledAt: null,
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/orders/reactivate`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ uid: user?.uid, orderId }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      setOrders((prev) =>
+        prev.map((o) =>
+          o.id === orderId ? { ...o, status: "active" } : o
+        )
+      );
       setSuccess("Orden reactivada.");
       setTimeout(() => setSuccess(null), 3000);
     } catch (err: any) {
@@ -107,8 +123,8 @@ export function MyOrdersPage() {
 
   if (!user) return null;
 
-  const activeOrders    = orders.filter((o) => o.status === "active");
-  const inactiveOrders  = orders.filter((o) => o.status !== "active");
+  const activeOrders   = orders.filter((o) => o.status === "active");
+  const inactiveOrders = orders.filter((o) => o.status !== "active");
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
@@ -242,13 +258,13 @@ function OrderCard({
   onCancelDismiss,
   onReactivate,
 }: {
-  order: P2POrder;
-  confirmCancel: string | null;
-  cancellingId: string | null;
-  onConfirmCancel: () => void;
+  order:             P2POrder;
+  confirmCancel:     string | null;
+  cancellingId:      string | null;
+  onConfirmCancel:   () => void;
   onCancelConfirmed: () => void;
-  onCancelDismiss: () => void;
-  onReactivate: () => void;
+  onCancelDismiss:   () => void;
+  onReactivate:      () => void;
 }) {
   const isActive   = order.status === "active";
   const confirming = confirmCancel === order.id;
@@ -256,7 +272,8 @@ function OrderCard({
 
   return (
     <Card padding="md" className="space-y-3">
-      {/* Header de la tarjeta */}
+
+      {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           <span className="text-xl">
@@ -289,31 +306,14 @@ function OrderCard({
       {/* Detalles */}
       <div className="grid grid-cols-2 gap-2">
         {[
-          {
-            label: "Precio",
-            value: `${order.pricePerUnit.toLocaleString("es-CU")} CUP`,
-          },
-          {
-            label: "Disponible",
-            value: `${order.availableAmount} ${order.asset}`,
-          },
-          {
-            label: "Mínimo",
-            value: `${order.minAmount} ${order.asset}`,
-          },
-          {
-            label: "Máximo",
-            value: `${order.maxAmount} ${order.asset}`,
-          },
+          { label: "Precio",     value: `${order.pricePerUnit.toLocaleString("es-CU")} CUP` },
+          { label: "Disponible", value: `${order.availableAmount} ${order.asset}`            },
+          { label: "Mínimo",     value: `${order.minAmount} ${order.asset}`                  },
+          { label: "Máximo",     value: `${order.maxAmount} ${order.asset}`                  },
         ].map((item) => (
-          <div
-            key={item.label}
-            className="bg-gray-50 dark:bg-white/5 rounded-lg p-2"
-          >
+          <div key={item.label} className="bg-gray-50 dark:bg-white/5 rounded-lg p-2">
             <p className="text-[10px] text-gray-400">{item.label}</p>
-            <p className="text-xs font-bold text-gray-900 dark:text-white">
-              {item.value}
-            </p>
+            <p className="text-xs font-bold text-gray-900 dark:text-white">{item.value}</p>
           </div>
         ))}
       </div>
@@ -348,11 +348,10 @@ function OrderCard({
               disabled={cancelling}
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-red-500 text-white text-xs font-bold hover:bg-red-600 disabled:opacity-50"
             >
-              {cancelling ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Trash2 className="h-3.5 w-3.5" />
-              )}
+              {cancelling
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Trash2  className="h-3.5 w-3.5"               />
+              }
               Sí, cancelar
             </button>
           </div>
@@ -380,4 +379,4 @@ function OrderCard({
       )}
     </Card>
   );
-}
+          }
