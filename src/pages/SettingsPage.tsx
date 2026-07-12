@@ -1,10 +1,8 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card }   from "@/components/ui/Card";
+import { Badge }  from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { db } from "@/lib/firebase/config";
-import { doc, onSnapshot } from "firebase/firestore";
 import {
   Shield, Bell, Moon, Sun, Globe, Lock,
   HelpCircle, LogOut, ChevronRight, Star,
@@ -12,6 +10,8 @@ import {
   Wrench, Copy, Check, User, AlertTriangle,
   Smartphone, CheckCircle2, Clock, X, Crown,
 } from "lucide-react";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 export function SettingsPage() {
   const { user, theme, toggleTheme, navigate, logout } = useAppStore();
@@ -22,38 +22,47 @@ export function SettingsPage() {
   // ─── Modo oscuro ──────────────────────────────────────────
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === "dark") {
-      root.classList.add("dark");
-    } else {
-      root.classList.remove("dark");
-    }
+    if (theme === "dark") root.classList.add("dark");
+    else root.classList.remove("dark");
   }, [theme]);
 
-  // ─── Listener perfil en tiempo real ──────────────────────
+  // ─── Polling perfil cada 60 segundos ─────────────────────
   useEffect(() => {
     if (!user?.uid || user.uid === "invitado") return;
 
-    const unsubscribe = onSnapshot(
-      doc(db, "users", user.uid),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const newData = docSnap.data();
-          if (newData) {
-            useAppStore.setState((state) => ({
-              user: state.user ? { ...state.user, ...newData } : null,
-            }));
-          }
-        }
-      },
-      (error) => {
-        console.warn("Error sincronizando perfil (no crítico):", error.message);
-      }
-    );
+    let stopped = false;
 
-    return () => unsubscribe();
+    const syncProfile = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/auth/me`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ uid: user.uid }),
+        });
+        const data = await res.json();
+        if (data.success && data.userData && !stopped) {
+          useAppStore.setState((state) => ({
+            user: state.user
+              ? { ...state.user, ...data.userData }
+              : null,
+          }));
+        }
+      } catch (err) {
+        console.warn("Error sincronizando perfil:", err);
+      }
+    };
+
+    void syncProfile();
+    const intervalId = window.setInterval(syncProfile, 60000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [user?.uid]);
 
-  // ✅ Guard — si no hay usuario no renderizar nada
   if (!user) return null;
 
   // ─── KYC config ───────────────────────────────────────────
@@ -113,7 +122,6 @@ export function SettingsPage() {
     }
   };
 
-  // ─── Subtítulo membresía ──────────────────────────────────
   const membershipSubtitle = () => {
     const m = (user as any).membership;
     if (!m || m.status === "expired") return "Sin membresía activa";
@@ -123,7 +131,6 @@ export function SettingsPage() {
     return days > 0 ? `Activa · ${days} días restantes` : "Vencida";
   };
 
-  // ─── Secciones del menú ───────────────────────────────────
   const menuSections = [
     {
       title: "Cuenta",
@@ -391,10 +398,7 @@ export function SettingsPage() {
             <Wrench className="h-3 w-3" />
             Administración
           </h3>
-          <Card
-            padding="none"
-            className="border border-amber-500/20 dark:border-amber-500/10 bg-amber-500/[0.01]"
-          >
+          <Card padding="none" className="border border-amber-500/20 dark:border-amber-500/10 bg-amber-500/[0.01]">
             <button
               onClick={() => navigate("admin-kyc")}
               className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-amber-500/5 transition-colors rounded-2xl"
@@ -403,9 +407,7 @@ export function SettingsPage() {
                 <Wrench className="h-4 w-4 text-amber-500" />
               </div>
               <div className="flex-1 text-left min-w-0">
-                <p className="font-bold text-sm text-gray-900 dark:text-white">
-                  Panel Admin
-                </p>
+                <p className="font-bold text-sm text-gray-900 dark:text-white">Panel Admin</p>
                 <p className="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
                   KYC · Disputas · Membresías
                 </p>
@@ -418,19 +420,13 @@ export function SettingsPage() {
 
       {/* ═══ SECCIONES DEL MENÚ ══════════════════════════════ */}
       {menuSections.map((section) => {
-        if (section.title === "Actividad" && user.uid === "invitado") {
-          return null;
-        }
-
+        if (section.title === "Actividad" && user.uid === "invitado") return null;
         return (
           <div key={section.title}>
             <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
               {section.title}
             </h3>
-            <Card
-              padding="none"
-              className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden"
-            >
+            <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
               {section.items.map((item) => (
                 <button
                   key={item.label}
@@ -445,7 +441,6 @@ export function SettingsPage() {
                   <div className={`h-8 w-8 rounded-lg ${item.iconBg} flex items-center justify-center ${item.iconColor} flex-shrink-0`}>
                     {item.icon}
                   </div>
-
                   <div className="flex-1 min-w-0">
                     <p className="font-semibold text-sm text-gray-900 dark:text-white">
                       {item.label}
@@ -454,7 +449,6 @@ export function SettingsPage() {
                       {item.subtitle}
                     </p>
                   </div>
-
                   {"toggle" in item && item.toggle ? (
                     <div className={`relative h-6 w-11 rounded-full transition-colors flex items-center flex-shrink-0 ${
                       theme === "dark" ? "bg-brand-500" : "bg-gray-300"
@@ -464,9 +458,7 @@ export function SettingsPage() {
                       }`} />
                     </div>
                   ) : "disabled" in item && item.disabled ? (
-                    <Badge variant="success" size="sm">
-                      Verificado ✓
-                    </Badge>
+                    <Badge variant="success" size="sm">Verificado ✓</Badge>
                   ) : (
                     <ChevronRight className="h-4 w-4 text-gray-300 dark:text-gray-600 flex-shrink-0" />
                   )}
@@ -477,7 +469,7 @@ export function SettingsPage() {
         );
       })}
 
-      {/* ═══ BOTÓN CERRAR SESIÓN ═════════════════════════════ */}
+      {/* ═══ CERRAR SESIÓN ═══════════════════════════════════ */}
       {!showLogoutConfirm ? (
         <button
           onClick={() => setShowLogoutConfirm(true)}
