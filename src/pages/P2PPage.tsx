@@ -1,15 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card }   from "@/components/ui/Card";
+import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { db } from "@/lib/firebase/config";
-import { notifyUser } from "@/lib/firebase/messaging";
-import {
-  collection, query, where, onSnapshot,
-  orderBy, doc, setDoc, getDoc, updateDoc,
-} from "firebase/firestore";
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
@@ -21,8 +15,11 @@ import {
   AlertTriangle, RefreshCw, ShieldCheck, Trash2,
 } from "lucide-react";
 import type {
-  OrderType, CryptoAsset, PaymentMethod, P2POrder, Trade,
+  OrderType, CryptoAsset, PaymentMethod, P2POrder,
 } from "@/types";
+
+// ─── Constante del backend ────────────────────────────────
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 export function P2PPage() {
   const {
@@ -40,7 +37,6 @@ export function P2PPage() {
   const [tradeError, setTradeError]           = useState<string | null>(null);
   const [refreshing, setRefreshing]           = useState(false);
 
-  // ✅ Estado para el modal de cantidad
   const [tradeModal, setTradeModal] = useState<{
     order:  P2POrder;
     amount: string;
@@ -74,47 +70,41 @@ export function P2PPage() {
     },
   ], [prices]);
 
-  // ─── Listener de órdenes en tiempo real ──────────────────
-  useEffect(() => {
+  // ─── Cargar órdenes via backend ───────────────────────────
+  const loadOrders = useCallback(async () => {
     setLoadingOrders(true);
-    const q = query(
-      collection(db, "orders"),
-      where("status", "==", "active"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const liveOrders: P2POrder[] = snapshot.docs.map(
-          (docSnap) => ({ id: docSnap.id, ...docSnap.data() } as P2POrder)
-        );
-        setOrders(liveOrders);
-        setLoadingOrders(false);
-      },
-      (error) => {
-        console.error("Error cargando órdenes:", error);
-        setLoadingOrders(false);
+    try {
+      const res  = await fetch(`${BACKEND_URL}/orders`);
+      const data = await res.json();
+      if (data.success) {
+        setOrders(data.orders);
       }
-    );
-
-    return () => unsubscribe();
+    } catch (error) {
+      console.error("❌ Error cargando órdenes:", error);
+    } finally {
+      setLoadingOrders(false);
+    }
   }, [setOrders]);
+
+  useEffect(() => {
+    void loadOrders();
+  }, [loadOrders]);
 
   // ─── Refrescar precios ────────────────────────────────────
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPrices();
+    await loadOrders();
     setTimeout(() => setRefreshing(false), 1000);
-  }, [fetchPrices]);
+  }, [fetchPrices, loadOrders]);
 
   // ─── Filtrado ─────────────────────────────────────────────
   const filteredOrders = useMemo(() => {
     return orders.filter((order) => {
       if (activeTab === "buy"  && order.type !== "sell") return false;
       if (activeTab === "sell" && order.type !== "buy")  return false;
-      if (selectedAsset   !== "all" && order.asset !== selectedAsset)                     return false;
-      if (selectedPayment !== "all" && !order.paymentMethods.includes(selectedPayment))   return false;
+      if (selectedAsset   !== "all" && order.asset !== selectedAsset)                      return false;
+      if (selectedPayment !== "all" && !order.paymentMethods.includes(selectedPayment))    return false;
       if (searchQuery && !order.userName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
       return true;
     });
@@ -126,7 +116,7 @@ export function P2PPage() {
     [orders, user?.uid]
   );
 
-  // ─── Abrir modal para elegir cantidad ────────────────────
+  // ─── Abrir modal ──────────────────────────────────────────
   const handleTrade = useCallback((orderId: string) => {
     setTradeError(null);
 
@@ -143,18 +133,16 @@ export function P2PPage() {
       return;
     }
 
-    // ✅ Abre el modal con el mínimo como valor inicial
     setTradeModal({ order, amount: String(order.minAmount) });
   }, [user, orders]);
 
-  // ─── Ejecutar el trade con la cantidad elegida ────────────
+  // ─── Ejecutar trade via backend ───────────────────────────
   const executeTrade = useCallback(async () => {
     if (!tradeModal || !user?.uid) return;
 
     const { order, amount } = tradeModal;
     const amountNum = parseFloat(amount);
 
-    // ✅ Validar rango
     if (
       isNaN(amountNum) ||
       amountNum < order.minAmount ||
@@ -171,90 +159,62 @@ export function P2PPage() {
     setTradeError(null);
 
     try {
-      // ✅ Verificar que la orden sigue activa
-      const orderSnap = await getDoc(doc(db, "orders", order.id));
-      if (!orderSnap.exists() || orderSnap.data().status !== "active") {
-        throw new Error("Esta orden ya no está disponible.");
-      }
-
-      // ✅ Verificar saldo del vendedor si el usuario quiere comprar
-      if (activeTab === "buy") {
-        const sellerSnap = await getDoc(doc(db, "users", order.userId));
-        if (sellerSnap.exists()) {
-          const sellerBalance = sellerSnap.data().balances?.[order.asset] || 0;
-          if (sellerBalance < amountNum) {
-            throw new Error(
-              `El vendedor no tiene suficiente saldo de ${order.asset}.`
-            );
-          }
-        }
-      }
-
-      // ✅ Crear trade en Firestore
-      const tradeRef = doc(collection(db, "trades"));
-
-      const newTrade: Trade = {
-        id:            tradeRef.id,
-        orderId:       order.id,
-        buyerId:       activeTab === "buy"  ? user.uid                      : order.userId,
-        buyerName:     activeTab === "buy"  ? user.displayName || "Comprador" : order.userName,
-        sellerId:      activeTab === "buy"  ? order.userId                  : user.uid,
-        sellerName:    activeTab === "buy"  ? order.userName                : user.displayName || "Vendedor",
-        asset:         order.asset,
-        amount:        amountNum,                         // ✅ cantidad elegida
-        pricePerUnit:  order.pricePerUnit,
-        totalFiat:     amountNum * order.pricePerUnit,    // ✅ total calculado
-        currency:      order.currency,
-        paymentMethod: order.paymentMethods[0],
-        status:        "awaiting_escrow",
-        escrowTxHash:  null,
-        releaseTxHash: null,
-        createdAt:     Date.now(),
-        updatedAt:     Date.now(),
-        paymentDetails: {
-          method:       order.paymentMethods[0],
-          phone:        "",
-          accountName:  order.userName,
-          instructions: "El vendedor compartirá sus datos de pago en el chat.",
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/trades/create`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
         },
-      };
+        body: JSON.stringify({
+          orderId: order.id,
+          amount:  amountNum,
+        }),
+      });
+      const data = await res.json();
 
-      await setDoc(tradeRef, newTrade);
+      if (!data.success) throw new Error(data.error);
 
-      // ✅ Notificar al vendedor
-      await notifyUser(
-        newTrade.sellerId,
-        "🔔 Nuevo trade iniciado",
-        `${newTrade.buyerName} quiere ${activeTab === "buy" ? "comprarte" : "venderte"} ${amountNum} ${newTrade.asset}`,
-        { tradeId: tradeRef.id, type: "new_trade" }
-      );
-
-      setActiveTrade(newTrade);
-      setSelectedTradeId(tradeRef.id);
+      setActiveTrade(data.trade);
+      setSelectedTradeId(data.trade.id);
       navigate("trade");
 
     } catch (error: any) {
-      console.error("Error creando trade:", error);
+      console.error("❌ Error creando trade:", error);
       setTradeError(error.message || "Error al iniciar el trade.");
     } finally {
       setCreatingTrade(null);
     }
-  }, [tradeModal, user, activeTab, navigate, setActiveTrade, setSelectedTradeId]);
+  }, [tradeModal, user, navigate, setActiveTrade, setSelectedTradeId]);
 
-  // ─── Eliminar orden propia ────────────────────────────────
+  // ─── Eliminar orden propia via backend ────────────────────
   const handleDeleteOrder = useCallback(async (orderId: string) => {
     if (!user?.uid) return;
     if (!window.confirm("¿Seguro que quieres eliminar este anuncio?")) return;
 
     try {
-      await updateDoc(doc(db, "orders", orderId), {
-        status:      "cancelled",
-        cancelledAt: Date.now(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/orders/cancel`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          uid: user.uid,
+          orderId,
+        }),
       });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
+      setOrders(orders.filter((o) => o.id !== orderId));
+
     } catch (error: any) {
       setTradeError(error.message || "Error al eliminar la orden.");
     }
-  }, [user?.uid]);
+  }, [user?.uid, orders, setOrders]);
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
@@ -536,7 +496,7 @@ export function P2PPage() {
                   </p>
                 </div>
               </div>
-
+              
               {/* Métodos */}
               <div className="flex items-center justify-between gap-2">
                 <div className="flex gap-1 flex-wrap">
