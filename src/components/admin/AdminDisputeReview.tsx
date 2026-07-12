@@ -1,14 +1,11 @@
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase/config";
-import {
-  doc, updateDoc, addDoc, getDoc,
-  collection, query, orderBy, onSnapshot,
-} from "firebase/firestore";
-import { Card }   from "@/components/ui/Card";
-import { Button } from "@/components/ui/Button";
+import { Card }        from "@/components/ui/Card";
+import { Button }      from "@/components/ui/Button";
 import { Gavel, Loader2, Zap, X } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import type { Dispute, Trade, ChatMessage } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 interface Props {
   dispute: Dispute;
@@ -19,46 +16,46 @@ interface Props {
 export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
   const { user } = useAppStore();
 
-  const [messages, setMessages]     = useState<ChatMessage[]>([]);
-  const [loading, setLoading]       = useState(false);
+  const [messages, setMessages]       = useState<ChatMessage[]>([]);
+  const [loading, setLoading]         = useState(false);
   const [loadingChat, setLoadingChat] = useState(true);
-  const [adminNote, setAdminNote]   = useState("");
+  const [adminNote, setAdminNote]     = useState("");
 
-  // ✅ Cargar chat en tiempo real
+  // ─── Cargar chat via backend con polling ──────────────────
   useEffect(() => {
     if (!trade.id) return;
 
-    const q = query(
-      collection(db, "trades", trade.id, "messages"),
-      orderBy("createdAt", "asc")
-    );
+    let stopped = false;
 
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const msgs = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id:         d.id,
-            senderId:   data.senderId   ?? "SYSTEM",
-            senderName: data.senderName ?? "Sistema",
-            text:       data.text       ?? data.message ?? "",
-            createdAt:  data.createdAt  ?? data.timestamp ?? Date.now(),
-            type:       data.type       ?? "text",
-          } as ChatMessage;
-        });
-        setMessages(msgs);
-        setLoadingChat(false);
-      },
-      (err) => {
-        console.error("Error cargando chat:", err.message);
-        setLoadingChat(false);
+    const loadMessages = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/trades/${encodeURIComponent(trade.id)}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setMessages(data.messages);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando chat:", err);
+      } finally {
+        if (!stopped) setLoadingChat(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    void loadMessages();
+    const intervalId = window.setInterval(loadMessages, 5000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [trade.id]);
 
+  // ─── Resolver disputa via backend ─────────────────────────
   const resolveDispute = async (
     result: "resolved_buyer" | "resolved_seller"
   ) => {
@@ -69,90 +66,28 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
 
     setLoading(true);
     try {
-      const favor      = result === "resolved_buyer" ? "buyer" : "seller";
-      const winnerId   = favor === "buyer" ? dispute.buyerId   : dispute.sellerId;
-      const loserId    = favor === "buyer" ? dispute.sellerId  : dispute.buyerId;
-      const winnerName = favor === "buyer" ? dispute.buyerName : dispute.sellerName;
-
-      // ✅ 1. Actualizar la disputa en system_alerts
-      await updateDoc(doc(db, "system_alerts", dispute.id), {
-        resuelto:   true,
-        resolution: result,
-        adminNote,
-        resolvedAt: Date.now(),
-        resolvedBy: user?.uid || "admin",
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/admin/disputes/resolve`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          disputeId: dispute.id,
+          tradeId:   trade.id,
+          result,
+          adminNote,
+          adminId:   user?.uid || "admin",
+        }),
       });
+      const data = await res.json();
 
-      // ✅ 2. Actualizar el trade
-      await updateDoc(doc(db, "trades", trade.id), {
-        status:     favor === "buyer" ? "crypto_released" : "cancelled",
-        resolvedBy: user?.uid || "admin",
-        resolvedAt: Date.now(),
-        updatedAt:  Date.now(),
-      });
-
-      // ✅ 3. Transferir fondos si gana el comprador
-      if (favor === "buyer" && dispute.amount > 0) {
-        const buyerRef  = doc(db, "users", dispute.buyerId);
-        const buyerSnap = await getDoc(buyerRef);
-        if (buyerSnap.exists()) {
-          const currentBalance =
-            buyerSnap.data().balances?.[dispute.asset] || 0;
-          await updateDoc(buyerRef, {
-            [`balances.${dispute.asset}`]: currentBalance + dispute.amount,
-          });
-        }
-      }
-
-      // ✅ 4. Devolver fondos al vendedor si gana el vendedor
-      if (favor === "seller" && dispute.amount > 0) {
-        const sellerRef  = doc(db, "users", dispute.sellerId);
-        const sellerSnap = await getDoc(sellerRef);
-        if (sellerSnap.exists()) {
-          const currentBalance =
-            sellerSnap.data().balances?.[dispute.asset] || 0;
-          await updateDoc(sellerRef, {
-            [`balances.${dispute.asset}`]: currentBalance + dispute.amount,
-          });
-        }
-      }
-
-      // ✅ 5. Notificar al ganador
-      await addDoc(collection(db, "notifications"), {
-        userId:    winnerId,
-        title:     "✅ Disputa resuelta a tu favor",
-        body:      `El moderador resolvió la disputa a tu favor. Motivo: ${adminNote.slice(0, 80)}...`,
-        type:      "trade",
-        read:      false,
-        createdAt: Date.now(),
-        data:      { tradeId: trade.id, resolution: "won" },
-      });
-
-      // ✅ 6. Notificar al perdedor
-      await addDoc(collection(db, "notifications"), {
-        userId:    loserId,
-        title:     "❌ Disputa resuelta",
-        body:      `El moderador resolvió la disputa a favor de ${winnerName}. Motivo: ${adminNote.slice(0, 80)}...`,
-        type:      "trade",
-        read:      false,
-        createdAt: Date.now(),
-        data:      { tradeId: trade.id, resolution: "lost" },
-      });
-
-      // ✅ 7. Mensaje del sistema en el chat
-      await addDoc(collection(db, "trades", trade.id, "messages"), {
-        senderId:   "SYSTEM",
-        senderName: "CubaX Admin",
-        text:       `⚖️ RESOLUCIÓN ADMIN: La disputa fue resuelta a favor del ${
-          favor === "buyer" ? "comprador" : "vendedor"
-        }. Motivo: ${adminNote}`,
-        createdAt:  Date.now(),
-        type:       "system",
-      });
+      if (!data.success) throw new Error(data.error);
 
       onClose();
     } catch (e: any) {
-      console.error("Error al resolver:", e);
+      console.error("❌ Error al resolver:", e);
       alert("Error al procesar la resolución: " + e.message);
     } finally {
       setLoading(false);
@@ -229,9 +164,7 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
                 </div>
               ) : messages.length === 0 ? (
                 <div className="h-full flex items-center justify-center">
-                  <p className="text-xs text-gray-400">
-                    Sin mensajes en este trade
-                  </p>
+                  <p className="text-xs text-gray-400">Sin mensajes en este trade</p>
                 </div>
               ) : (
                 messages.map((m, idx) => {
@@ -325,4 +258,4 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
       </div>
     </div>
   );
-                              }
+}
