@@ -4,8 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Input } from "@/components/ui/Input";
 import { Card } from "@/components/ui/Card";
 
-import { db } from "@/lib/firebase/config";
-import { collection, doc, setDoc, getDoc } from "firebase/firestore";
+
 import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/mock";
 import {
   ArrowLeftRight,
