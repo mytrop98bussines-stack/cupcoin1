@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Header } from "@/components/layout/Header";
-import { BottomNav } from "@/components/layout/BottomNav";
+import { Header }     from "@/components/layout/Header";
+import { BottomNav }  from "@/components/layout/BottomNav";
 
 // ─── Logo ─────────────────────────────────────────────────
 function CubaXLogo({ size = 48 }: { size?: number }) {
@@ -52,12 +52,10 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 import { AdminKYCPage }      from "@/pages/AdminKYCPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
-// ─── Firebase — solo Firestore, sin Auth del cliente ──────
-// ✅ No importamos firebase/auth aquí
-// La autenticación se maneja via backend para funcionar sin VPN
-import { db }              from "@/lib/firebase/config";
-import { doc, onSnapshot } from "firebase/firestore";
 import type { User as AppUser } from "@/types";
+
+// ─── Sin imports de Firebase en el cliente ────────────────
+// Todo pasa por el backend en Render
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
@@ -111,8 +109,15 @@ const AUTHENTICATED_VIEWS = [
 // =========================================================
 function AppContent() {
   const {
-    currentView, user, navigate,
-    modalOpen, setWalletData, theme,
+    currentView,
+    user,
+    navigate,
+    modalOpen,
+    setWalletData,
+    theme,
+    fetchOrders,
+    fetchProducts,
+    subscribeToNotifications,
   } = useAppStore();
 
   // ─── Modo oscuro ──────────────────────────────────────────
@@ -120,30 +125,64 @@ function AppContent() {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // ─── Sincronización Firestore en tiempo real ──────────────
+  // ─── Sincronización via backend (Sin Firestore directo) ───
+  // Reemplaza el onSnapshot que bloqueaba en Cuba
   useEffect(() => {
     if (!user?.uid) return;
 
-    const userDocRef  = doc(db, "users", user.uid);
-    const unsubscribe = onSnapshot(
-      userDocRef,
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const fullUserData = docSnap.data() as AppUser;
+    let stopped = false;
+
+    // Función que lee el usuario desde el backend
+    const syncUser = async () => {
+      if (stopped) return;
+      try {
+        const res  = await fetch(`${BACKEND_URL}/api/auth/me`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ uid: user.uid }),
+        });
+        const data = await res.json();
+
+        if (data.success && data.userData && !stopped) {
+          const fullUserData = data.userData as AppUser;
+
           useAppStore.setState({ user: fullUserData });
 
           const balances         = (fullUserData as any).balances         || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
           const depositAddresses = (fullUserData as any).depositAddresses || {};
+
           setWalletData(balances, depositAddresses);
         }
-      },
-      (err) => {
-        console.warn("Error en listener de usuario:", err.message);
+      } catch (err) {
+        console.warn("⚠️ Error sincronizando usuario:", err);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    // Sincronizar al entrar
+    void syncUser();
+
+    // Polling cada 30 segundos para mantener el balance actualizado
+    const intervalId = window.setInterval(syncUser, 30000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [user?.uid, setWalletData]);
+
+  // ─── Cargar datos iniciales al autenticarse ───────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    // Cargar órdenes, productos y notificaciones
+    void fetchOrders();
+    void fetchProducts();
+    const unsubNotifs = subscribeToNotifications(user.uid);
+
+    return () => {
+      unsubNotifs();
+    };
+  }, [user?.uid]);
 
   // ─── Seguridad: solo admin ────────────────────────────────
   useEffect(() => {
@@ -180,13 +219,6 @@ function AppContent() {
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
       />
 
-      {/*
-        ✅ SCROLL CORREGIDO:
-        - Sin overscroll-contain — causaba pegado en móvil
-        - WebkitOverflowScrolling touch para iOS nativo
-        - overscrollBehaviorY auto para rebote natural
-        - overscrollBehaviorX none para evitar scroll horizontal
-      */}
       <main
         className="flex-1 min-h-0 overflow-y-auto pb-16"
         style={{
@@ -225,7 +257,7 @@ function AppContent() {
 }
 
 // =========================================================
-// APP ROOT — Auth via backend (sin VPN en Cuba)
+// APP ROOT
 // =========================================================
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
@@ -236,18 +268,14 @@ export default function App() {
     const savedUid   = localStorage.getItem("cubax_uid");
 
     if (savedToken && savedUid) {
-      // ✅ Restaurar sesión leyendo datos desde el backend
-      // El backend usa Firebase Admin SDK que no está bloqueado en Cuba
       fetch(`${BACKEND_URL}/api/auth/me`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
         body:    JSON.stringify({ uid: savedUid }),
       })
         .then((r) => r.json())
-        .then(async (data) => {
+        .then((data) => {
           if (data.success && data.userData) {
-
-            // ✅ Restaurar la última vista guardada
             const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
             const safeView = AUTHENTICATED_VIEWS.includes(lastView)
               ? lastView
@@ -258,9 +286,8 @@ export default function App() {
               isAuthenticated: true,
               currentView:     safeView as any,
             });
-
           } else {
-            // ✅ Token inválido — limpiar y mandar al landing
+            // Token inválido — limpiar sesión
             localStorage.removeItem("cubax_token");
             localStorage.removeItem("cubax_refresh_token");
             localStorage.removeItem("cubax_uid");
@@ -271,14 +298,13 @@ export default function App() {
           }
         })
         .catch((err) => {
-          console.warn("Error restaurando sesión:", err.message);
+          console.warn("⚠️ Error restaurando sesión:", err.message);
 
-          // ✅ Si hay error de red usar datos del localStorage como fallback
+          // Fallback offline con datos del localStorage
           const emailSaved = localStorage.getItem("cubax_email");
           const nameSaved  = localStorage.getItem("cubax_name");
 
           if (emailSaved) {
-            // Tenemos datos suficientes — mantener sesión offline
             useAppStore.setState({
               user: {
                 uid:           savedUid,
@@ -302,7 +328,6 @@ export default function App() {
         .finally(() => setIsInitializing(false));
 
     } else {
-      // ✅ Sin sesión guardada — ir al landing
       navigate("landing");
       setIsInitializing(false);
     }
@@ -312,8 +337,7 @@ export default function App() {
   useEffect(() => {
     const interval = setInterval(async () => {
       const refreshToken = localStorage.getItem("cubax_refresh_token");
-      const savedUid     = localStorage.getItem("cubax_uid");
-      if (!refreshToken || !savedUid) return;
+      if (!refreshToken) return;
 
       try {
         const res  = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
@@ -328,27 +352,19 @@ export default function App() {
           localStorage.setItem("cubax_refresh_token", data.refreshToken);
           console.log("✅ Token refrescado");
         } else {
-          // Token expirado — cerrar sesión
-          console.warn("⚠️ Token expirado");
-          localStorage.removeItem("cubax_token");
-          localStorage.removeItem("cubax_refresh_token");
-          localStorage.removeItem("cubax_uid");
-          localStorage.removeItem("cubax_last_view");
-          localStorage.removeItem("cubax_email");
-          localStorage.removeItem("cubax_name");
+          console.warn("⚠️ Token expirado — cerrando sesión");
           useAppStore.getState().logout();
           navigate("landing");
         }
-      } catch (err) {
+      } catch {
         console.warn("⚠️ Error refrescando token — manteniendo sesión");
       }
-    }, 50 * 60 * 1000); // cada 50 minutos
+    }, 50 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, []);
 
-  // ─── Guardar la vista actual en localStorage ──────────────
-  // Para restaurarla al recargar
+  // ─── Guardar vista actual ─────────────────────────────────
   const { currentView } = useAppStore();
   useEffect(() => {
     if (AUTHENTICATED_VIEWS.includes(currentView)) {
@@ -371,4 +387,4 @@ export default function App() {
   }
 
   return <AppContent />;
-  }
+        }
