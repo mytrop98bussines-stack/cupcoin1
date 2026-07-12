@@ -1,12 +1,11 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
-import { Button } from "@/components/ui/Button";
-import { Avatar } from "@/components/ui/Avatar";
+import { Card }      from "@/components/ui/Card";
+import { Badge }     from "@/components/ui/Badge";
+import { Button }    from "@/components/ui/Button";
+import { Avatar }    from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
 import { PAYMENT_METHOD_LABELS } from "@/data/mock";
-
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
   Send, Copy, Phone, Lock, Unlock, XCircle,
@@ -14,10 +13,8 @@ import {
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
 
-// ─── Backend URL ──────────────────────────────────────────
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
-// ─── Configuración de estados ─────────────────────────────
 const STATUS_CONFIG: Record<
   TradeStatus,
   { label: string; color: string; icon: React.ReactNode; desc: string }
@@ -77,51 +74,49 @@ export function TradePage() {
   const [error, setError]     = useState<string | null>(null);
   const [copied, setCopied]   = useState(false);
 
-  // ─── Cargar trade en tiempo real ──────────────────────────
+  // ─── Cargar trade via backend con polling ─────────────────
   useEffect(() => {
-  const tradeId = selectedTradeId || activeTrade?.id;
-  if (!tradeId) {
-    navigate("p2p");
-    return;
-  }
-
-  let stopped = false;
-
-  const loadTrade = async () => {
-    if (stopped) return;
-    try {
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(
-        `${BACKEND_URL}/api/trades/${tradeId}`,
-        { headers: { Authorization: `Bearer ${token}` } }
-      );
-      const data = await res.json();
-      if (data.success && !stopped) {
-        setTrade(data.trade);
-        setActiveTrade(data.trade);
-      } else {
-        setError("Trade no encontrado.");
-      }
-    } catch (err) {
-      console.error("Error cargando trade:", err);
+    const tradeId = selectedTradeId || activeTrade?.id;
+    if (!tradeId) {
+      navigate("p2p");
+      return;
     }
-  };
 
-  void loadTrade();
-  const intervalId = window.setInterval(loadTrade, 5000);
+    let stopped = false;
 
-  return () => {
-    stopped = true;
-    window.clearInterval(intervalId);
-  };
-}, [selectedTradeId, activeTrade?.id]);
+    const loadTrade = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/api/trades/${tradeId}`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setTrade(data.trade);
+          setActiveTrade(data.trade);
+        } else {
+          setError("Trade no encontrado.");
+        }
+      } catch (err) {
+        console.error("❌ Error cargando trade:", err);
+      }
+    };
 
-  // ─── Validaciones ─────────────────────────────────────────
+    void loadTrade();
+    const intervalId = window.setInterval(loadTrade, 5000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [selectedTradeId, activeTrade?.id]);
+
   const isBuyer       = user?.uid === trade?.buyerId;
   const isSeller      = user?.uid === trade?.sellerId;
   const isParticipant = isBuyer || isSeller;
 
-  // ─── Progreso ─────────────────────────────────────────────
   const progress = (() => {
     const steps: TradeStatus[] = [
       "awaiting_escrow", "escrow_funded", "payment_sent",
@@ -131,36 +126,35 @@ export function TradePage() {
     return idx >= 0 ? ((idx + 1) / steps.length) * 100 : 0;
   })();
 
-  // ─── Copiar texto ─────────────────────────────────────────
   const copyText = useCallback((text: string) => {
     navigator.clipboard.writeText(text);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   }, []);
 
-  // ─── Mensaje del sistema al chat ──────────────────────────
+  // ─── Mensaje del sistema via backend ─────────────────────
   const sendSystemMessage = async (tradeId: string, msg: string) => {
-  try {
-    const token = localStorage.getItem("cubax_token");
-    await fetch(`${BACKEND_URL}/api/trades/${tradeId}/messages`, {
-      method:  "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization:  `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        text:       msg,
-        senderId:   "SYSTEM",
-        senderName: "CubaX Sistema",
-        type:       "system",
-      }),
-    });
-  } catch (err) {
-    console.error("Error enviando mensaje del sistema:", err);
-  }
-};
+    try {
+      const token = localStorage.getItem("cubax_token");
+      await fetch(`${BACKEND_URL}/api/trades/${tradeId}/messages`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          text:       msg,
+          senderId:   "SYSTEM",
+          senderName: "CubaX Sistema",
+          type:       "system",
+        }),
+      });
+    } catch (err) {
+      console.error("❌ Error enviando mensaje del sistema:", err);
+    }
+  };
 
-  // ─── ACCIÓN PRINCIPAL ─────────────────────────────────────
+  // ─── Acciones del trade ───────────────────────────────────
   const handleAction = useCallback(async (action: string) => {
     if (!trade || !user) return;
 
@@ -173,11 +167,10 @@ export function TradePage() {
     setError(null);
 
     try {
-      const tradeRef = doc(db, "trades", trade.id);
+      const token = localStorage.getItem("cubax_token");
 
       switch (action) {
 
-        // ✅ ESCROW — via backend (Admin SDK bypasea reglas)
         case "fund_escrow": {
           if (!isSeller) throw new Error("Solo el vendedor puede fondear el escrow.");
           if (trade.status !== "awaiting_escrow") throw new Error("Estado inválido.");
@@ -185,17 +178,13 @@ export function TradePage() {
           const res  = await fetch(`${BACKEND_URL}/api/trade/fund-escrow`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-              tradeId:  trade.id,
-              sellerId: user.uid,
-            }),
+            body:    JSON.stringify({ tradeId: trade.id, sellerId: user.uid }),
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.error);
           break;
         }
 
-        // ✅ MARCAR PAGO — via backend
         case "mark_paid": {
           if (!isBuyer) throw new Error("Solo el comprador puede marcar el pago.");
           if (trade.status !== "escrow_funded") throw new Error("Estado inválido.");
@@ -203,17 +192,13 @@ export function TradePage() {
           const res  = await fetch(`${BACKEND_URL}/api/trade/mark-paid`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-              tradeId: trade.id,
-              buyerId: user.uid,
-            }),
+            body:    JSON.stringify({ tradeId: trade.id, buyerId: user.uid }),
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.error);
           break;
         }
 
-        // ✅ LIBERAR FONDOS — via backend (Admin SDK bypasea reglas)
         case "release": {
           if (!isSeller) throw new Error("Solo el vendedor puede liberar los fondos.");
           if (trade.status !== "payment_sent") throw new Error("Estado inválido.");
@@ -221,58 +206,63 @@ export function TradePage() {
           const res  = await fetch(`${BACKEND_URL}/api/trade/release`, {
             method:  "POST",
             headers: { "Content-Type": "application/json" },
-            body:    JSON.stringify({
-              tradeId:  trade.id,
-              sellerId: user.uid,
-            }),
+            body:    JSON.stringify({ tradeId: trade.id, sellerId: user.uid }),
           });
           const data = await res.json();
           if (!data.success) throw new Error(data.error);
           break;
         }
 
-        // ✅ DISPUTA — directo en Firestore (solo escribe en su propio trade)
-        const sendSystemMessage = async (tradeId: string, msg: string) => {
-  try {
-    const token = localStorage.getItem("cubax_token");
-    await fetch(`${BACKEND_URL}/api/trades/${tradeId}/messages`, {
-      method:  "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization:  `Bearer ${token}`,
-      },
-      body: JSON.stringify({
-        text:       msg,
-        senderId:   "SYSTEM",
-        senderName: "CubaX Sistema",
-        type:       "system",
-      }),
-    });
-  } catch (err) {
-    console.error("Error enviando mensaje del sistema:", err);
-  }
-};
+        case "dispute": {
+          if (!isParticipant) throw new Error("No autorizado.");
+          if (["crypto_released", "cancelled", "disputed"].includes(trade.status)) {
+            throw new Error("No se puede disputar en este estado.");
+          }
 
-        // ✅ CANCELAR — directo en Firestore
-        case "cancel": {
-  if (trade.status !== "awaiting_escrow") {
-    throw new Error("Solo se puede cancelar antes de fondear el escrow.");
-  }
-
-  const token = localStorage.getItem("cubax_token");
-  const res   = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/cancel`, {
-    method:  "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization:  `Bearer ${token}`,
-    },
-    body: JSON.stringify({ uid: user.uid }),
-  });
-  const data = await res.json();
-  if (!data.success) throw new Error(data.error);
-  break;
+          const res  = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/dispute`, {
+            method:  "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization:  `Bearer ${token}`,
+            },
+            body: JSON.stringify({ uid: user.uid }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          break;
         }
-  // ─── LOADING STATE ────────────────────────────────────────
+
+        case "cancel": {
+          if (trade.status !== "awaiting_escrow") {
+            throw new Error("Solo se puede cancelar antes de fondear el escrow.");
+          }
+
+          const res  = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/cancel`, {
+            method:  "POST",
+            headers: {
+              "Content-Type": "application/json",
+              Authorization:  `Bearer ${token}`,
+            },
+            body: JSON.stringify({ uid: user.uid }),
+          });
+          const data = await res.json();
+          if (!data.success) throw new Error(data.error);
+          break;
+        }
+
+        default:
+          throw new Error(`Acción desconocida: ${action}`);
+      }
+
+    } catch (err: any) {
+      console.error(`❌ Error en acción ${action}:`, err);
+      setError(err.message || "Error al procesar la acción.");
+    } finally {
+      setLoading(false);
+    }
+  }, [trade, user, isBuyer, isSeller, isParticipant]);
+
+  // ─── Loading ──────────────────────────────────────────────
   if (!trade) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
@@ -284,7 +274,6 @@ export function TradePage() {
     );
   }
 
-  // ─── ERROR DE SEGURIDAD ───────────────────────────────────
   if (!isParticipant) {
     return (
       <div className="max-w-lg mx-auto px-4 py-16 text-center">
@@ -613,7 +602,7 @@ export function TradePage() {
             </div>
           )}
 
-          {/* Cancelar — Solo antes del escrow */}
+          {/* Cancelar antes del escrow */}
           {trade.status === "awaiting_escrow" && (
             <Button
               size="sm" fullWidth variant="ghost"
@@ -646,5 +635,4 @@ export function TradePage() {
       </div>
     </div>
   );
-          }
-  
+}
