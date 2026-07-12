@@ -1,24 +1,17 @@
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card } from "@/components/ui/Card";
-import { db } from "@/lib/firebase/config";
-import { doc, updateDoc } from "firebase/firestore";
 import {
   requestNotificationPermission,
   onForegroundMessage,
 } from "@/lib/firebase/messaging";
 import {
-  Bell,
-  BellOff,
-  ArrowLeftRight,
-  ShoppingBag,
-  Shield,
-  TrendingUp,
-  CheckCircle2,
-  AlertTriangle,
-  Loader2,
-  X,
+  Bell, BellOff, ArrowLeftRight, ShoppingBag,
+  Shield, TrendingUp, CheckCircle2, AlertTriangle,
+  Loader2, X,
 } from "lucide-react";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 interface NotifPrefs {
   trades:      boolean;
@@ -57,7 +50,7 @@ export function NotificationSettingsPage() {
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("📬 Mensaje en primer plano:", payload);
     });
-    return () => unsubscribe();
+    return () => unsubscribe?.();
   }, [permission]);
 
   // ─── Activar notificaciones ───────────────────────────────
@@ -75,9 +68,7 @@ export function NotificationSettingsPage() {
       } else {
         setPermission(Notification.permission);
         if (Notification.permission === "denied") {
-          setError(
-            "Notificaciones bloqueadas. Ve a los ajustes de tu navegador para permitirlas."
-          );
+          setError("Notificaciones bloqueadas. Ve a los ajustes de tu navegador para permitirlas.");
         }
       }
     } catch (err: any) {
@@ -87,7 +78,7 @@ export function NotificationSettingsPage() {
     }
   };
 
-  // ─── Guardar preferencias ─────────────────────────────────
+  // ─── Guardar preferencias via backend ────────────────────
   const handleTogglePref = async (key: keyof NotifPrefs) => {
     if (!user?.uid) return;
 
@@ -95,12 +86,21 @@ export function NotificationSettingsPage() {
     setPrefs(newPrefs);
 
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        notifPrefs: newPrefs,
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/profile/update`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ notifPrefs: newPrefs }),
       });
+      const data = await res.json();
+
+      if (!data.success) throw new Error(data.error);
+
       setUser({ ...user, notifPrefs: newPrefs } as any);
     } catch (err: any) {
-      // Revertir si falla
       setPrefs(prefs);
       setError("Error al guardar preferencias.");
     }
@@ -111,35 +111,35 @@ export function NotificationSettingsPage() {
   const notifTypes = [
     {
       key:   "trades" as keyof NotifPrefs,
-      icon:  <ArrowLeftRight className="h-4 w-4 text-brand-500" />,
+      icon:  <ArrowLeftRight className="h-4 w-4 text-brand-500"   />,
       bg:    "bg-brand-500/10",
       label: "Trades P2P",
       desc:  "Alertas de nuevos trades, pagos y liberaciones",
     },
     {
       key:   "marketplace" as keyof NotifPrefs,
-      icon:  <ShoppingBag className="h-4 w-4 text-violet-500" />,
+      icon:  <ShoppingBag   className="h-4 w-4 text-violet-500"   />,
       bg:    "bg-violet-500/10",
       label: "Marketplace",
       desc:  "Nuevos productos y compras completadas",
     },
     {
       key:   "kyc" as keyof NotifPrefs,
-      icon:  <Shield className="h-4 w-4 text-amber-500" />,
+      icon:  <Shield        className="h-4 w-4 text-amber-500"    />,
       bg:    "bg-amber-500/10",
       label: "Verificación KYC",
       desc:  "Estado de tu verificación de identidad",
     },
     {
       key:   "precios" as keyof NotifPrefs,
-      icon:  <TrendingUp className="h-4 w-4 text-emerald-500" />,
+      icon:  <TrendingUp    className="h-4 w-4 text-emerald-500"  />,
       bg:    "bg-emerald-500/10",
       label: "Alertas de precios",
       desc:  "Cambios importantes en el precio de tus criptos",
     },
     {
       key:   "sistema" as keyof NotifPrefs,
-      icon:  <Bell className="h-4 w-4 text-blue-500" />,
+      icon:  <Bell          className="h-4 w-4 text-blue-500"     />,
       bg:    "bg-blue-500/10",
       label: "Sistema",
       desc:  "Actualizaciones y mantenimiento de CubaX",
@@ -168,9 +168,7 @@ export function NotificationSettingsPage() {
       {error && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
           <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-          <p className="text-xs text-red-700 dark:text-red-400 flex-1">
-            {error}
-          </p>
+          <p className="text-xs text-red-700 dark:text-red-400 flex-1">{error}</p>
           <button onClick={() => setError(null)}>
             <X className="h-3.5 w-3.5 text-red-400" />
           </button>
@@ -181,9 +179,7 @@ export function NotificationSettingsPage() {
       {success && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
           <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
-          <p className="text-xs text-emerald-700 dark:text-emerald-400">
-            {success}
-          </p>
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">{success}</p>
         </div>
       )}
 
@@ -199,20 +195,14 @@ export function NotificationSettingsPage() {
         }`}
       >
         <div className="flex items-center gap-3">
-          <div
-            className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
-              permission === "granted"
-                ? "bg-emerald-500/10"
-                : permission === "denied"
-                ? "bg-red-500/10"
-                : "bg-amber-500/10"
-            }`}
-          >
-            {permission === "granted" ? (
-              <Bell className="h-5 w-5 text-emerald-500" />
-            ) : (
-              <BellOff className="h-5 w-5 text-amber-500" />
-            )}
+          <div className={`h-10 w-10 rounded-xl flex items-center justify-center flex-shrink-0 ${
+            permission === "granted" ? "bg-emerald-500/10" :
+            permission === "denied"  ? "bg-red-500/10"    : "bg-amber-500/10"
+          }`}>
+            {permission === "granted"
+              ? <Bell    className="h-5 w-5 text-emerald-500" />
+              : <BellOff className="h-5 w-5 text-amber-500"   />
+            }
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-gray-900 dark:text-white">
@@ -236,11 +226,10 @@ export function NotificationSettingsPage() {
               disabled={enabling}
               className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-brand-500 text-white text-xs font-bold hover:bg-brand-600 transition-all disabled:opacity-50 flex-shrink-0"
             >
-              {enabling ? (
-                <Loader2 className="h-3.5 w-3.5 animate-spin" />
-              ) : (
-                <Bell className="h-3.5 w-3.5" />
-              )}
+              {enabling
+                ? <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                : <Bell    className="h-3.5 w-3.5"               />
+              }
               {enabling ? "Activando..." : "Activar"}
             </button>
           )}
@@ -252,30 +241,18 @@ export function NotificationSettingsPage() {
         <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
           Tipos de notificación
         </h3>
-        <Card
-          padding="none"
-          className="divide-y divide-gray-100 dark:divide-white/[0.05]"
-        >
+        <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.05]">
           {notifTypes.map((type) => (
-            <div
-              key={type.key}
-              className="flex items-center gap-3 px-4 py-3.5"
-            >
-              <div
-                className={`h-9 w-9 rounded-xl ${type.bg} flex items-center justify-center flex-shrink-0`}
-              >
+            <div key={type.key} className="flex items-center gap-3 px-4 py-3.5">
+              <div className={`h-9 w-9 rounded-xl ${type.bg} flex items-center justify-center flex-shrink-0`}>
                 {type.icon}
               </div>
               <div className="flex-1 min-w-0">
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">
                   {type.label}
                 </p>
-                <p className="text-[11px] text-gray-400 truncate">
-                  {type.desc}
-                </p>
+                <p className="text-[11px] text-gray-400 truncate">{type.desc}</p>
               </div>
-
-              {/* Toggle */}
               <button
                 onClick={() => handleTogglePref(type.key)}
                 disabled={permission !== "granted"}
@@ -283,13 +260,9 @@ export function NotificationSettingsPage() {
                   prefs[type.key] ? "bg-brand-500" : "bg-gray-300 dark:bg-white/20"
                 }`}
               >
-                <div
-                  className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
-                    prefs[type.key]
-                      ? "translate-x-[22px]"
-                      : "translate-x-0.5"
-                  }`}
-                />
+                <div className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  prefs[type.key] ? "translate-x-[22px]" : "translate-x-0.5"
+                }`} />
               </button>
             </div>
           ))}
@@ -305,4 +278,4 @@ export function NotificationSettingsPage() {
       </Card>
     </div>
   );
-}
+              }
