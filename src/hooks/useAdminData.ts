@@ -25,29 +25,29 @@ export function useAdminData(): AdminData {
       if (stopped) return;
 
       try {
-        const token = localStorage.getItem("cubax_token");
+        const token   = localStorage.getItem("cubax_token");
         const headers = {
           "Content-Type": "application/json",
           Authorization:  `Bearer ${token}`,
         };
 
         const [usersRes, disputesRes, paymentsRes] = await Promise.all([
-          fetch(`${BACKEND_URL}/admin/kyc/pending`,   { headers }),
-          fetch(`${BACKEND_URL}/admin/disputes`,       { headers }),
+          fetch(`${BACKEND_URL}/admin/kyc/pending`,     { headers }),
+          fetch(`${BACKEND_URL}/admin/disputes`,         { headers }),
           fetch(`${BACKEND_URL}/admin/payments/pending`, { headers }),
         ]);
 
         const [usersData, disputesData, paymentsData] = await Promise.all([
           usersRes.json(),
           disputesRes.json(),
-          paymentsData,
+          paymentsRes.json(),  // ✅ correcto
         ]);
 
         if (!stopped) {
           setData({
-            pendingUsers: usersData.success    ? usersData.users       : [],
-            disputes:     disputesData.success ? disputesData.disputes  : [],
-            payments:     paymentsData.success ? paymentsData.payments  : [],
+            pendingUsers: usersData.success    ? usersData.users        : [],
+            disputes:     disputesData.success ? disputesData.disputes   : [],
+            payments:     paymentsData.success ? paymentsData.payments   : [],
             loading:      false,
           });
         }
