@@ -5,11 +5,6 @@ import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { CONDITION_LABELS, CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/mock";
-import { db } from "@/lib/firebase/config";
-import {
-  collection, doc, addDoc, setDoc,
-  query, where, orderBy, onSnapshot, updateDoc,
-} from "firebase/firestore";
 import {
   MapPin, Calendar, Star, MessageCircle,
   ShoppingCart, Share2, Heart, Loader2,
@@ -45,13 +40,13 @@ export function ProductDetailPage() {
   const [buyError, setBuyError]                   = useState<string | null>(null);
 
   // ─── Estados del chat ─────────────────────────────────────
-  const [showChat, setShowChat]             = useState(false);
-  const [chatMessages, setChatMessages]     = useState<ChatMessage[]>([]);
-  const [newMessage, setNewMessage]         = useState("");
-  const [sendingMsg, setSendingMsg]         = useState(false);
-  const [chatRoomId, setChatRoomId]         = useState<string | null>(null);
+  const [showChat, setShowChat]                 = useState(false);
+  const [chatMessages, setChatMessages]         = useState<ChatMessage[]>([]);
+  const [newMessage, setNewMessage]             = useState("");
+  const [sendingMsg, setSendingMsg]             = useState(false);
+  const [chatRoomId, setChatRoomId]             = useState<string | null>(null);
   const [selectedChatRoom, setSelectedChatRoom] = useState<string | null>(null);
-  const [productChats, setProductChats]     = useState<Array<{
+  const [productChats, setProductChats]         = useState<Array<{
     roomId:       string;
     buyerId:      string;
     buyerName:    string;
@@ -59,28 +54,18 @@ export function ProductDetailPage() {
   }>>([]);
 
   // ─── Opciones de compra ───────────────────────────────────
-  const [selectedDelivery, setSelectedDelivery]   = useState<DeliveryMethod>("pickup");
-  const [deliveryAddress, setDeliveryAddress]     = useState("");
-  const [showBuyModal, setShowBuyModal]           = useState(false);
+  const [selectedDelivery, setSelectedDelivery] = useState<DeliveryMethod>("pickup");
+  const [deliveryAddress, setDeliveryAddress]   = useState("");
+  const [showBuyModal, setShowBuyModal]         = useState(false);
 
   // ─── Cargar productos si el store está vacío ──────────────
   useEffect(() => {
     if (products.length > 0) return;
 
-    const q = query(
-      collection(db, "products"),
-      where("status", "==", "active"),
-      orderBy("createdAt", "desc")
-    );
-
-    const unsubscribe = onSnapshot(q, (snapshot) => {
-      const liveProducts: Product[] = snapshot.docs.map(
-        (docSnap) => ({ id: docSnap.id, ...docSnap.data() } as Product)
-      );
-      setProducts(liveProducts);
-    });
-
-    return () => unsubscribe();
+    fetch(`${BACKEND_URL}/api/products`)
+      .then((r) => r.json())
+      .then((data) => { if (data.success) setProducts(data.products); })
+      .catch(console.error);
   }, []);
 
   const product = products.find((p) => p.id === selectedProductId);
@@ -94,61 +79,66 @@ export function ProductDetailPage() {
     setChatRoomId(roomId);
     setSelectedChatRoom(roomId);
 
-    const q = query(
-      collection(db, "product_chats", roomId, "messages"),
-      orderBy("createdAt", "asc")
-    );
+    let stopped = false;
 
-    const unsubscribe = onSnapshot(q,
-      (snapshot) => {
-        const msgs = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id:         d.id,
-            senderId:   data.senderId   || "",
-            senderName: data.senderName || "",
-            text:       data.text       || "",
-            createdAt:  data.createdAt  || Date.now(),
-            type:       data.type       || "text",
-          } as ChatMessage;
-        });
-        setChatMessages(msgs);
-      },
-      (err) => console.warn("Error chat comprador:", err.message)
-    );
+    const loadMessages = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/api/chats/${encodeURIComponent(roomId)}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) setChatMessages(data.messages);
+      } catch (err) {
+        console.warn("Error chat comprador:", err);
+      }
+    };
 
-    return () => unsubscribe();
+    void loadMessages();
+    const intervalId = window.setInterval(loadMessages, 5000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [showChat, product?.id, user?.uid, isOwner]);
 
   // ─── Chat vendedor — todos los chats del producto ─────────
   useEffect(() => {
     if (!showChat || !product || !user || !isOwner) return;
 
-    const q = query(
-      collection(db, "product_chats"),
-      where("productId", "==", product.id)
-    );
+    let stopped = false;
 
-    const unsubscribe = onSnapshot(q,
-      (snapshot) => {
-        const chats = snapshot.docs.map((d) => ({
-          roomId:      d.id,
-          buyerId:     d.data().buyerId   || "",
-          buyerName:   d.data().buyerName || "Comprador",
-          lastMessage: d.data().lastMessage || "",
-        }));
-
-        setProductChats(chats);
-
-        if (chats.length > 0 && !selectedChatRoom) {
-          setSelectedChatRoom(chats[0].roomId);
-          setChatRoomId(chats[0].roomId);
+    const loadChats = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/api/products/${product.id}/chats`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setProductChats(data.chats);
+          if (data.chats.length > 0 && !selectedChatRoom) {
+            setSelectedChatRoom(data.chats[0].roomId);
+            setChatRoomId(data.chats[0].roomId);
+          }
         }
-      },
-      (err) => console.warn("Error chats vendedor:", err.message)
-    );
+      } catch (err) {
+        console.warn("Error chats vendedor:", err);
+      }
+    };
 
-    return () => unsubscribe();
+    void loadChats();
+    const intervalId = window.setInterval(loadChats, 10000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [showChat, product?.id, user?.uid, isOwner]);
 
   // ─── Vendedor — mensajes del chat seleccionado ────────────
@@ -156,31 +146,30 @@ export function ProductDetailPage() {
     if (!isOwner || !selectedChatRoom || !showChat) return;
 
     setChatRoomId(selectedChatRoom);
+    let stopped = false;
 
-    const q = query(
-      collection(db, "product_chats", selectedChatRoom, "messages"),
-      orderBy("createdAt", "asc")
-    );
+    const loadMessages = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/api/chats/${encodeURIComponent(selectedChatRoom)}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) setChatMessages(data.messages);
+      } catch (err) {
+        console.warn("Error mensajes vendedor:", err);
+      }
+    };
 
-    const unsubscribe = onSnapshot(q,
-      (snapshot) => {
-        const msgs = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id:         d.id,
-            senderId:   data.senderId   || "",
-            senderName: data.senderName || "",
-            text:       data.text       || "",
-            createdAt:  data.createdAt  || Date.now(),
-            type:       data.type       || "text",
-          } as ChatMessage;
-        });
-        setChatMessages(msgs);
-      },
-      (err) => console.warn("Error mensajes vendedor:", err.message)
-    );
+    void loadMessages();
+    const intervalId = window.setInterval(loadMessages, 5000);
 
-    return () => unsubscribe();
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [selectedChatRoom, isOwner, showChat]);
 
   // ─── Enviar mensaje ───────────────────────────────────────
@@ -192,60 +181,24 @@ export function ProductDetailPage() {
     setNewMessage("");
 
     try {
-      await setDoc(
-        doc(db, "product_chats", chatRoomId),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(
+        `${BACKEND_URL}/api/chats/${encodeURIComponent(chatRoomId)}/messages`,
         {
-          productId:     product?.id,
-          productTitle:  product?.title,
-          buyerId:       isOwner
-            ? productChats.find((c) => c.roomId === chatRoomId)?.buyerId
-            : user.uid,
-          buyerName:     isOwner
-            ? productChats.find((c) => c.roomId === chatRoomId)?.buyerName
-            : user.displayName,
-          sellerId:      product?.sellerId,
-          sellerName:    product?.sellerName,
-          lastMessage:   msgText,
-          lastMessageAt: Date.now(),
-          createdAt:     Date.now(),
-        },
-        { merge: true }
-      );
-
-      await addDoc(
-        collection(db, "product_chats", chatRoomId, "messages"),
-        {
-          senderId:   user.uid,
-          senderName: user.displayName || "Usuario",
-          text:       msgText,
-          createdAt:  Date.now(),
-          type:       "text",
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text: msgText }),
         }
       );
-
-      // ✅ Notificar contraparte con chatRoomId para ir directo
-      const recipientId = isOwner
-        ? productChats.find((c) => c.roomId === chatRoomId)?.buyerId
-        : product?.sellerId;
-
-      if (recipientId && recipientId !== user.uid) {
-        await addDoc(collection(db, "notifications"), {
-          userId:    recipientId,
-          title:     `💬 ${user.displayName} — ${product?.title}`,
-          body:      msgText.slice(0, 80),
-          type:      "product",
-          read:      false,
-          createdAt: Date.now(),
-          data: {
-            productId:  product?.id   || "",
-            chatRoomId: chatRoomId    || "",
-            openChat:   "true",               // ✅ señal para abrir chat directo
-          },
-        });
+      const data = await res.json();
+      if (data.success) {
+        setChatMessages((prev) => [...prev, data.message]);
       }
-
     } catch (err: any) {
-      console.error("Error enviando mensaje:", err);
+      console.error("❌ Error enviando mensaje:", err);
       setNewMessage(msgText);
     } finally {
       setSendingMsg(false);
@@ -253,9 +206,8 @@ export function ProductDetailPage() {
   };
 
   // ─── Abrir chat desde notificación ───────────────────────
-  // Si la página se abre con un chatRoomId en el store, abrir chat directo
   useEffect(() => {
-    // Esto se puede extender desde el store si se pasa el chatRoomId
+    // Extensible desde el store si se pasa el chatRoomId
   }, []);
 
   // ─── Compartir ────────────────────────────────────────────
@@ -281,11 +233,17 @@ export function ProductDetailPage() {
 
     setDeleting(true);
     try {
-      await updateDoc(doc(db, "products", product.id), {
-        status:    "cancelled",
-        deletedAt: Date.now(),
-        deletedBy: user.uid,
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/api/products/delete`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ uid: user.uid, productId: product.id }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
       setProducts(products.filter((p) => p.id !== product.id));
       navigate("marketplace");
     } catch (error: any) {
@@ -296,8 +254,7 @@ export function ProductDetailPage() {
     }
   };
 
-  // ─── Comprar — via backend ────────────────────────────────
-  // ✅ El producto NO desaparece — solo se crea una orden y se abre el chat
+  // ─── Comprar ──────────────────────────────────────────────
   const handleBuy = async () => {
     if (!user)    return alert("Debes iniciar sesión.");
     if (isOwner)  return alert("No puedes comprar tu propio producto.");
@@ -312,10 +269,14 @@ export function ProductDetailPage() {
     setBuyError(null);
 
     try {
-      const res  = await fetch(`${BACKEND_URL}/api/marketplace/buy`, {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/api/marketplace/buy`, {
         method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
           productId:       product.id,
           buyerId:         user.uid,
           buyerName:       user.displayName || "Comprador CubaX",
@@ -325,53 +286,15 @@ export function ProductDetailPage() {
       });
 
       const data = await res.json();
-
       if (!data.success) throw new Error(data.error || "Error al procesar.");
 
       setOrderId(data.orderId);
       setOrderCreated(true);
       setShowBuyModal(false);
 
-      // ✅ Abrir chat automáticamente después de crear la orden
-      const roomId = `product_${product.id}_${user.uid}`;
+      const roomId = data.roomId || `product_${product.id}_${user.uid}`;
       setChatRoomId(roomId);
       setSelectedChatRoom(roomId);
-
-      // ✅ Enviar mensaje inicial automático en el chat
-      await setDoc(
-        doc(db, "product_chats", roomId),
-        {
-          productId:    product.id,
-          productTitle: product.title,
-          buyerId:      user.uid,
-          buyerName:    user.displayName,
-          sellerId:     product.sellerId,
-          sellerName:   product.sellerName,
-          lastMessage:  `🛒 Nueva orden creada`,
-          lastMessageAt: Date.now(),
-          createdAt:    Date.now(),
-        },
-        { merge: true }
-      );
-
-      await addDoc(
-        collection(db, "product_chats", roomId, "messages"),
-        {
-          senderId:   "SYSTEM",
-          senderName: "CubaX",
-          text:       `🛒 ${user.displayName} inició una orden de compra.\n📦 Entrega: ${
-            selectedDelivery === "pickup"
-              ? "Recogida en persona"
-              : `Envío a domicilio — ${deliveryAddress}`
-          }\n💳 Pago: ${
-            product.paymentTiming === "before"      ? "Antes de recibir" :
-            product.paymentTiming === "on_delivery" ? "Al recibir" :
-            "Coordinado entre ambos"
-          }`,
-          createdAt: Date.now(),
-          type:      "system",
-        }
-      );
 
       setTimeout(() => setShowChat(true), 300);
 
@@ -420,7 +343,7 @@ export function ProductDetailPage() {
   // ─── RENDER PRINCIPAL ─────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto pb-24 animate-fade-in">
-
+      
       {/* ═══ GALERÍA ════════════════════════════════════════ */}
       <div className="aspect-[4/3] bg-gray-100 dark:bg-white/5 relative overflow-hidden">
         {product.images && product.images.length > 0 ? (
