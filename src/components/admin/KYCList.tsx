@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { db } from "@/lib/firebase/config";
-import {
-  doc, updateDoc, addDoc,
-  collection, serverTimestamp,
-} from "firebase/firestore";
-import { Card }  from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card }   from "@/components/ui/Card";
+import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, X, ShieldAlert, Eye } from "lucide-react";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 interface Props {
   users: any[];
@@ -22,6 +19,7 @@ export function KYCList({ users }: Props) {
     (u) => u.kycStatus === "pending_verification"
   );
 
+  // ─── Aprobar o rechazar KYC via backend ───────────────────
   const handleKYCAction = async (
     user:   any,
     status: "verified" | "rejected"
@@ -33,32 +31,26 @@ export function KYCList({ users }: Props) {
 
     setLoading(user.id);
     try {
-      // ✅ Actualizar estado KYC
-      await updateDoc(doc(db, "users", user.id), {
-        kycStatus:       status,
-        kycReviewedAt:   serverTimestamp(),
-        ...(status === "rejected" && {
-          kycRejectReason: rejectReason[user.id],
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/admin/kyc/review`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          userId:       user.id,
+          status,
+          rejectReason: status === "rejected" ? rejectReason[user.id] : null,
         }),
       });
+      const data = await res.json();
 
-      // ✅ Notificar al usuario
-      await addDoc(collection(db, "notifications"), {
-        userId:    user.id,
-        title:     status === "verified"
-          ? "✅ Identidad Verificada"
-          : "❌ Verificación Rechazada",
-        body: status === "verified"
-          ? "Tu identidad ha sido aprobada. Ya puedes operar sin límites en CubaX."
-          : `Tu solicitud KYC fue rechazada. Motivo: ${rejectReason[user.id]}. Puedes volver a intentarlo.`,
-        type:      "kyc",
-        read:      false,
-        createdAt: Date.now(),
-      });
+      if (!data.success) throw new Error(data.error);
 
       setShowReject(null);
     } catch (e: any) {
-      console.error("Error al procesar KYC:", e);
+      console.error("❌ Error al procesar KYC:", e);
       alert("Hubo un error: " + e.message);
     } finally {
       setLoading(null);
@@ -113,21 +105,21 @@ export function KYCList({ users }: Props) {
             {[
               { label: "Documento (CI)", url: user.kycDocuments?.idFront },
               { label: "Selfie con CI",  url: user.kycDocuments?.selfie  },
-            ].map((doc) => (
-              <div key={doc.label} className="space-y-1">
+            ].map((docItem) => (
+              <div key={docItem.label} className="space-y-1">
                 <p className="text-[10px] font-bold text-gray-400 uppercase">
-                  {doc.label}
+                  {docItem.label}
                 </p>
-                {doc.url ? (
+                {docItem.url ? (
                   <a
-                    href={doc.url}
+                    href={docItem.url}
                     target="_blank"
                     rel="noreferrer"
                     className="block relative group"
                   >
                     <img
-                      src={doc.url}
-                      alt={doc.label}
+                      src={docItem.url}
+                      alt={docItem.label}
                       className="w-full h-32 object-cover rounded-xl border border-gray-200 dark:border-white/10 group-hover:opacity-80 transition-opacity"
                     />
                     <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-xl">
@@ -215,5 +207,4 @@ export function KYCList({ users }: Props) {
       ))}
     </div>
   );
-          }
-    
+}
