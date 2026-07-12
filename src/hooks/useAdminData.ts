@@ -1,10 +1,7 @@
 import { useState, useEffect } from "react";
-import { db } from "@/lib/firebase/config";
-import {
-  collection, onSnapshot, query,
-  orderBy, where,
-} from "firebase/firestore";
 import type { User, Dispute, MembershipPayment } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 interface AdminData {
   pendingUsers: User[];
@@ -22,79 +19,54 @@ export function useAdminData(): AdminData {
   });
 
   useEffect(() => {
-    // ✅ Solo usuarios con KYC pendiente
-    const unsubUsers = onSnapshot(
-      query(
-        collection(db, "users"),
-        where("kycStatus", "==", "pending_verification")
-      ),
-      (snapshot) => {
-        const pendingUsers = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as User[];
-        setData((prev) => ({ ...prev, pendingUsers }));
-      },
-      (err) => console.error("Error users:", err.message)
-    );
+    let stopped = false;
 
-    // ✅ Disputas desde system_alerts no resueltas
-    const unsubDisputes = onSnapshot(
-      query(
-        collection(db, "system_alerts"),
-        where("tipo",     "==", "trade_disputado"),
-        where("resuelto", "==", false),
-        orderBy("timestamp", "desc")
-      ),
-      (snapshot) => {
-        const disputes = snapshot.docs.map((d) => {
-          const data = d.data();
-          return {
-            id:          d.id,
-            tradeId:     data.tradeId     || "",
-            buyerId:     data.buyerId     || "",
-            buyerName:   data.buyerName   || "Comprador",
-            sellerId:    data.sellerId    || "",
-            sellerName:  data.sellerName  || "Vendedor",
-            asset:       data.asset       || "USDT",
-            amount:      data.amount      || 0,
-            initiatedBy: data.disputadoPor || "",
-            reason:      data.descripcion  || "",
-            status:      "open" as const,
-            createdAt:   data.timestamp   || Date.now(),
-          } as Dispute;
-        });
-        setData((prev) => ({ ...prev, disputes }));
-      },
-      (err) => console.error("Error disputes:", err.message)
-    );
+    const loadAdminData = async () => {
+      if (stopped) return;
 
-    // ✅ Pagos de membresía pendientes
-    const unsubPayments = onSnapshot(
-      query(
-        collection(db, "membership_payments"),
-        where("status", "==", "pending"),
-        orderBy("createdAt", "desc")
-      ),
-      (snapshot) => {
-        const payments = snapshot.docs.map((d) => ({
-          id: d.id,
-          ...d.data(),
-        })) as MembershipPayment[];
-        setData((prev) => ({ ...prev, payments, loading: false }));
-      },
-      (err) => {
-        console.error("Error payments:", err.message);
-        setData((prev) => ({ ...prev, loading: false }));
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const headers = {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        };
+
+        const [usersRes, disputesRes, paymentsRes] = await Promise.all([
+          fetch(`${BACKEND_URL}/admin/kyc/pending`,   { headers }),
+          fetch(`${BACKEND_URL}/admin/disputes`,       { headers }),
+          fetch(`${BACKEND_URL}/admin/payments/pending`, { headers }),
+        ]);
+
+        const [usersData, disputesData, paymentsData] = await Promise.all([
+          usersRes.json(),
+          disputesRes.json(),
+          paymentsData,
+        ]);
+
+        if (!stopped) {
+          setData({
+            pendingUsers: usersData.success    ? usersData.users       : [],
+            disputes:     disputesData.success ? disputesData.disputes  : [],
+            payments:     paymentsData.success ? paymentsData.payments  : [],
+            loading:      false,
+          });
+        }
+      } catch (err) {
+        console.error("❌ Error cargando datos admin:", err);
+        if (!stopped) {
+          setData((prev) => ({ ...prev, loading: false }));
+        }
       }
-    );
+    };
+
+    void loadAdminData();
+    const intervalId = window.setInterval(loadAdminData, 30000);
 
     return () => {
-      unsubUsers();
-      unsubDisputes();
-      unsubPayments();
+      stopped = true;
+      window.clearInterval(intervalId);
     };
   }, []);
 
   return data;
-            }
+}
