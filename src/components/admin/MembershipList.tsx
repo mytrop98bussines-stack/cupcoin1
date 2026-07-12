@@ -1,13 +1,10 @@
 import { useState } from "react";
-import { db } from "@/lib/firebase/config";
-import {
-  doc, updateDoc, addDoc,
-  collection, serverTimestamp,
-} from "firebase/firestore";
-import { Card }  from "@/components/ui/Card";
+import { Card }   from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
 import { CheckCircle2, X, ExternalLink, Crown } from "lucide-react";
 import type { MembershipPayment } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 interface Props {
   payments: MembershipPayment[];
@@ -18,67 +15,48 @@ export function MembershipList({ payments }: Props) {
 
   const pendingPayments = payments.filter((p) => p.status === "pending");
 
+  // ─── Aprobar membresía via backend ────────────────────────
   const approveMembership = async (payment: MembershipPayment) => {
     setLoading(payment.id);
     try {
-      const now       = Date.now();
-      const expiresAt = now + 30 * 24 * 60 * 60 * 1000;
-
-      // ✅ Marcar pago como completado
-      await updateDoc(doc(db, "membership_payments", payment.id), {
-        status:     "completed",
-        reviewedAt: serverTimestamp(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/admin/membership/approve`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ paymentId: payment.id, userId: payment.userId }),
       });
-
-      // ✅ Activar membresía del usuario
-      await updateDoc(doc(db, "users", payment.userId), {
-        "membership.status":    "active",
-        "membership.expiresAt": expiresAt,
-        "membership.startedAt": now,
-        "membership.lastPayment": now,
-      });
-
-      // ✅ Notificar al usuario
-      await addDoc(collection(db, "notifications"), {
-        userId:    payment.userId,
-        title:     "✅ ¡Membresía activada!",
-        body:      `Tu pago de ${payment.amount} ${payment.currency} fue verificado. Membresía activa hasta ${new Date(expiresAt).toLocaleDateString("es-CU")}.`,
-        type:      "membership",
-        read:      false,
-        createdAt: now,
-      });
-
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
     } catch (e: any) {
-      console.error("Error al aprobar membresía:", e);
+      console.error("❌ Error al aprobar membresía:", e);
       alert("Error: " + e.message);
     } finally {
       setLoading(null);
     }
   };
 
+  // ─── Rechazar membresía via backend ───────────────────────
   const rejectMembership = async (payment: MembershipPayment) => {
     if (!confirm("¿Estás seguro de que deseas RECHAZAR este pago?")) return;
 
     setLoading(payment.id);
     try {
-      // ✅ Marcar pago como rechazado
-      await updateDoc(doc(db, "membership_payments", payment.id), {
-        status:     "rejected",
-        reviewedAt: serverTimestamp(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/admin/membership/reject`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ paymentId: payment.id, userId: payment.userId }),
       });
-
-      // ✅ Notificar al usuario
-      await addDoc(collection(db, "notifications"), {
-        userId:    payment.userId,
-        title:     "❌ Pago rechazado",
-        body:      "Tu comprobante de pago no pudo ser verificado. Por favor verifica el monto y vuelve a intentarlo o contacta soporte.",
-        type:      "membership",
-        read:      false,
-        createdAt: Date.now(),
-      });
-
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
     } catch (e: any) {
-      console.error("Error al rechazar:", e);
+      console.error("❌ Error al rechazar:", e);
       alert("Error: " + e.message);
     } finally {
       setLoading(null);
@@ -111,9 +89,7 @@ export function MembershipList({ payments }: Props) {
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div>
               <p className="text-[10px] text-gray-400 uppercase font-bold">Usuario</p>
-              <p className="font-bold text-gray-900 dark:text-white">
-                {p.userName}
-              </p>
+              <p className="font-bold text-gray-900 dark:text-white">{p.userName}</p>
             </div>
             <div>
               <p className="text-[10px] text-gray-400 uppercase font-bold">Monto</p>
