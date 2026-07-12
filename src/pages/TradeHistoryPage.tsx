@@ -1,13 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card }  from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card }   from "@/components/ui/Card";
+import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { db } from "@/lib/firebase/config";
-import {
-  collection, query, where, or,
-  orderBy, onSnapshot, limit,
-} from "firebase/firestore";
 import {
   ArrowLeftRight, ArrowDownLeft, ArrowUpRight,
   Clock, CheckCircle2, AlertTriangle, XCircle,
@@ -15,6 +10,8 @@ import {
   ShoppingCart, Package,
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 // ─── Configuración de estados ─────────────────────────────
 const STATUS_CONFIG: Record<
@@ -41,7 +38,6 @@ const ACTIVE_STATUSES: TradeStatus[] = [
   "payment_confirmed",
 ];
 
-// ─── Tipos de marketplace ─────────────────────────────────
 interface MarketplaceOrder {
   id:           string;
   productId:    string;
@@ -61,94 +57,90 @@ type HistoryTab = "trades" | "marketplace";
 export function TradeHistoryPage() {
   const { user, navigate, setActiveTrade, setSelectedTradeId } = useAppStore();
 
-  // ─── Estados ──────────────────────────────────────────────
-  const [activeTab, setActiveTab]         = useState<HistoryTab>("trades");
-  const [trades, setTrades]               = useState<Trade[]>([]);
+  const [activeTab, setActiveTab]                 = useState<HistoryTab>("trades");
+  const [trades, setTrades]                       = useState<Trade[]>([]);
   const [marketplaceOrders, setMarketplaceOrders] = useState<MarketplaceOrder[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [loadingMarket, setLoadingMarket] = useState(true);
-  const [filter, setFilter]               = useState<"all" | "buy" | "sell">("all");
-  const [statusFilter, setStatusFilter]   = useState<TradeStatus | "all">("all");
-  const [searchQuery, setSearchQuery]     = useState("");
+  const [loading, setLoading]                     = useState(true);
+  const [loadingMarket, setLoadingMarket]         = useState(true);
+  const [filter, setFilter]                       = useState<"all" | "buy" | "sell">("all");
+  const [statusFilter, setStatusFilter]           = useState<TradeStatus | "all">("all");
+  const [searchQuery, setSearchQuery]             = useState("");
 
-  // ─── Cargar trades ────────────────────────────────────────
+  // ─── Cargar trades via backend ────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
     setLoading(true);
+    let stopped = false;
 
-    const q = query(
-      collection(db, "trades"),
-      or(
-        where("buyerId",  "==", user.uid),
-        where("sellerId", "==", user.uid)
-      ),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-
-    const unsubscribe = onSnapshot(
-      q,
-      (snapshot) => {
-        const tradesList = snapshot.docs.map((doc) => ({
-          id: doc.id,
-          ...doc.data(),
-        })) as Trade[];
-        setTrades(tradesList);
-        setLoading(false);
-      },
-      (err) => {
-        console.error("Error cargando historial:", err);
-        setLoading(false);
+    const loadTrades = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/trades/history`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ uid: user.uid }),
+        });
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setTrades(data.trades);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando historial:", err);
+      } finally {
+        if (!stopped) setLoading(false);
       }
-    );
+    };
 
-    return () => unsubscribe();
+    void loadTrades();
+    const intervalId = window.setInterval(loadTrades, 30000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   }, [user?.uid]);
 
-  // ─── Cargar órdenes del marketplace ───────────────────────
+  // ─── Cargar órdenes del marketplace via backend ───────────
   useEffect(() => {
     if (!user?.uid) return;
 
     setLoadingMarket(true);
+    let stopped = false;
 
-    // ✅ Cargar compras del usuario
-    const qBuyer = query(
-      collection(db, "marketplace_orders"),
-      where("buyerId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
+    const loadOrders = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/marketplace/orders`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ uid: user.uid }),
+        });
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setMarketplaceOrders(data.orders);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando órdenes marketplace:", err);
+      } finally {
+        if (!stopped) setLoadingMarket(false);
+      }
+    };
 
-    // ✅ Cargar ventas del usuario
-    const qSeller = query(
-      collection(db, "marketplace_orders"),
-      where("sellerId", "==", user.uid),
-      orderBy("createdAt", "desc"),
-      limit(50)
-    );
-
-    const orders: Record<string, MarketplaceOrder> = {};
-
-    const unsubBuyer = onSnapshot(qBuyer, (snapshot) => {
-      snapshot.docs.forEach((doc) => {
-        orders[doc.id] = { id: doc.id, ...doc.data() } as MarketplaceOrder;
-      });
-      setMarketplaceOrders(Object.values(orders).sort((a, b) => b.createdAt - a.createdAt));
-      setLoadingMarket(false);
-    });
-
-    const unsubSeller = onSnapshot(qSeller, (snapshot) => {
-      snapshot.docs.forEach((doc) => {
-        orders[doc.id] = { id: doc.id, ...doc.data() } as MarketplaceOrder;
-      });
-      setMarketplaceOrders(Object.values(orders).sort((a, b) => b.createdAt - a.createdAt));
-      setLoadingMarket(false);
-    });
+    void loadOrders();
+    const intervalId = window.setInterval(loadOrders, 30000);
 
     return () => {
-      unsubBuyer();
-      unsubSeller();
+      stopped = true;
+      window.clearInterval(intervalId);
     };
   }, [user?.uid]);
 
@@ -192,7 +184,7 @@ export function TradeHistoryPage() {
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
-
+      
       {/* ═══ HEADER ══════════════════════════════════════════ */}
       <div className="flex items-center gap-3">
         <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
