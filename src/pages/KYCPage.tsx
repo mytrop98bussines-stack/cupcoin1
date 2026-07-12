@@ -1,4 +1,4 @@
-import { useState, useCallback, useRef } from "react";
+import { useState, useCallback, useRef, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card }   from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
