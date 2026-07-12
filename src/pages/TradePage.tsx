@@ -7,11 +7,6 @@ import { Avatar } from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
 import { PAYMENT_METHOD_LABELS } from "@/data/mock";
 import { notifyUser } from "@/lib/firebase/messaging";
-import { db } from "@/lib/firebase/config";
-import {
-  doc, updateDoc, onSnapshot,
-  collection, addDoc,
-} from "firebase/firestore";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
   Send, Copy, Phone, Lock, Unlock, XCircle,
@@ -84,31 +79,42 @@ export function TradePage() {
 
   // ─── Cargar trade en tiempo real ──────────────────────────
   useEffect(() => {
-    const tradeId = selectedTradeId || activeTrade?.id;
-    if (!tradeId) {
-      navigate("p2p");
-      return;
-    }
+  const tradeId = selectedTradeId || activeTrade?.id;
+  if (!tradeId) {
+    navigate("p2p");
+    return;
+  }
 
-    const unsubscribe = onSnapshot(
-      doc(db, "trades", tradeId),
-      (docSnap) => {
-        if (docSnap.exists()) {
-          const tradeData = { id: docSnap.id, ...docSnap.data() } as Trade;
-          setTrade(tradeData);
-          setActiveTrade(tradeData);
-        } else {
-          setError("Trade no encontrado.");
-        }
-      },
-      (err) => {
-        console.error("Error en listener de trade:", err);
-        setError("Error de conexión con Firestore.");
+  let stopped = false;
+
+  const loadTrade = async () => {
+    if (stopped) return;
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(
+        `${BACKEND_URL}/api/trades/${tradeId}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      const data = await res.json();
+      if (data.success && !stopped) {
+        setTrade(data.trade);
+        setActiveTrade(data.trade);
+      } else {
+        setError("Trade no encontrado.");
       }
-    );
+    } catch (err) {
+      console.error("Error cargando trade:", err);
+    }
+  };
 
-    return () => unsubscribe();
-  }, [selectedTradeId, activeTrade?.id]);
+  void loadTrade();
+  const intervalId = window.setInterval(loadTrade, 5000);
+
+  return () => {
+    stopped = true;
+    window.clearInterval(intervalId);
+  };
+}, [selectedTradeId, activeTrade?.id]);
 
   // ─── Validaciones ─────────────────────────────────────────
   const isBuyer       = user?.uid === trade?.buyerId;
@@ -134,14 +140,25 @@ export function TradePage() {
 
   // ─── Mensaje del sistema al chat ──────────────────────────
   const sendSystemMessage = async (tradeId: string, msg: string) => {
-    await addDoc(collection(db, "trades", tradeId, "messages"), {
-      senderId:   "SYSTEM",
-      senderName: "CubaX Sistema",
-      text:       msg,
-      createdAt:  Date.now(),
-      type:       "system",
+  try {
+    const token = localStorage.getItem("cubax_token");
+    await fetch(`${BACKEND_URL}/api/trades/${tradeId}/messages`, {
+      method:  "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        text:       msg,
+        senderId:   "SYSTEM",
+        senderName: "CubaX Sistema",
+        type:       "system",
+      }),
     });
-  };
+  } catch (err) {
+    console.error("Error enviando mensaje del sistema:", err);
+  }
+};
 
   // ─── ACCIÓN PRINCIPAL ─────────────────────────────────────
   const handleAction = useCallback(async (action: string) => {
@@ -215,84 +232,46 @@ export function TradePage() {
         }
 
         // ✅ DISPUTA — directo en Firestore (solo escribe en su propio trade)
-        case "dispute": {
-          if (!isParticipant) throw new Error("No autorizado.");
-          if (["crypto_released", "cancelled", "disputed"].includes(trade.status)) {
-            throw new Error("No se puede disputar en este estado.");
-          }
-
-          await updateDoc(tradeRef, {
-            status:     "disputed",
-            disputedBy: user.uid,
-            disputedAt: Date.now(),
-            updatedAt:  Date.now(),
-          });
-
-          await addDoc(collection(db, "system_alerts"), {
-            tipo:        "trade_disputado",
-            descripcion: `Trade ${trade.id} en disputa por ${user.displayName || user.uid}.`,
-            tradeId:     trade.id,
-            buyerId:     trade.buyerId,
-            buyerName:   trade.buyerName,
-            sellerId:    trade.sellerId,
-            sellerName:  trade.sellerName,
-            asset:       trade.asset,
-            amount:      trade.amount,
-            timestamp:   Date.now(),
-            severidad:   "alta",
-            resuelto:    false,
-          });
-
-          await sendSystemMessage(
-            trade.id,
-            `⚠️ DISPUTA: Trade en revisión por un moderador de CubaX. No realices más acciones.`
-          );
-
-          // ✅ Notificar a la contraparte
-          const counterpartyId = isBuyer ? trade.sellerId : trade.buyerId;
-          await notifyUser(
-            counterpartyId,
-            "⚠️ Disputa iniciada",
-            `${user.displayName} ha iniciado una disputa en el trade #${trade.id.slice(-6)}.`,
-            { tradeId: trade.id, type: "trade" }
-          );
-          break;
-        }
+        const sendSystemMessage = async (tradeId: string, msg: string) => {
+  try {
+    const token = localStorage.getItem("cubax_token");
+    await fetch(`${BACKEND_URL}/api/trades/${tradeId}/messages`, {
+      method:  "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        text:       msg,
+        senderId:   "SYSTEM",
+        senderName: "CubaX Sistema",
+        type:       "system",
+      }),
+    });
+  } catch (err) {
+    console.error("Error enviando mensaje del sistema:", err);
+  }
+};
 
         // ✅ CANCELAR — directo en Firestore
         case "cancel": {
-          if (trade.status !== "awaiting_escrow") {
-            throw new Error(
-              "Solo se puede cancelar antes de fondear el escrow."
-            );
-          }
+  if (trade.status !== "awaiting_escrow") {
+    throw new Error("Solo se puede cancelar antes de fondear el escrow.");
+  }
 
-          await updateDoc(tradeRef, {
-            status:      "cancelled",
-            cancelledBy: user.uid,
-            cancelledAt: Date.now(),
-            updatedAt:   Date.now(),
-          });
-
-          await sendSystemMessage(
-            trade.id,
-            `❌ CANCELADO: El trade fue cancelado. No se realizó ningún movimiento de fondos.`
-          );
-          break;
+  const token = localStorage.getItem("cubax_token");
+  const res   = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/cancel`, {
+    method:  "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:  `Bearer ${token}`,
+    },
+    body: JSON.stringify({ uid: user.uid }),
+  });
+  const data = await res.json();
+  if (!data.success) throw new Error(data.error);
+  break;
         }
-
-        default:
-          throw new Error(`Acción desconocida: ${action}`);
-      }
-
-    } catch (err: any) {
-      console.error(`Error en acción ${action}:`, err);
-      setError(err.message || "Error al procesar la acción.");
-    } finally {
-      setLoading(false);
-    }
-  }, [trade, user, isBuyer, isSeller, isParticipant]);
-
   // ─── LOADING STATE ────────────────────────────────────────
   if (!trade) {
     return (
