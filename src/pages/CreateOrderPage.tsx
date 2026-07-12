@@ -146,69 +146,62 @@ export function CreateOrderPage() {
     if (validationError) {
       setError(validationError);
       return;
-    }
+const handleSubmit = useCallback(async () => {
+  if (validationError) {
+    setError(validationError);
+    return;
+  }
 
-    setLoading(true);
-    setError(null);
+  setLoading(true);
+  setError(null);
 
-    try {
-      // ✅ Verificar saldo si es venta
-      if (orderType === "sell") {
-        const userRef  = doc(db, "users", user.uid);
-        const userSnap = await getDoc(userRef);
+  try {
+    const token = localStorage.getItem("cubax_token");
 
-        if (!userSnap.exists()) {
-          throw new Error("Tu usuario no existe en Firestore.");
-        }
-
-        const balances     = userSnap.data().balances || {};
-        const assetBalance = balances[asset] || 0;
-        const maxAmountNum = parseFloat(maxAmount);
-
-        if (assetBalance < maxAmountNum) {
-          throw new Error(
-            `Saldo insuficiente. Tienes ${assetBalance} ${asset} y quieres vender hasta ${maxAmountNum} ${asset}. Deposita más fondos primero.`
-          );
-        }
+    const res = await fetch(
+      "https://cubax-backend.onrender.com/api/orders/create",
+      {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          uid:            user.uid,
+          type:           orderType,
+          asset,
+          price:          parseFloat(price),
+          minAmount:      parseFloat(minAmount),
+          maxAmount:      parseFloat(maxAmount),
+          paymentMethods: selectedMethods,
+          userName:       user.displayName || "Usuario CubaX",
+          userRating:     (user as any).rating      || 5.0,
+          userTrades:     (user as any).totalTrades || 0,
+          currency:       "CUP",
+        }),
       }
+    );
 
-      // ✅ Crear orden en Firestore
-      const orderRef = doc(collection(db, "orders"));
+    const data = await res.json();
 
-      const newOrder: P2POrder = {
-        id:              orderRef.id,
-        userId:          user.uid,
-        userName:        user.displayName || "Usuario CubaX",
-        userRating:      (user as any).rating      || 5.0,
-        userTrades:      (user as any).totalTrades || 0,
-        type:            orderType,
-        asset,
-        pricePerUnit:    parseFloat(price),
-        currency:        "CUP",
-        minAmount:       parseFloat(minAmount),
-        maxAmount:       parseFloat(maxAmount),
-        availableAmount: parseFloat(maxAmount),
-        paymentMethods:  selectedMethods,
-        status:          "active",
-        createdAt:       Date.now(),
-      };
-
-      await setDoc(orderRef, newOrder);
-
-      setLoading(false);
-      setSuccess(true);
-      setTimeout(() => navigate("p2p"), 1500);
-
-    } catch (err: any) {
-      console.error("Error al publicar orden:", err);
-      setError(err.message || "Error al publicar la orden. Intenta de nuevo.");
-      setLoading(false);
+    if (!data.success) {
+      throw new Error(data.error || "Error al publicar la orden.");
     }
-  }, [
-    price, minAmount, maxAmount,
-    selectedMethods, user, orderType,
-    asset, navigate, validationError,
-  ]);
+
+    setLoading(false);
+    setSuccess(true);
+    setTimeout(() => navigate("p2p"), 1500);
+
+  } catch (err: any) {
+    console.error("❌ Error al publicar orden:", err);
+    setError(err.message || "Error al publicar la orden. Intenta de nuevo.");
+    setLoading(false);
+  }
+}, [
+  price, minAmount, maxAmount,
+  selectedMethods, user, orderType,
+  asset, navigate, validationError,
+]);
 
   // ─── Pantalla de éxito ────────────────────────────────────
   if (success) {
