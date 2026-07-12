@@ -1,13 +1,8 @@
 import { useState, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
-import { Badge } from "@/components/ui/Badge";
+import { Card }   from "@/components/ui/Card";
+import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
-import { db } from "@/lib/firebase/config";
-import {
-  doc, getDoc, updateDoc, addDoc,
-  collection, onSnapshot,
-} from "firebase/firestore";
 import {
   Crown, CheckCircle2, Clock, AlertTriangle,
   Wallet, Smartphone, RefreshCw, X, Upload,
@@ -15,31 +10,42 @@ import {
 } from "lucide-react";
 import type { MembershipPayment, AppConfig } from "@/types";
 
+const BACKEND_URL              = "https://cubax-backend.onrender.com/api";
 const CLOUDINARY_CLOUD_NAME    = "dc4caibrn";
 const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned";
 
 export function MembershipPage() {
   const { user, navigate } = useAppStore();
 
-  const [config, setConfig]               = useState<AppConfig["membership"] | null>(null);
-  const [payments, setPayments]           = useState<MembershipPayment[]>([]);
-  const [loading, setLoading]             = useState(true);
-  const [payMethod, setPayMethod]         = useState<"wallet" | "transfermovil" | "enzona" | null>(null);
-  const [reference, setReference]         = useState("");
-  const [screenshot, setScreenshot]       = useState<string | null>(null);
-  const [uploadingImg, setUploadingImg]   = useState(false);
-  const [submitting, setSubmitting]       = useState(false);
-  const [success, setSuccess]             = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
+  const [config, setConfig]             = useState<AppConfig["membership"] | null>(null);
+  const [payments, setPayments]         = useState<MembershipPayment[]>([]);
+  const [loading, setLoading]           = useState(true);
+  const [payMethod, setPayMethod]       = useState<"wallet" | "transfermovil" | "enzona" | null>(null);
+  const [reference, setReference]       = useState("");
+  const [screenshot, setScreenshot]     = useState<string | null>(null);
+  const [uploadingImg, setUploadingImg] = useState(false);
+  const [submitting, setSubmitting]     = useState(false);
+  const [success, setSuccess]           = useState(false);
+  const [error, setError]               = useState<string | null>(null);
 
-  // ─── Cargar config de membresía ───────────────────────────
+  // ─── Cargar config de membresía via backend ───────────────
   useEffect(() => {
-    const configRef = doc(db, "config", "membership");
-    const unsub = onSnapshot(configRef, (snap) => {
-      if (snap.exists()) {
-        setConfig(snap.data() as AppConfig["membership"]);
-      } else {
-        // Config por defecto si no existe
+    const loadConfig = async () => {
+      try {
+        const res  = await fetch(`${BACKEND_URL}/config/membership`);
+        const data = await res.json();
+        if (data.success) {
+          setConfig(data.config);
+        } else {
+          setConfig({
+            priceCUP:       100,
+            priceUSDT:      0.25,
+            freeTrialDays:  30,
+            graceDays:      3,
+            warnDaysBefore: 3,
+          });
+        }
+      } catch {
         setConfig({
           priceCUP:       100,
           priceUSDT:      0.25,
@@ -47,51 +53,66 @@ export function MembershipPage() {
           graceDays:      3,
           warnDaysBefore: 3,
         });
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
-    });
-    return () => unsub();
+    };
+
+    void loadConfig();
   }, []);
 
-  // ─── Cargar historial de pagos ────────────────────────────
+  // ─── Cargar historial de pagos via backend ────────────────
   useEffect(() => {
     if (!user?.uid) return;
-    const q = collection(db, "membership_payments");
-    const unsub = onSnapshot(
-      doc(db, "users", user.uid),
-      () => {}
-    );
-    return () => unsub();
+
+    const loadPayments = async () => {
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/membership/payments`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ uid: user.uid }),
+        });
+        const data = await res.json();
+        if (data.success) setPayments(data.payments);
+      } catch (err) {
+        console.error("❌ Error cargando pagos:", err);
+      }
+    };
+
+    void loadPayments();
   }, [user?.uid]);
 
   if (!user) return null;
 
-  const membership   = (user as any).membership;
-  const now          = Date.now();
-  const expiresAt    = membership?.expiresAt || 0;
-  const daysLeft     = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
-  const isActive     = membership?.status === "active" ||
-                       membership?.status === "free_trial" ||
-                       membership?.status === "manual";
-  const isExpired    = !isActive || expiresAt < now;
-  const isFreeTrial  = membership?.status === "free_trial";
-  const isWarning    = daysLeft <= 3 && daysLeft > 0 && isActive;
+  const membership  = (user as any).membership;
+  const now         = Date.now();
+  const expiresAt   = membership?.expiresAt || 0;
+  const daysLeft    = Math.ceil((expiresAt - now) / (1000 * 60 * 60 * 24));
+  const isActive    = membership?.status === "active"     ||
+                      membership?.status === "free_trial" ||
+                      membership?.status === "manual";
+  const isExpired   = !isActive || expiresAt < now;
+  const isFreeTrial = membership?.status === "free_trial";
+  const isWarning   = daysLeft <= 3 && daysLeft > 0 && isActive;
 
-  // ─── Estado de la membresía ───────────────────────────────
   const getMembershipBadge = () => {
     if (!membership || isExpired) {
-      return { label: "Sin membresía", variant: "danger" as const, icon: <X className="h-3 w-3" /> };
+      return { label: "Sin membresía",    variant: "danger"  as const, icon: <X             className="h-3 w-3" /> };
     }
     if (isFreeTrial) {
-      return { label: "Prueba gratuita", variant: "info" as const, icon: <Zap className="h-3 w-3" /> };
+      return { label: "Prueba gratuita",  variant: "info"    as const, icon: <Zap           className="h-3 w-3" /> };
     }
     if (membership.status === "manual") {
-      return { label: "Cortesía admin", variant: "success" as const, icon: <Crown className="h-3 w-3" /> };
+      return { label: "Cortesía admin",   variant: "success" as const, icon: <Crown         className="h-3 w-3" /> };
     }
     if (isWarning) {
       return { label: `Vence en ${daysLeft} días`, variant: "warning" as const, icon: <AlertTriangle className="h-3 w-3" /> };
     }
-    return { label: "Activa", variant: "success" as const, icon: <CheckCircle2 className="h-3 w-3" /> };
+    return { label: "Activa",            variant: "success" as const, icon: <CheckCircle2  className="h-3 w-3" /> };
   };
 
   const badge = getMembershipBadge();
@@ -104,9 +125,9 @@ export function MembershipPage() {
     setUploadingImg(true);
     try {
       const formData = new FormData();
-      formData.append("file", file);
+      formData.append("file",          file);
       formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-      formData.append("folder", `cubax/membership/${user.uid}`);
+      formData.append("folder",        `cubax/membership/${user.uid}`);
 
       const res  = await fetch(
         `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
@@ -121,15 +142,13 @@ export function MembershipPage() {
     }
   };
 
-  // ─── Pagar con USDT del wallet ────────────────────────────
+  // ─── Pagar con USDT del wallet via backend ────────────────
   const handlePayWithWallet = async () => {
     if (!config || !user) return;
 
     const balance = (user as any).balances?.USDT || 0;
     if (balance < config.priceUSDT) {
-      setError(
-        `Saldo insuficiente. Tienes ${balance} USDT y necesitas ${config.priceUSDT} USDT.`
-      );
+      setError(`Saldo insuficiente. Tienes ${balance} USDT y necesitas ${config.priceUSDT} USDT.`);
       return;
     }
 
@@ -137,43 +156,27 @@ export function MembershipPage() {
     setError(null);
 
     try {
-      const now      = Date.now();
-      const period   = new Date().toISOString().slice(0, 7);
-      const expiresAt = now + 30 * 24 * 60 * 60 * 1000; // 30 días
-
-      // Descontar saldo
-      await updateDoc(doc(db, "users", user.uid), {
-        "balances.USDT": balance - config.priceUSDT,
-        membership: {
-          status:      "active",
-          startedAt:   now,
-          expiresAt,
-          plan:        "monthly",
-          lastPayment: now,
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/membership/pay-wallet`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
         },
+        body: JSON.stringify({ uid: user.uid }),
       });
+      const data = await res.json();
 
-      // Registrar pago
-      await addDoc(collection(db, "membership_payments"), {
-        userId:    user.uid,
-        userName:  user.displayName,
-        amount:    config.priceUSDT,
-        currency:  "USDT",
-        method:    "wallet_usdt",
-        status:    "completed",
-        period,
-        createdAt: now,
-      });
+      if (!data.success) throw new Error(data.error || "Error procesando el pago.");
 
-      // Notificar al usuario
-      await addDoc(collection(db, "notifications"), {
-        userId:    user.uid,
-        title:     "✅ Membresía activada",
-        body:      `Tu membresía mensual está activa hasta ${new Date(expiresAt).toLocaleDateString("es-CU")}.`,
-        type:      "membership",
-        read:      false,
-        createdAt: now,
-      });
+      // Actualizar membresía en el store
+      useAppStore.setState((state) => ({
+        user: state.user ? {
+          ...state.user,
+          membership: data.membership,
+          balances:   data.balances,
+        } : null,
+      }));
 
       setSuccess(true);
       setPayMethod(null);
@@ -184,7 +187,7 @@ export function MembershipPage() {
     }
   };
 
-  // ─── Enviar comprobante Transfermóvil/Enzona ──────────────
+  // ─── Enviar comprobante Transfermóvil/Enzona via backend ──
   const handlePayWithMobile = async () => {
     if (!config || !user || !payMethod) return;
 
@@ -192,7 +195,6 @@ export function MembershipPage() {
       setError("Ingresa el número de referencia del pago.");
       return;
     }
-
     if (!screenshot) {
       setError("Sube una captura de pantalla del pago.");
       return;
@@ -202,46 +204,24 @@ export function MembershipPage() {
     setError(null);
 
     try {
-      const now    = Date.now();
-      const period = new Date().toISOString().slice(0, 7);
-
-      // Registrar pago pendiente de aprobación
-      await addDoc(collection(db, "membership_payments"), {
-        userId:     user.uid,
-        userName:   user.displayName,
-        amount:     config.priceCUP,
-        currency:   "CUP",
-        method:     payMethod === "transfermovil" ? "transfermovil" : "enzona",
-        status:     "pending",
-        reference:  reference.trim(),
-        screenshot,
-        period,
-        createdAt:  now,
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/membership/pay-mobile`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          uid:       user.uid,
+          userName:  user.displayName,
+          method:    payMethod,
+          reference: reference.trim(),
+          screenshot,
+        }),
       });
+      const data = await res.json();
 
-      // Notificar al admin
-      await addDoc(collection(db, "system_alerts"), {
-        tipo:        "membership_payment_pending",
-        descripcion: `${user.displayName} envió comprobante de membresía por ${payMethod}.`,
-        userId:      user.uid,
-        userName:    user.displayName,
-        method:      payMethod,
-        reference:   reference.trim(),
-        screenshot,
-        timestamp:   now,
-        severidad:   "baja",
-        resuelto:    false,
-      });
-
-      // Notificar al usuario
-      await addDoc(collection(db, "notifications"), {
-        userId:    user.uid,
-        title:     "⏳ Pago en revisión",
-        body:      "Tu comprobante de pago fue enviado. El admin lo revisará en breve.",
-        type:      "membership",
-        read:      false,
-        createdAt: now,
-      });
+      if (!data.success) throw new Error(data.error || "Error enviando el comprobante.");
 
       setSuccess(true);
       setPayMethod(null);
@@ -251,7 +231,7 @@ export function MembershipPage() {
       setSubmitting(false);
     }
   };
-
+  
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
