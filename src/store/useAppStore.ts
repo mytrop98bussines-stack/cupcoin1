@@ -1,5 +1,4 @@
 import { create } from "zustand";
-import { CryptoIcon } from "@/components/ui/CryptoIcon";
 import type {
   User,
   CryptoBalance,
@@ -13,19 +12,16 @@ import type {
   AppView,
 } from "@/types";
 
-import {
-  collection,
-  query,
-  orderBy,
-  onSnapshot,
-  doc,
-  updateDoc,
-  addDoc,
-  where,
-} from "firebase/firestore";
-import { db } from "@/lib/firebase/config";
-
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
+
+// ─── Helper para obtener el token ────────────────────────
+const getToken = (): string | null => localStorage.getItem("cubax_token");
+
+// ─── Headers autenticados ─────────────────────────────────
+const authHeaders = () => ({
+  "Content-Type": "application/json",
+  Authorization: `Bearer ${getToken()}`,
+});
 
 interface AppState {
   theme:             ThemeMode;
@@ -48,30 +44,30 @@ interface AppState {
   loadingPrices:     boolean;
   modalOpen:         boolean;
 
-  setTheme:      (theme: ThemeMode) => void;
-  toggleTheme:   () => void;
-  navigate:      (view: AppView) => void;
-  goBack:        () => void;
-  setUser:       (user: User | null) => void;
-  login:         (user: User) => void;
-  logout:        () => void;
+  // ─── Tema ────────────────────────────────────────────────
+  setTheme:    (theme: ThemeMode) => void;
+  toggleTheme: () => void;
 
+  // ─── Navegación ──────────────────────────────────────────
+  navigate: (view: AppView) => void;
+  goBack:   () => void;
+
+  // ─── Usuario ─────────────────────────────────────────────
+  setUser: (user: User | null) => void;
+  login:   (user: User) => void;
+  logout:  () => void;
+
+  // ─── Wallet ──────────────────────────────────────────────
   setWalletData: (
     firestoreBalances: Record<string, number>,
     depositAddresses?: Record<string, string>
   ) => void;
 
+  // ─── Precios ─────────────────────────────────────────────
   setPrices:   (prices: CryptoPrice[]) => void;
   fetchPrices: () => Promise<void>;
-  setOrders:   (orders: P2POrder[]) => void;
-  addOrder:    (order: P2POrder) => void;
-  setActiveTrade: (trade: Trade | null) => void;
 
-  updateTradeStatus: (
-    tradeId: string,
-    status:  Trade["status"]
-  ) => Promise<void>;
-
+  // ─── Depósitos y Retiros ─────────────────────────────────
   fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
   requestDeposit: (asset: string) => Promise<{
     success:  boolean;
@@ -85,20 +81,38 @@ interface AppState {
     chain:     string
   ) => Promise<{ success: boolean; txId?: string; message: string }>;
 
+  // ─── Órdenes P2P ─────────────────────────────────────────
+  setOrders:     (orders: P2POrder[]) => void;
+  addOrder:      (order: P2POrder) => void;
+  fetchOrders:   () => Promise<void>;
+  fetchMyOrders: () => Promise<void>;
+  createOrder:   (orderData: Partial<P2POrder>) => Promise<{ success: boolean; message: string }>;
+  cancelOrder:   (orderId: string) => Promise<{ success: boolean; message: string }>;
+
+  // ─── Trades ──────────────────────────────────────────────
+  setActiveTrade:    (trade: Trade | null) => void;
+  updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
+
+  // ─── Mensajes ────────────────────────────────────────────
   setTradeMessages:         (messages: ChatMessage[]) => void;
   addMessage:               (message: ChatMessage) => void;
   subscribeToTradeMessages: (tradeId: string) => () => void;
   sendMessage:              (tradeId: string, text: string) => Promise<void>;
 
+  // ─── Productos ───────────────────────────────────────────
   setProducts:         (products: Product[]) => void;
-  addProduct:          (product: Product) => void;
+  fetchProducts:       () => Promise<void>;
+  addProduct:          (product: Partial<Product>) => Promise<{ success: boolean }>;
   deleteProduct:       (productId: string) => Promise<void>;
   subscribeToProducts: () => () => void;
 
+  // ─── Notificaciones ──────────────────────────────────────
   setNotifications:         (notifications: Notification[]) => void;
+  fetchNotifications:       (userId: string) => Promise<void>;
   subscribeToNotifications: (userId: string) => () => void;
   markNotificationRead:     (id: string) => Promise<void>;
 
+  // ─── UI ──────────────────────────────────────────────────
   setSelectedTradeId:   (id: string | null) => void;
   setSelectedProductId: (id: string | null) => void;
   setLoading:           (loading: boolean) => void;
@@ -106,6 +120,7 @@ interface AppState {
   setModalOpen:         (open: boolean) => void;
 }
 
+// ─── Tema inicial ─────────────────────────────────────────
 const getInitialTheme = (): ThemeMode => {
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem("cubax-theme") as ThemeMode | null;
@@ -117,23 +132,18 @@ const getInitialTheme = (): ThemeMode => {
   return "dark";
 };
 
+// ─── Vista inicial ────────────────────────────────────────
 const getInitialView = (): AppView => {
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem("cubax_last_view") as AppView | null;
-    
-    // 🛡️ Filtro de seguridad: Vistas reales definidas en tu App.tsx
     const validViews = [
-      "landing", "login", "register", "dashboard", "p2p", "create-order", 
-      "trade", "kyc", "marketplace", "product-detail", "create-product", 
-      "wallet", "settings", "notifications", "membership", "profile", 
-      "security", "help", "terms", "language", "notification-settings", 
-      "trade-history", "my-orders", "admin-kyc", "admin-disputes"
+      "landing", "login", "register", "dashboard", "p2p", "create-order",
+      "trade", "kyc", "marketplace", "product-detail", "create-product",
+      "wallet", "settings", "notifications", "membership", "profile",
+      "security", "help", "terms", "language", "notification-settings",
+      "trade-history", "my-orders", "admin-kyc", "admin-disputes",
     ];
-
-    // Si la vista en memoria existe y es válida, la usamos; si es basura, va a landing
-    if (stored && validViews.includes(stored)) {
-      return stored;
-    }
+    if (stored && validViews.includes(stored)) return stored;
   }
   return "landing";
 };
@@ -166,7 +176,9 @@ export const useAppStore = create<AppState>((set, get) => ({
   mobileMenuOpen:    false,
   loadingPrices:     false,
 
-  // ─── TEMA ────────────────────────────────────────────────
+  // =========================================================
+  // TEMA
+  // =========================================================
   setTheme: (theme) => {
     localStorage.setItem("cubax-theme", theme);
     set({ theme });
@@ -178,7 +190,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ theme: newTheme });
   },
 
-  // ─── NAVEGACIÓN ──────────────────────────────────────────
+  // =========================================================
+  // NAVEGACIÓN
+  // =========================================================
   navigate: (view) => {
     localStorage.setItem("cubax_last_view", view);
     set({
@@ -196,7 +210,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ─── USUARIO ─────────────────────────────────────────────
+  // =========================================================
+  // USUARIO
+  // =========================================================
   setUser: (user) => set({ user, isAuthenticated: !!user }),
 
   login: (user) => {
@@ -226,36 +242,43 @@ export const useAppStore = create<AppState>((set, get) => ({
     });
   },
 
-  // ─── WALLET DATA ─────────────────────────────────────────
+  // =========================================================
+  // WALLET
+  // =========================================================
   setWalletData: (firestoreBalances, depositAddresses = {}) => {
     const currentPrices = get().prices;
-    const currentUser = get().user;
+    const currentUser   = get().user;
 
-    const updatedBalances: CryptoBalance[] = Object.entries(
-      firestoreBalances
-    ).map(([asset, amount]) => {
-      const cryptoPriceInfo = currentPrices.find(
-        (p) => p.symbol.toUpperCase() === asset.toUpperCase()
-      );
-      const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.0;
-      return {
-        asset:    asset.toUpperCase() as any,
-        amount,
-        usdValue: amount * priceUSD,
-      };
-    });
+    const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(
+      ([asset, amount]) => {
+        const cryptoPriceInfo = currentPrices.find(
+          (p) => p.symbol.toUpperCase() === asset.toUpperCase()
+        );
+        const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.0;
+        return {
+          asset:    asset.toUpperCase() as any,
+          amount,
+          usdValue: amount * priceUSD,
+        };
+      }
+    );
 
     set({
       balances:         updatedBalances,
       depositAddresses: { ...get().depositAddresses, ...depositAddresses },
-      user: currentUser ? {
-        ...currentUser,
-        balances: firestoreBalances,
-        depositAddresses: { ...currentUser.depositAddresses, ...depositAddresses }
-      } : null
+      user: currentUser
+        ? {
+            ...currentUser,
+            balances:         firestoreBalances,
+            depositAddresses: { ...currentUser.depositAddresses, ...depositAddresses },
+          }
+        : null,
     });
   },
 
+  // =========================================================
+  // PRECIOS
+  // =========================================================
   setPrices: (prices) => set({ prices }),
 
   fetchPrices: async () => {
@@ -270,10 +293,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!response.ok) throw new Error("Error CoinGecko");
       const data = await response.json();
       const prices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT", name: "Tether", priceUSD: data.tether?.usd ?? 1.00, change24h: data.tether?.usd_24h_change ?? 0 },
-        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd ?? 1.00, change24h: data["usd-coin"]?.usd_24h_change ?? 0 },
-        { id: "3", symbol: "BTC", name: "Bitcoin", priceUSD: data.bitcoin?.usd ?? 67500, change24h: data.bitcoin?.usd_24h_change ?? 0 },
-        { id: "4", symbol: "ETH", name: "Ethereum", priceUSD: data.ethereum?.usd ?? 3500, change24h: data.ethereum?.usd_24h_change ?? 0 },
+        { id: "1", symbol: "USDT", name: "Tether",   priceUSD: data.tether?.usd          ?? 1.00,    change24h: data.tether?.usd_24h_change          ?? 0 },
+        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd      ?? 1.00,    change24h: data["usd-coin"]?.usd_24h_change      ?? 0 },
+        { id: "3", symbol: "BTC",  name: "Bitcoin",  priceUSD: data.bitcoin?.usd          ?? 67500,   change24h: data.bitcoin?.usd_24h_change          ?? 0 },
+        { id: "4", symbol: "ETH",  name: "Ethereum", priceUSD: data.ethereum?.usd         ?? 3500,    change24h: data.ethereum?.usd_24h_change         ?? 0 },
       ];
       set({ prices, loadingPrices: false });
       console.log("✅ [Prices] Actualizados desde CoinGecko");
@@ -283,6 +306,9 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
+  // =========================================================
+  // DEPÓSITOS Y RETIROS
+  // =========================================================
   fetchDepositAddress: async (asset, _chain) => {
     const currentUser = get().user;
     if (!currentUser?.uid || currentUser.uid === "invitado") return;
@@ -297,7 +323,9 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       const data = await response.json();
       if (data?.success && data?.coin_address) {
-        set({ depositAddresses: { ...get().depositAddresses, [assetKey]: data.coin_address } });
+        set({
+          depositAddresses: { ...get().depositAddresses, [assetKey]: data.coin_address },
+        });
       }
     } catch (error) {
       console.error("❌ [fetchDepositAddress] Error:", error);
@@ -324,7 +352,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       const resData = await response.json();
       if (resData?.success && resData?.coin_address) {
         const updatedAddresses = { ...get().depositAddresses, [assetKey]: resData.coin_address };
-        set({ depositAddresses: updatedAddresses, user: currentUser ? { ...currentUser, depositAddresses: updatedAddresses } : null });
+        set({
+          depositAddresses: updatedAddresses,
+          user: currentUser ? { ...currentUser, depositAddresses: updatedAddresses } : null,
+        });
         return { success: true, address: resData.coin_address, message: "Dirección obtenida." };
       }
       return { success: false, message: resData?.error || "Error obteniendo dirección." };
@@ -348,7 +379,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const response = await fetch(`${RENDER_API_URL}/tron/withdraw`, {
         method:  "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ uid: currentUser.uid, toAddress, amount }),
+        body:    JSON.stringify({ uid: currentUser.uid, toAddress, amount }),
       });
       const data = await response.json();
       if (data.success) return { success: true, txId: data.txHash, message: "Retiro procesado exitosamente." };
@@ -358,122 +389,303 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  setOrders:      (orders) => set({ orders }),
-  addOrder:       (order)  => set({ orders: [order, ...get().orders] }),
-  setActiveTrade: (trade)  => set({ activeTrade: trade }),
+  // =========================================================
+  // ÓRDENES P2P
+  // =========================================================
+  setOrders: (orders) => set({ orders }),
+  addOrder:  (order)  => set({ orders: [order, ...get().orders] }),
+
+  fetchOrders: async () => {
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/orders`);
+      const data = await res.json();
+      if (data.success) {
+        set({ orders: data.orders });
+        console.log("✅ [Orders] Órdenes cargadas");
+      }
+    } catch (error) {
+      console.error("❌ [Orders] Error fetchOrders:", error);
+    }
+  },
+
+  fetchMyOrders: async () => {
+    const currentUser = get().user;
+    if (!currentUser?.uid) return;
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/orders/my-orders`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ uid: currentUser.uid }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        set({ orders: data.orders });
+        console.log("✅ [Orders] Mis órdenes cargadas");
+      }
+    } catch (error) {
+      console.error("❌ [Orders] Error fetchMyOrders:", error);
+    }
+  },
+
+  createOrder: async (orderData) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid) return { success: false, message: "No autenticado" };
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/orders/create`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ ...orderData, uid: currentUser.uid }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        get().addOrder(data.order);
+        return { success: true, message: "Orden creada exitosamente" };
+      }
+      return { success: false, message: data.error || "Error creando orden" };
+    } catch (error) {
+      console.error("❌ [Orders] Error createOrder:", error);
+      return { success: false, message: "Error de conexión" };
+    }
+  },
+
+  cancelOrder: async (orderId) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid) return { success: false, message: "No autenticado" };
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/orders/cancel`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ uid: currentUser.uid, orderId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        set({ orders: get().orders.filter((o) => o.id !== orderId) });
+        return { success: true, message: "Orden cancelada" };
+      }
+      return { success: false, message: data.error || "Error cancelando orden" };
+    } catch (error) {
+      console.error("❌ [Orders] Error cancelOrder:", error);
+      return { success: false, message: "Error de conexión" };
+    }
+  },
+
+  // =========================================================
+  // TRADES
+  // =========================================================
+  setActiveTrade: (trade) => set({ activeTrade: trade }),
 
   updateTradeStatus: async (tradeId, status) => {
     if (!tradeId) return;
     try {
-      await updateDoc(doc(db, "trades", tradeId), { status, updatedAt: Date.now() });
+      const res = await fetch(`${RENDER_API_URL}/trades/${tradeId}/status`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ status }),
+      });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+      console.log(`✅ [Trade] Estado actualizado: ${status}`);
     } catch (error) {
-      console.error("Error actualizando estado del trade:", error);
+      console.error("❌ Error actualizando estado del trade:", error);
     }
   },
 
+  // =========================================================
+  // MENSAJES
+  // =========================================================
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
   addMessage:       (message)  => set({ tradeMessages: [...get().tradeMessages, message] }),
 
   subscribeToTradeMessages: (tradeId: string) => {
     if (!tradeId) return () => {};
-    const q = query(collection(db, "trades", tradeId, "messages"), orderBy("createdAt", "asc"));
-    return onSnapshot(q, (snapshot) => {
-      const messages: ChatMessage[] = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id:         docSnap.id,
-          tradeId,
-          senderId:   data.senderId   ?? "SYSTEM",
-          senderName: data.senderName ?? "Sistema",
-          text:       data.text       ?? data.message   ?? "",
-          createdAt:  data.createdAt  ?? data.timestamp ?? Date.now(),
-          type:       data.type       ?? "text",
-        };
-      });
-      set({ tradeMessages: messages });
-    });
+
+    let stopped = false;
+
+    const loadMessages = async () => {
+      const token = getToken();
+      if (!token || stopped) return;
+      try {
+        const res  = await fetch(
+          `${RENDER_API_URL}/trades/${encodeURIComponent(tradeId)}/messages`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) {
+          set({ tradeMessages: data.messages });
+        }
+      } catch (error) {
+        console.error("❌ Error cargando mensajes:", error);
+      }
+    };
+
+    // Carga inicial
+    void loadMessages();
+
+    // Polling cada 5 segundos
+    const intervalId = window.setInterval(loadMessages, 5000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
   },
 
   sendMessage: async (tradeId: string, text: string) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || !tradeId || !text.trim()) return;
+    if (!tradeId || !text.trim()) return;
+    const token = getToken();
+    if (!token) return;
     try {
-      await addDoc(collection(db, "trades", tradeId, "messages"), {
-        senderId:   currentUser.uid,
-        senderName: currentUser.displayName || "Usuario",
-        text:       text.trim(),
-        createdAt:  Date.now(),
-        type:       "text",
-      });
+      const res  = await fetch(
+        `${RENDER_API_URL}/trades/${encodeURIComponent(tradeId)}/messages`,
+        {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ text: text.trim() }),
+        }
+      );
+      const data = await res.json();
+      if (data.success) {
+        set({ tradeMessages: [...get().tradeMessages, data.message] });
+      }
     } catch (error) {
-      console.error("Error al enviar mensaje:", error);
+      console.error("❌ Error enviando mensaje:", error);
     }
   },
 
+  // =========================================================
+  // PRODUCTOS MARKETPLACE
+  // =========================================================
   setProducts: (products) => set({ products }),
-  addProduct:  (product)  => set({ products: [product, ...get().products] }),
+
+  fetchProducts: async () => {
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/products`);
+      const data = await res.json();
+      if (data.success) {
+        set({ products: data.products });
+        console.log("✅ [Marketplace] Productos cargados");
+      }
+    } catch (error) {
+      console.error("❌ [Marketplace] Error fetchProducts:", error);
+    }
+  },
+
+  addProduct: async (productData) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid) return { success: false };
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/products/create`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ ...productData, uid: currentUser.uid }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        set({ products: [data.product, ...get().products] });
+        return { success: true };
+      }
+      return { success: false };
+    } catch (error) {
+      console.error("❌ Error addProduct:", error);
+      return { success: false };
+    }
+  },
 
   deleteProduct: async (productId: string) => {
+    const currentUser = get().user;
+    if (!currentUser?.uid) return;
     try {
-      await updateDoc(doc(db, "products", productId), { status: "cancelled", cancelledAt: Date.now() });
+      const res  = await fetch(`${RENDER_API_URL}/products/delete`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ uid: currentUser.uid, productId }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        set({ products: get().products.filter((p) => p.id !== productId) });
+      }
     } catch (error) {
-      console.error("❌ Error al eliminar producto:", error);
+      console.error("❌ Error deleteProduct:", error);
     }
   },
 
+  // Compatibilidad: ya no usa onSnapshot, solo carga una vez
   subscribeToProducts: () => {
-    const q = query(collection(db, "products"), where("status", "==", "active"));
-    return onSnapshot(q, (snapshot) => {
-      const productsList: Product[] = snapshot.docs.map((docSnap) => ({
-        id: docSnap.id,
-        ...docSnap.data(),
-      } as Product));
-      productsList.sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-      set({ products: productsList });
-    }, (error) => {
-      console.error("❌ [Products] Error en snapshot:", error);
-    });
+    void get().fetchProducts();
+    return () => {};
   },
 
+  // =========================================================
+  // NOTIFICACIONES
+  // =========================================================
   setNotifications: (notifications) => set({ notifications }),
 
-  subscribeToNotifications: (userId: string) => {
-    if (!userId || userId === "invitado") return () => {};
-    const q = query(collection(db, "notifications"), where("userId", "==", userId), orderBy("createdAt", "desc"));
-    return onSnapshot(q, (snapshot) => {
-      const list: Notification[] = snapshot.docs.map((docSnap) => {
-        const data = docSnap.data();
-        return {
-          id:        docSnap.id,
-          userId:    data.userId    ?? userId,
-          title:     data.title     ?? "",
-          body:      data.body      ?? data.message ?? "",
-          type:      data.type      ?? "system",
-          read:      data.read      ?? false,
-          createdAt: data.createdAt ?? Date.now(),
-          data:      data.data      ?? {},
-          link:      data.link,
-        } as Notification;
-      });
-      set({ notifications: list });
-    }, (error) => {
-      console.error("❌ Error en snapshot de notificaciones:", error);
-    });
-  },
-
-  markNotificationRead: async (id) => {
+  fetchNotifications: async (userId: string) => {
+    if (!userId || userId === "invitado") return;
     try {
-      await updateDoc(doc(db, "notifications", id), { read: true });
-      set({ notifications: get().notifications.map((n) => n.id === id ? { ...n, read: true } : n) });
+      const res  = await fetch(`${RENDER_API_URL}/notifications/${userId}`, {
+        headers: { Authorization: `Bearer ${getToken()}` },
+      });
+      const data = await res.json();
+      if (data.success) {
+        set({ notifications: data.notifications });
+        console.log("✅ [Notifications] Cargadas");
+      }
     } catch (error) {
-      console.error("Error al marcar notificación:", error);
+      console.error("❌ Error fetchNotifications:", error);
     }
   },
 
+  // Compatibilidad: ya no usa onSnapshot, hace polling cada 30 segundos
+  subscribeToNotifications: (userId: string) => {
+    if (!userId || userId === "invitado") return () => {};
+
+    let stopped = false;
+
+    const load = async () => {
+      if (stopped) return;
+      await get().fetchNotifications(userId);
+    };
+
+    void load();
+
+    const intervalId = window.setInterval(load, 30000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  },
+
+  markNotificationRead: async (id: string) => {
+    try {
+      const res  = await fetch(`${RENDER_API_URL}/notifications/read`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ id }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        set({
+          notifications: get().notifications.map((n) =>
+            n.id === id ? { ...n, read: true } : n
+          ),
+        });
+      }
+    } catch (error) {
+      console.error("❌ Error markNotificationRead:", error);
+    }
+  },
+
+  // =========================================================
+  // UI
+  // =========================================================
   setSelectedTradeId:   (id)      => set({ selectedTradeId:   id }),
   setSelectedProductId: (id)      => set({ selectedProductId: id }),
   setLoading:           (loading) => set({ isLoading:         loading }),
   setMobileMenuOpen:    (open)    => set({ mobileMenuOpen:    open }),
   setModalOpen:         (open)    => set({ modalOpen:         open }),
 }));
-  
