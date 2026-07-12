@@ -1,10 +1,8 @@
 import { useState, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Card } from "@/components/ui/Card";
-
-
+import { Input }  from "@/components/ui/Input";
+import { Card }   from "@/components/ui/Card";
 import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/mock";
 import {
   ArrowLeftRight,
@@ -15,7 +13,9 @@ import {
   Info,
   Crown,
 } from "lucide-react";
-import type { OrderType, CryptoAsset, PaymentMethod, P2POrder } from "@/types";
+import type { OrderType, CryptoAsset, PaymentMethod } from "@/types";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 export function CreateOrderPage() {
   const { navigate, user } = useAppStore();
@@ -43,8 +43,8 @@ export function CreateOrderPage() {
   // ─── 2. Verificar membresía ───────────────────────────────
   const membershipActive = (() => {
     const m = (user as any).membership;
-    if (!m)                      return false;
-    if (m.status === "expired")  return false;
+    if (!m)                       return false;
+    if (m.status === "expired")   return false;
     if (m.expiresAt < Date.now()) return false;
     return true;
   })();
@@ -89,13 +89,13 @@ export function CreateOrderPage() {
         {user.kycStatus === "pending_verification" ? (
           <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20 mb-6">
             <p className="text-xs text-blue-600 dark:text-blue-400 font-semibold">
-              ⏳ Tu solicitud está siendo revisada. Espera la aprobación del equipo.
+              ⏳ Tu solicitud está siendo revisada.
             </p>
           </div>
         ) : user.kycStatus === "rejected" ? (
           <div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 mb-6">
             <p className="text-xs text-red-600 dark:text-red-400 font-semibold">
-              ❌ Tu KYC fue rechazado. Vuelve a intentarlo con documentos más claros.
+              ❌ Tu KYC fue rechazado. Vuelve a intentarlo.
             </p>
           </div>
         ) : (
@@ -141,25 +141,20 @@ export function CreateOrderPage() {
     return null;
   })();
 
+  // ─── Publicar orden via backend ───────────────────────────
   const handleSubmit = useCallback(async () => {
     if (validationError) {
       setError(validationError);
       return;
-const handleSubmit = useCallback(async () => {
-  if (validationError) {
-    setError(validationError);
-    return;
-  }
+    }
 
-  setLoading(true);
-  setError(null);
+    setLoading(true);
+    setError(null);
 
-  try {
-    const token = localStorage.getItem("cubax_token");
+    try {
+      const token = localStorage.getItem("cubax_token");
 
-    const res = await fetch(
-      "https://cubax-backend.onrender.com/api/orders/create",
-      {
+      const res  = await fetch(`${BACKEND_URL}/orders/create`, {
         method:  "POST",
         headers: {
           "Content-Type": "application/json",
@@ -173,34 +168,33 @@ const handleSubmit = useCallback(async () => {
           minAmount:      parseFloat(minAmount),
           maxAmount:      parseFloat(maxAmount),
           paymentMethods: selectedMethods,
-          userName:       user.displayName || "Usuario CubaX",
+          userName:       user.displayName          || "Usuario CubaX",
           userRating:     (user as any).rating      || 5.0,
           userTrades:     (user as any).totalTrades || 0,
           currency:       "CUP",
         }),
+      });
+
+      const data = await res.json();
+
+      if (!data.success) {
+        throw new Error(data.error || "Error al publicar la orden.");
       }
-    );
 
-    const data = await res.json();
+      setLoading(false);
+      setSuccess(true);
+      setTimeout(() => navigate("p2p"), 1500);
 
-    if (!data.success) {
-      throw new Error(data.error || "Error al publicar la orden.");
+    } catch (err: any) {
+      console.error("❌ Error al publicar orden:", err);
+      setError(err.message || "Error al publicar la orden. Intenta de nuevo.");
+      setLoading(false);
     }
-
-    setLoading(false);
-    setSuccess(true);
-    setTimeout(() => navigate("p2p"), 1500);
-
-  } catch (err: any) {
-    console.error("❌ Error al publicar orden:", err);
-    setError(err.message || "Error al publicar la orden. Intenta de nuevo.");
-    setLoading(false);
-  }
-}, [
-  price, minAmount, maxAmount,
-  selectedMethods, user, orderType,
-  asset, navigate, validationError,
-]);
+  }, [
+    price, minAmount, maxAmount,
+    selectedMethods, user, orderType,
+    asset, navigate, validationError,
+  ]);
 
   // ─── Pantalla de éxito ────────────────────────────────────
   if (success) {
@@ -267,7 +261,7 @@ const handleSubmit = useCallback(async () => {
         </div>
       </div>
 
-      {/* Selección de criptomoneda */}
+      {/* Criptomoneda */}
       <div>
         <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
           Criptomoneda
@@ -353,48 +347,38 @@ const handleSubmit = useCallback(async () => {
           Métodos de pago aceptados
         </p>
         <div className="space-y-2">
-          {(["transfermovil", "enzona", "efectivo"] as PaymentMethod[]).map(
-            (method) => {
-              const selected = selectedMethods.includes(method);
-              return (
-                <button
-                  key={method}
-                  onClick={() => togglePayment(method)}
-                  className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-200 ${
-                    selected
-                      ? "border-brand-500 bg-brand-500/5"
-                      : "border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20"
-                  }`}
-                >
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-lg">
-                      {method === "transfermovil"
-                        ? "📱"
-                        : method === "enzona"
-                        ? "💳"
-                        : "💵"}
-                    </span>
-                    <span className={`text-sm font-semibold ${
-                      selected
-                        ? "text-brand-500"
-                        : "text-gray-600 dark:text-gray-400"
-                    }`}>
-                      {PAYMENT_METHOD_LABELS[method]}
-                    </span>
-                  </div>
-                  <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
-                    selected
-                      ? "border-brand-500 bg-brand-500"
-                      : "border-gray-300 dark:border-gray-600"
+          {(["transfermovil", "enzona", "efectivo"] as PaymentMethod[]).map((method) => {
+            const selected = selectedMethods.includes(method);
+            return (
+              <button
+                key={method}
+                onClick={() => togglePayment(method)}
+                className={`w-full flex items-center justify-between px-4 py-3 rounded-xl border transition-all duration-200 ${
+                  selected
+                    ? "border-brand-500 bg-brand-500/5"
+                    : "border-gray-200 dark:border-white/10 hover:border-gray-300 dark:hover:border-white/20"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <span className="text-lg">
+                    {method === "transfermovil" ? "📱" : method === "enzona" ? "💳" : "💵"}
+                  </span>
+                  <span className={`text-sm font-semibold ${
+                    selected ? "text-brand-500" : "text-gray-600 dark:text-gray-400"
                   }`}>
-                    {selected && (
-                      <CheckCircle2 className="h-3 w-3 text-white" />
-                    )}
-                  </div>
-                </button>
-              );
-            }
-          )}
+                    {PAYMENT_METHOD_LABELS[method]}
+                  </span>
+                </div>
+                <div className={`h-5 w-5 rounded-full border-2 flex items-center justify-center transition-all ${
+                  selected
+                    ? "border-brand-500 bg-brand-500"
+                    : "border-gray-300 dark:border-gray-600"
+                }`}>
+                  {selected && <CheckCircle2 className="h-3 w-3 text-white" />}
+                </div>
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -448,9 +432,7 @@ const handleSubmit = useCallback(async () => {
           <div className="space-y-2">
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Tipo</span>
-              <span className={`font-bold ${
-                orderType === "sell" ? "text-red-500" : "text-emerald-500"
-              }`}>
+              <span className={`font-bold ${orderType === "sell" ? "text-red-500" : "text-emerald-500"}`}>
                 {orderType === "sell" ? "🔴 Venta" : "🟢 Compra"}
               </span>
             </div>
@@ -482,9 +464,7 @@ const handleSubmit = useCallback(async () => {
             <div className="flex justify-between text-sm">
               <span className="text-gray-400">Métodos</span>
               <span className="font-bold text-gray-900 dark:text-white text-right">
-                {selectedMethods
-                  .map((m) => PAYMENT_METHOD_LABELS[m])
-                  .join(", ") || "—"}
+                {selectedMethods.map((m) => PAYMENT_METHOD_LABELS[m]).join(", ") || "—"}
               </span>
             </div>
           </div>
@@ -498,14 +478,14 @@ const handleSubmit = useCallback(async () => {
         loading={loading}
         onClick={handleSubmit}
         disabled={
-          loading                          ||
-          !price                           ||
-          !minAmount                       ||
-          !maxAmount                       ||
-          parseFloat(price) <= 0           ||
-          parseFloat(minAmount) <= 0       ||
-          parseFloat(maxAmount) <= 0       ||
-          selectedMethods.length === 0     ||
+          loading                      ||
+          !price                       ||
+          !minAmount                   ||
+          !maxAmount                   ||
+          parseFloat(price) <= 0       ||
+          parseFloat(minAmount) <= 0   ||
+          parseFloat(maxAmount) <= 0   ||
+          selectedMethods.length === 0 ||
           !!validationError
         }
         icon={
@@ -518,5 +498,4 @@ const handleSubmit = useCallback(async () => {
       </Button>
     </div>
   );
-}
-  
+    }
