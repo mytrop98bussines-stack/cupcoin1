@@ -1,53 +1,33 @@
-import { useState, useRef, useCallback, useEffect } from "react";
+import { useState, useRef, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Card } from "@/components/ui/Card";
+import { Card }   from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { Badge } from "@/components/ui/Badge";
+import { Input }  from "@/components/ui/Input";
+import { Badge }  from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
-import { db } from "@/lib/firebase/config";
-import { auth } from "@/lib/firebase/config";
-import { doc, updateDoc } from "firebase/firestore";
-import { updateProfile } from "firebase/auth";
 import {
-  User,
-  Camera,
-  Edit3,
-  Check,
-  X,
-  Star,
-  Shield,
-  ArrowLeftRight,
-  Calendar,
-  MapPin,
-  Phone,
-  Globe,
-  Copy,
-  CheckCircle2,
-  TrendingUp,
-  Package,
-  Clock,
-  AlertTriangle,
-  Loader2,
+  User, Camera, Edit3, Check, X, Star,
+  Shield, ArrowLeftRight, Calendar, MapPin,
+  Phone, Globe, Copy, CheckCircle2, TrendingUp,
+  Package, Clock, AlertTriangle, Loader2,
 } from "lucide-react";
 
-// ─── Cloudinary config ────────────────────────────────────
 const CLOUDINARY_CLOUD_NAME    = "dc4caibrn";
 const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned";
+const BACKEND_URL              = "https://cubax-backend.onrender.com/api";
 
 export function ProfilePage() {
   const { user, setUser, navigate } = useAppStore();
 
-  // ─── Estados de edición ───────────────────────────────────
-  const [editingName, setEditingName]       = useState(false);
-  const [editingBio, setEditingBio]         = useState(false);
-  const [editingPhone, setEditingPhone]     = useState(false);
+  const [editingName, setEditingName]         = useState(false);
+  const [editingBio, setEditingBio]           = useState(false);
+  const [editingPhone, setEditingPhone]       = useState(false);
   const [editingLocation, setEditingLocation] = useState(false);
 
-  const [newName, setNewName]           = useState(user?.displayName || "");
-  const [newBio, setNewBio]             = useState((user as any)?.bio || "");
-  const [newPhone, setNewPhone]         = useState((user as any)?.phone || "");
-  const [newLocation, setNewLocation]   = useState((user as any)?.location || "");
+  const [newName, setNewName]         = useState(user?.displayName || "");
+  const [newBio, setNewBio]           = useState((user as any)?.bio || "");
+  const [newPhone, setNewPhone]       = useState((user as any)?.phone || "");
+  const [newLocation, setNewLocation] = useState((user as any)?.location || "");
 
   const [uploadingPhoto, setUploadingPhoto] = useState(false);
   const [savingName, setSavingName]         = useState(false);
@@ -61,7 +41,6 @@ export function ProfilePage() {
 
   if (!user) return null;
 
-  // ─── KYC config ───────────────────────────────────────────
   const kycConfig = {
     unverified: {
       label:   "Sin verificar",
@@ -89,14 +68,13 @@ export function ProfilePage() {
     kycConfig[user.kycStatus as keyof typeof kycConfig] ||
     kycConfig.unverified;
 
-  // ─── Copiar UID ───────────────────────────────────────────
   const handleCopyUID = () => {
     navigator.clipboard.writeText(user.uid);
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
 
-  // ─── Subir foto de perfil ─────────────────────────────────
+  // ─── Subir foto via backend ───────────────────────────────
   const handlePhotoChange = useCallback(
     async (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
@@ -111,30 +89,32 @@ export function ProfilePage() {
       setError(null);
 
       try {
+        // 1. Subir a Cloudinary
         const formData = new FormData();
-        formData.append("file", file);
+        formData.append("file",          file);
         formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
-        formData.append("folder", `cubax/avatars/${user.uid}`);
+        formData.append("folder",        `cubax/avatars/${user.uid}`);
 
-        const res = await fetch(
+        const cloudRes  = await fetch(
           `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
           { method: "POST", body: formData }
         );
+        if (!cloudRes.ok) throw new Error("Error subiendo foto.");
+        const cloudData = await cloudRes.json();
+        const photoURL  = cloudData.secure_url;
 
-        if (!res.ok) throw new Error("Error subiendo foto.");
+        // 2. Actualizar via backend
+        const token = localStorage.getItem("cubax_token");
+        await fetch(`${BACKEND_URL}/profile/update`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({ photoURL }),
+        });
 
-        const data      = await res.json();
-        const photoURL  = data.secure_url;
-
-        // ✅ Actualizar en Firebase Auth
-        if (auth.currentUser) {
-          await updateProfile(auth.currentUser, { photoURL });
-        }
-
-        // ✅ Actualizar en Firestore
-        await updateDoc(doc(db, "users", user.uid), { photoURL });
-
-        // ✅ Actualizar en el store
+        // 3. Actualizar store
         setUser({ ...user, photoURL });
 
       } catch (err: any) {
@@ -147,7 +127,7 @@ export function ProfilePage() {
     [user, setUser]
   );
 
-  // ─── Guardar nombre ───────────────────────────────────────
+  // ─── Guardar nombre via backend ───────────────────────────
   const handleSaveName = async () => {
     if (!newName.trim() || newName.trim().length < 2) {
       setError("El nombre debe tener al menos 2 caracteres.");
@@ -156,14 +136,18 @@ export function ProfilePage() {
 
     setSavingName(true);
     try {
-      if (auth.currentUser) {
-        await updateProfile(auth.currentUser, {
-          displayName: newName.trim(),
-        });
-      }
-      await updateDoc(doc(db, "users", user.uid), {
-        displayName: newName.trim(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/profile/update`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ displayName: newName.trim() }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
       setUser({ ...user, displayName: newName.trim() });
       setEditingName(false);
       setError(null);
@@ -174,13 +158,22 @@ export function ProfilePage() {
     }
   };
 
-  // ─── Guardar bio ──────────────────────────────────────────
+  // ─── Guardar bio via backend ──────────────────────────────
   const handleSaveBio = async () => {
     setSavingBio(true);
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        bio: newBio.trim(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/profile/update`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ bio: newBio.trim() }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
       setUser({ ...user, bio: newBio.trim() } as any);
       setEditingBio(false);
       setError(null);
@@ -191,13 +184,22 @@ export function ProfilePage() {
     }
   };
 
-  // ─── Guardar teléfono ─────────────────────────────────────
+  // ─── Guardar teléfono via backend ─────────────────────────
   const handleSavePhone = async () => {
     setSavingPhone(true);
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        phone: newPhone.trim(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/profile/update`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ phone: newPhone.trim() }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
       setUser({ ...user, phone: newPhone.trim() } as any);
       setEditingPhone(false);
       setError(null);
@@ -208,13 +210,22 @@ export function ProfilePage() {
     }
   };
 
-  // ─── Guardar ubicación ────────────────────────────────────
+  // ─── Guardar ubicación via backend ────────────────────────
   const handleSaveLocation = async () => {
     setSavingLocation(true);
     try {
-      await updateDoc(doc(db, "users", user.uid), {
-        location: newLocation.trim(),
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/profile/update`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ location: newLocation.trim() }),
       });
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
       setUser({ ...user, location: newLocation.trim() } as any);
       setEditingLocation(false);
       setError(null);
@@ -225,7 +236,6 @@ export function ProfilePage() {
     }
   };
 
-  // ─── Estadísticas del usuario ─────────────────────────────
   const stats = [
     {
       icon:  <ArrowLeftRight className="h-4 w-4" />,
@@ -257,14 +267,13 @@ export function ProfilePage() {
     },
   ];
 
-  // ─── Miembro desde ────────────────────────────────────────
   const memberSince = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString("es-CU", {
         month: "long",
         year:  "numeric",
       })
     : "—";
-
+  
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
