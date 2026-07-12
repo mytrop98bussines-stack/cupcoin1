@@ -1,9 +1,7 @@
 import { useState, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
-import { Input } from "@/components/ui/Input";
-import { auth } from "@/lib/firebase/config";
-import { signInWithCustomToken } from "firebase/auth";
+import { Input }  from "@/components/ui/Input";
 import {
   Mail, Lock, User, Eye, EyeOff,
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
@@ -12,14 +10,14 @@ import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
-// ─── COMPONENTE INTERNO DEL LOGO DE CUBAX ─────────────────
+// ─── Logo ─────────────────────────────────────────────────
 function CubaXLogo({ size = 32 }: { size?: number }) {
   return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 100 100" 
-      fill="none" 
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 100 100"
+      fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
       <path d="M15 15H42L85 85H58L15 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
@@ -73,25 +71,6 @@ export function AuthPage() {
     return Object.keys(newErrors).length === 0;
   }, [email, password, name, isLogin]);
 
-  // ─── Autenticar SDK del cliente con custom token ──────────
-  const authenticateFirebaseSDK = async (uid: string) => {
-    try {
-      const ctRes  = await fetch(`${BACKEND_URL}/api/auth/custom-token`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ uid }),
-      });
-      const ctData = await ctRes.json();
-
-      if (ctData.success && ctData.customToken) {
-        await signInWithCustomToken(auth, ctData.customToken);
-        console.log("✅ SDK Firestore autenticado correctamente");
-      }
-    } catch (err) {
-      console.warn("⚠️ Auth SDK opcional falló:", err);
-    }
-  };
-
   // ─── Login / Registro via backend ─────────────────────────
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
@@ -137,20 +116,19 @@ export function AuthPage() {
           return;
         }
 
-        localStorage.setItem("cubax_token",        data.token);
+        // ✅ Guardar sesión en localStorage
+        localStorage.setItem("cubax_token",         data.token);
         localStorage.setItem("cubax_refresh_token", data.refreshToken);
         localStorage.setItem("cubax_uid",           data.uid);
         localStorage.setItem("cubax_email",         data.email);
         localStorage.setItem("cubax_name",          data.displayName);
-
-        await authenticateFirebaseSDK(data.uid);
 
         const userData = data.userData || {};
         const appUser: AppUser = {
           uid:           data.uid,
           email:         data.email,
           displayName:   data.displayName,
-          photoURL:      data.photoURL    || null,
+          photoURL:      data.photoURL          || null,
           kycStatus:     userData.kycStatus     || "unverified",
           createdAt:     userData.createdAt     || Date.now(),
           totalTrades:   userData.totalTrades   || 0,
@@ -163,7 +141,7 @@ export function AuthPage() {
         navigate("dashboard");
 
       } catch (err: any) {
-        console.error("Error de autenticación:", err.message);
+        console.error("❌ Error de autenticación:", err.message);
         setGlobalError("Error de conexión. Verifica tu internet.");
         setLoading(false);
       }
@@ -309,7 +287,6 @@ export function AuthPage() {
 
       <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
 
-        {/* CORREGIDO: Logo oficial incrustado directamente en vez del div de texto CX */}
         <div className="text-center mb-8">
           <div className="inline-flex p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
             <CubaXLogo size={36} />
@@ -388,7 +365,7 @@ export function AuthPage() {
             }
           />
 
-          {/* Indicador contraseña */}
+          {/* Indicador de fuerza */}
           {!isLogin && password.length > 0 && (
             <div className="space-y-1.5">
               <div className="flex gap-1">
@@ -482,7 +459,7 @@ export function AuthPage() {
           ))}
         </div>
 
-        {/* Switch */}
+        {/* Switch login/register */}
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
           {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
           <button
@@ -495,5 +472,4 @@ export function AuthPage() {
       </div>
     </div>
   );
-     }
-      
+          }
