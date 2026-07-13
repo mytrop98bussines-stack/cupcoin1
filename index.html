@@ -6,35 +6,41 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <meta name="description" content="CubaX — Plataforma integral de finanzas, P2P y comercio cripto para el mercado cubano" />
     <title>CubaX — Plataforma P2P & Crypto</title>
-    
+
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap" rel="stylesheet" />
 
-    <!-- CORREGIDO: Forzamos la destrucción de la caché usando ?v=1 -->
-    <link rel="icon" type="image/svg+xml" href="/favicon.svg?v=1" />
+    <!-- Iconos -->
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+    <!-- ✅ PWA Manifest -->
     <link rel="manifest" href="/manifest.json" />
 
-    <!-- CORREGIDO: También forzamos la actualización en dispositivos iOS -->
-    <link rel="apple-touch-icon" href="/favicon.svg?v=1" />
+    <!-- ✅ iOS — usar PNG no SVG -->
+    <link rel="apple-touch-icon" href="/icon-192.png" />
 
-    <meta name="theme-color" content="#000000" />
+    <!-- ✅ Theme -->
+    <meta name="theme-color" content="#3b82f6" />
     <meta name="mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="CubaX" />
 
+    <!-- ✅ SEO y redes sociales -->
     <meta name="supported-color-schemes" content="light dark" />
+    <meta property="og:title"       content="CubaX — Plataforma P2P & Crypto" />
+    <meta property="og:description" content="Plataforma integral de finanzas, P2P y comercio cripto para el mercado cubano" />
+    <meta property="og:type"        content="website" />
 
     <style>
       html, body {
         margin: 0;
         padding: 0;
-        background-color: #f9fafb; /* Equivale a tu bg-gray-50 base */
+        background-color: #f9fafb;
       }
-      /* Sincronizado el fondo oscuro nativo con el fondo negro de la X monolítica */
       html.dark, html.dark body {
-        background-color: #000000 !important; 
+        background-color: #000000 !important;
       }
     </style>
   </head>
