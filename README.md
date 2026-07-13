@@ -2,7 +2,7 @@
 MIT License — Copyright (c) 2026 CubaX
 
 > **La primera plataforma P2P de criptomonedas diseñada específicamente para el mercado cubano.**
-> Sin VPN ( EXCEPTO EN LA PRIMERAS PRODUCCIONES DE LA APP YA QUE SE ESTA HACIENDO MIGRACIONES LA VERSIÓN OFICIAL YA NO USARA VPN). Sin restricciones. Sin intermediarios.
+> Sin VPN. Sin restricciones. Sin intermediarios.
 
 ---
 
@@ -210,6 +210,22 @@ Wallets
 
 ---
 
+### Endpoints migrados
+Categoría	Endpoints
+Auth	6 endpoints
+Órdenes P2P	4 endpoints
+Trades	7 endpoints
+Productos	3 endpoints
+Chats	3 endpoints
+Marketplace	2 endpoints
+Notificaciones	4 endpoints
+KYC	2 endpoints
+Perfil	2 endpoints
+Membresía	4 endpoints
+Admin	7 endpoints
+Total	48 endpoints
+
+
 ## 📱 Diseño y UX
 
 - **Mobile-first** — diseñado para móviles desde el principio
@@ -282,6 +298,48 @@ Endpoints backend: 20+
 Colecciones Firestore: 12
 Tiempo de desarrollo: 3 meses
 Costo de infraestructura: $0/mes
+
+## 🔐 Seguridad
+
+- **KYC obligatorio** para operar en P2P y Marketplace — verificado en el backend
+- **Membresía activa** requerida para publicar — verificada en el backend
+- **Tokens JWT** de Firebase para autenticación en cada petición
+- **Refresh automático** de tokens cada 50 minutos
+- **Escrow system** para proteger los fondos durante los trades P2P
+- **Variables de entorno** gestionadas como secrets en GitHub Actions
+- **Admin SDK** en el backend bypasea las Security Rules para operaciones críticas
+- **Sin credenciales** de Firebase expuestas en el frontend
+
+---
+
+## 📱 Progressive Web App (PWA)
+
+CubaX es instalable como aplicación nativa en cualquier dispositivo:
+
+### Android
+1. Abre la app en Chrome
+2. Toca **"Agregar a pantalla de inicio"**
+3. La app se instala como nativa
+
+### iOS
+1. Abre la app en Safari
+2. Toca el botón compartir
+3. Toca **"Añadir a pantalla de inicio"**
+
+**Características PWA:**
+- ✅ Instalable en Android e iOS
+- ✅ Funciona sin barra del navegador
+- ✅ Notificaciones push nativas
+- ✅ Icono en pantalla de inicio
+- ✅ Pantalla de carga personalizada
+
+---
+
+## 🌐 Funciona sin VPN en Cuba
+
+Este es el logro técnico más importante del proyecto.
+
+Antes de la migración, **toda la app dependía de conexiones directas a Firebase** que están bloqueadas en Cuba:
 
 Hecho con ❤️ para Cuba
 
