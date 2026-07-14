@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card }      from "@/components/ui/Card";
 import { Badge }     from "@/components/ui/Badge";
@@ -9,11 +9,13 @@ import { PAYMENT_METHOD_LABELS } from "@/data/mock";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
   Send, Copy, Phone, Lock, Unlock, XCircle,
-  Loader2, ArrowLeft,
+  Loader2, ArrowLeft, Upload, Timer,
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
 
-const BACKEND_URL = "https://cubax-backend.onrender.com";
+const BACKEND_URL              = "https://cubax-backend.onrender.com";
+const CLOUDINARY_CLOUD_NAME    = "dc4caibrn";
+const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned";
 
 const STATUS_CONFIG: Record<
   TradeStatus,
@@ -22,31 +24,31 @@ const STATUS_CONFIG: Record<
   awaiting_escrow: {
     label: "Esperando depósito",
     color: "text-amber-500",
-    icon:  <Clock className="h-5 w-5" />,
+    icon:  <Clock         className="h-5 w-5" />,
     desc:  "El vendedor debe depositar los fondos en el escrow.",
   },
   escrow_funded: {
     label: "Escrow fondeado",
     color: "text-blue-500",
-    icon:  <Lock className="h-5 w-5" />,
+    icon:  <Lock          className="h-5 w-5" />,
     desc:  "Fondos seguros en escrow. Realiza el pago móvil ahora.",
   },
   payment_sent: {
     label: "Pago enviado",
     color: "text-indigo-500",
-    icon:  <Send className="h-5 w-5" />,
+    icon:  <Send          className="h-5 w-5" />,
     desc:  "Comprador marcó pago como enviado. Vendedor, verifica.",
   },
   payment_confirmed: {
     label: "Pago confirmado",
     color: "text-emerald-500",
-    icon:  <CheckCircle2 className="h-5 w-5" />,
+    icon:  <CheckCircle2  className="h-5 w-5" />,
     desc:  "Vendedor confirmó el pago. Liberando cripto...",
   },
   crypto_released: {
     label: "Completado",
     color: "text-emerald-500",
-    icon:  <Unlock className="h-5 w-5" />,
+    icon:  <Unlock        className="h-5 w-5" />,
     desc:  "¡Trade completado! Los fondos han sido liberados.",
   },
   disputed: {
@@ -58,7 +60,7 @@ const STATUS_CONFIG: Record<
   cancelled: {
     label: "Cancelado",
     color: "text-gray-500",
-    icon:  <XCircle className="h-5 w-5" />,
+    icon:  <XCircle       className="h-5 w-5" />,
     desc:  "Trade cancelado. Fondos devueltos al vendedor.",
   },
 };
@@ -69,10 +71,16 @@ export function TradePage() {
     setActiveTrade, navigate,
   } = useAppStore();
 
-  const [loading, setLoading] = useState(false);
-  const [trade, setTrade]     = useState<Trade | null>(activeTrade);
-  const [error, setError]     = useState<string | null>(null);
-  const [copied, setCopied]   = useState(false);
+  const [loading, setLoading]               = useState(false);
+  const [trade, setTrade]                   = useState<Trade | null>(activeTrade);
+  const [error, setError]                   = useState<string | null>(null);
+  const [copied, setCopied]                 = useState(false);
+
+  // ─── Estados para subir pruebas ───────────────────────────
+  const [uploadingEvidence, setUploadingEvidence] = useState(false);
+  const [evidenceUploaded, setEvidenceUploaded]   = useState(false);
+  const [timeLeft, setTimeLeft]                   = useState<number | null>(null);
+  const evidenceInputRef                          = useRef<HTMLInputElement>(null);
 
   // ─── Cargar trade via backend con polling ─────────────────
   useEffect(() => {
@@ -113,6 +121,41 @@ export function TradePage() {
     };
   }, [selectedTradeId, activeTrade?.id]);
 
+  // ─── Timer de disputa ─────────────────────────────────────
+  useEffect(() => {
+    if (trade?.status !== "disputed") return;
+
+    const checkTimer = async () => {
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/api/trades/${trade.id}/dispute-timer`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && data.expiresAt) {
+          const remaining = data.expiresAt - Date.now();
+          setTimeLeft(remaining > 0 ? remaining : 0);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando timer:", err);
+      }
+    };
+
+    void checkTimer();
+    const timerInterval = window.setInterval(() => {
+      setTimeLeft((prev) => (prev !== null && prev > 0 ? prev - 1000 : 0));
+    }, 1000);
+
+    return () => window.clearInterval(timerInterval);
+  }, [trade?.status, trade?.id]);
+
+  const formatTimeLeft = (ms: number) => {
+    const minutes = Math.floor(ms / 60000);
+    const seconds = Math.floor((ms % 60000) / 1000);
+    return `${minutes}:${seconds.toString().padStart(2, "0")}`;
+  };
+
   const isBuyer       = user?.uid === trade?.buyerId;
   const isSeller      = user?.uid === trade?.sellerId;
   const isParticipant = isBuyer || isSeller;
@@ -132,25 +175,53 @@ export function TradePage() {
     setTimeout(() => setCopied(false), 2000);
   }, []);
 
-  // ─── Mensaje del sistema via backend ─────────────────────
-  const sendSystemMessage = async (tradeId: string, msg: string) => {
+  // ─── Subir prueba de no pago ──────────────────────────────
+  const handleUploadEvidence = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !trade) return;
+
+    setUploadingEvidence(true);
+    setError(null);
+
     try {
+      // 1. Subir a Cloudinary
+      const formData = new FormData();
+      formData.append("file",          file);
+      formData.append("upload_preset", CLOUDINARY_UPLOAD_PRESET);
+      formData.append("folder",        `cubax/evidence/${trade.id}`);
+
+      const cloudRes  = await fetch(
+        `https://api.cloudinary.com/v1_1/${CLOUDINARY_CLOUD_NAME}/image/upload`,
+        { method: "POST", body: formData }
+      );
+      const cloudData = await cloudRes.json();
+
+      if (!cloudData.secure_url) throw new Error("Error subiendo imagen.");
+
+      // 2. Enviar al backend
       const token = localStorage.getItem("cubax_token");
-      await fetch(`${BACKEND_URL}/api/trades/${tradeId}/messages`, {
-        method:  "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          text:       msg,
-          senderId:   "SYSTEM",
-          senderName: "CubaX Sistema",
-          type:       "system",
-        }),
-      });
-    } catch (err) {
-      console.error("❌ Error enviando mensaje del sistema:", err);
+      const res   = await fetch(
+        `${BACKEND_URL}/api/trades/${trade.id}/evidence`,
+        {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            imageUrl:    cloudData.secure_url,
+            description: "Prueba de no pago subida por el vendedor.",
+          }),
+        }
+      );
+      const data = await res.json();
+      if (!data.success) throw new Error(data.error);
+
+      setEvidenceUploaded(true);
+    } catch (err: any) {
+      setError("Error subiendo prueba: " + err.message);
+    } finally {
+      setUploadingEvidence(false);
     }
   };
 
@@ -293,7 +364,6 @@ export function TradePage() {
 
   const statusConfig = STATUS_CONFIG[trade.status];
 
-  // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto pb-24 animate-fade-in">
 
@@ -453,186 +523,245 @@ export function TradePage() {
         </Card>
 
         {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
-        <div className="space-y-2">
+<div className="space-y-2">
 
-          {/* Vendedor fondea escrow */}
-          {trade.status === "awaiting_escrow" && isSeller && (
+  {/* Vendedor fondea escrow */}
+  {trade.status === "awaiting_escrow" && isSeller && (
+    <Button
+      size="lg" fullWidth loading={loading}
+      onClick={() => handleAction("fund_escrow")}
+      icon={<Lock className="h-4 w-4" />}
+    >
+      Depositar {trade.amount} {trade.asset} en Escrow
+    </Button>
+  )}
+
+  {/* Comprador espera escrow */}
+  {trade.status === "awaiting_escrow" && isBuyer && (
+    <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+      <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 text-center">
+        ⏳ Esperando que el vendedor deposite la garantía en escrow.
+        No envíes dinero aún.
+      </p>
+    </div>
+  )}
+
+  {/* Comprador marca pago */}
+  {trade.status === "escrow_funded" && isBuyer && (
+    <div className="space-y-2">
+      <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+        <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
+          💳 Envía{" "}
+          <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
+          por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
+          toca el botón de abajo.
+        </p>
+      </div>
+      <Button
+        size="lg" fullWidth loading={loading}
+        onClick={() => handleAction("mark_paid")}
+        icon={<Send className="h-4 w-4" />}
+        className="bg-indigo-500 hover:bg-indigo-600 text-white"
+      >
+        Ya envié el pago en CUP
+      </Button>
+    </div>
+  )}
+
+  {/* Vendedor espera pago */}
+  {trade.status === "escrow_funded" && isSeller && (
+    <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+      <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
+        ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
+        <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
+        por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
+      </p>
+    </div>
+  )}
+
+  {/* Vendedor libera fondos */}
+  {trade.status === "payment_sent" && isSeller && (
+    <div className="space-y-2">
+      <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
+        <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 text-center">
+          ⚠️ Verifica el pago en Transfermóvil o Enzona ANTES de
+          liberar. No te fíes de capturas de pantalla.
+        </p>
+      </div>
+      <Button
+        size="lg" fullWidth loading={loading}
+        onClick={() => handleAction("release")}
+        icon={<Unlock className="h-4 w-4" />}
+        className="bg-emerald-500 hover:bg-emerald-600 text-white"
+      >
+        Confirmar Pago y Liberar {trade.amount} {trade.asset}
+      </Button>
+    </div>
+  )}
+
+  {/* Comprador espera liberación */}
+  {trade.status === "payment_sent" && isBuyer && (
+    <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
+      <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">
+        ⏳ Pago marcado. El vendedor está verificando antes de
+        liberar los fondos.
+      </p>
+    </div>
+  )}
+
+  {/* ═══ DISPUTA ═══════════════════════════════════════ */}
+  {trade.status === "disputed" && (
+    <div className="space-y-3">
+
+      {/* Timer de disputa */}
+      {timeLeft !== null && (
+        <div className={`p-3 rounded-xl border text-center ${
+          timeLeft > 10 * 60 * 1000
+            ? "bg-amber-500/10 border-amber-500/20"
+            : "bg-red-500/10 border-red-500/20"
+        }`}>
+          <div className="flex items-center justify-center gap-2 mb-1">
+            <Timer className={`h-4 w-4 ${
+              timeLeft > 10 * 60 * 1000 ? "text-amber-500" : "text-red-500"
+            }`} />
+            <span className={`text-lg font-black ${
+              timeLeft > 10 * 60 * 1000 ? "text-amber-500" : "text-red-500"
+            }`}>
+              {timeLeft > 0 ? formatTimeLeft(timeLeft) : "00:00"}
+            </span>
+          </div>
+          <p className="text-xs text-gray-500 dark:text-gray-400">
+            {timeLeft > 0
+              ? "Tiempo restante para presentar pruebas"
+              : "Tiempo agotado — resolución automática en proceso"}
+          </p>
+        </div>
+      )}
+
+      {/* Panel del comprador en disputa */}
+      {isBuyer && (
+        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+          <AlertTriangle className="h-6 w-6 text-red-500 mx-auto mb-2" />
+          <p className="text-sm font-bold text-red-600 dark:text-red-400 text-center mb-1">
+            Disputa iniciada
+          </p>
+          <p className="text-xs text-gray-400 text-center">
+            El vendedor tiene 30 minutos para presentar pruebas de que no recibió el pago.
+            Si no lo hace, los fondos te serán liberados automáticamente.
+          </p>
+        </div>
+      )}
+
+      {/* Panel del vendedor en disputa */}
+      {isSeller && (
+        <div className="space-y-3">
+          <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
+            <p className="text-xs font-bold text-red-600 dark:text-red-400 text-center mb-1">
+              ⚠️ Debes presentar pruebas de que NO recibiste el pago
+            </p>
+            <p className="text-[11px] text-gray-400 text-center">
+              Si no subes pruebas antes de que el tiempo expire,
+              los fondos se liberarán automáticamente al comprador.
+            </p>
+          </div>
+
+          {/* Input oculto para evidencia */}
+          <input
+            type="file"
+            accept="image/*"
+            ref={evidenceInputRef}
+            onChange={handleUploadEvidence}
+            className="hidden"
+          />
+
+          {evidenceUploaded ? (
+            <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+              <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+              <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+                ✅ Pruebas subidas correctamente
+              </p>
+              <p className="text-[11px] text-gray-400 mt-1">
+                Un moderador revisará el caso y tomará una decisión.
+              </p>
+            </div>
+          ) : (
             <Button
-              size="lg" fullWidth loading={loading}
-              onClick={() => handleAction("fund_escrow")}
-              icon={<Lock className="h-4 w-4" />}
+              size="lg"
+              fullWidth
+              loading={uploadingEvidence}
+              onClick={() => evidenceInputRef.current?.click()}
+              icon={<Upload className="h-4 w-4" />}
+              className="bg-amber-500 hover:bg-amber-600 text-white"
             >
-              Depositar {trade.amount} {trade.asset} en Escrow
-            </Button>
-          )}
-
-          {/* Comprador espera escrow */}
-          {trade.status === "awaiting_escrow" && isBuyer && (
-            <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-              <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 text-center">
-                ⏳ Esperando que el vendedor deposite la garantía en escrow.
-                No envíes dinero aún.
-              </p>
-            </div>
-          )}
-
-          {/* Comprador marca pago */}
-          {trade.status === "escrow_funded" && isBuyer && (
-            <div className="space-y-2">
-              <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
-                  💳 Envía{" "}
-                  <strong>
-                    {trade.totalFiat.toLocaleString("es-CU")} CUP
-                  </strong>{" "}
-                  por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
-                  toca el botón de abajo.
-                </p>
-              </div>
-              <Button
-                size="lg"
-                fullWidth
-                loading={loading}
-                onClick={() => handleAction("mark_paid")}
-                icon={<Send className="h-4 w-4" />}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white"
-              >
-                Ya envié el pago en CUP
-              </Button>
-            </div>
-          )}
-
-          {/* Vendedor espera pago */}
-          {trade.status === "escrow_funded" && isSeller && (
-            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
-                ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
-                <strong>
-                  {trade.totalFiat.toLocaleString("es-CU")} CUP
-                </strong>{" "}
-                por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
-              </p>
-            </div>
-          )}
-
-          {/* Vendedor libera fondos */}
-          {trade.status === "payment_sent" && isSeller && (
-            <div className="space-y-2">
-              <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
-                <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400 text-center">
-                  ⚠️ Verifica el pago en Transfermóvil o Enzona ANTES de
-                  liberar. No te fíes de capturas de pantalla.
-                </p>
-              </div>
-              <Button
-                size="lg"
-                fullWidth
-                loading={loading}
-                onClick={() => handleAction("release")}
-                icon={<Unlock className="h-4 w-4" />}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white"
-              >
-                Confirmar Pago y Liberar {trade.amount} {trade.asset}
-              </Button>
-            </div>
-          )}
-
-          {/* Comprador espera liberación */}
-          {trade.status === "payment_sent" && isBuyer && (
-            <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
-              <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">
-                ⏳ Pago marcado. El vendedor está verificando antes de
-                liberar los fondos.
-              </p>
-            </div>
-          )}
-
-          {/* Trade completado */}
-          {trade.status === "crypto_released" && (
-            <div className="space-y-2">
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                  ¡Trade completado con éxito!
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {trade.amount} {trade.asset} enviados al comprador
-                </p>
-              </div>
-              <Button
-                size="lg" fullWidth variant="outline"
-                icon={<ArrowLeft className="h-4 w-4" />}
-                onClick={() => navigate("p2p")}
-              >
-                Volver al Mercado P2P
-              </Button>
-            </div>
-          )}
-
-          {/* Trade disputado */}
-          {trade.status === "disputed" && (
-            <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl text-center">
-              <AlertTriangle className="h-6 w-6 text-red-500 mx-auto mb-2" />
-              <p className="text-sm font-bold text-red-600 dark:text-red-400">
-                Trade en disputa
-              </p>
-              <p className="text-xs text-gray-400 mt-1">
-                Un moderador de CubaX revisará el caso y tomará una decisión.
-              </p>
-            </div>
-          )}
-
-          {/* Trade cancelado */}
-          {trade.status === "cancelled" && (
-            <div className="space-y-2">
-              <div className="p-3 bg-gray-100 dark:bg-white/5 rounded-xl text-center">
-                <p className="text-sm font-bold text-gray-500">
-                  Trade cancelado
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  No se realizó ningún movimiento de fondos.
-                </p>
-              </div>
-              <Button
-                size="lg" fullWidth variant="outline"
-                onClick={() => navigate("p2p")}
-              >
-                Volver al P2P
-              </Button>
-            </div>
-          )}
-
-          {/* Cancelar antes del escrow */}
-          {trade.status === "awaiting_escrow" && (
-            <Button
-              size="sm" fullWidth variant="ghost"
-              onClick={() => handleAction("cancel")}
-              className="text-gray-500 hover:text-gray-700"
-            >
-              Cancelar trade
-            </Button>
-          )}
-
-          {/* Botón de disputa */}
-          {!["crypto_released", "cancelled", "disputed", "awaiting_escrow"].includes(
-            trade.status
-          ) && (
-            <Button
-              size="sm" fullWidth variant="ghost"
-              onClick={() => handleAction("dispute")}
-              icon={<AlertTriangle className="h-3.5 w-3.5" />}
-              className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5"
-            >
-              Apelar / Iniciar Disputa
+              {uploadingEvidence
+                ? "Subiendo prueba..."
+                : "📎 Subir prueba de no pago"}
             </Button>
           )}
         </div>
-      </div>
-
-      {/* Chat */}
-      <div className="px-4 mt-4">
-        <TradeChat tradeId={trade.id} />
-      </div>
+      )}
     </div>
-  );
-}
+  )}
+
+  {/* Trade completado */}
+  {trade.status === "crypto_released" && (
+    <div className="space-y-2">
+      <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+        <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+        <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+          ¡Trade completado con éxito!
+        </p>
+        <p className="text-xs text-gray-400 mt-1">
+          {trade.amount} {trade.asset} enviados al comprador
+        </p>
+      </div>
+      <Button
+        size="lg" fullWidth variant="outline"
+        icon={<ArrowLeft className="h-4 w-4" />}
+        onClick={() => navigate("p2p")}
+      >
+        Volver al Mercado P2P
+      </Button>
+    </div>
+  )}
+
+  {/* Trade cancelado */}
+  {trade.status === "cancelled" && (
+    <div className="space-y-2">
+      <div className="p-3 bg-gray-100 dark:bg-white/5 rounded-xl text-center">
+        <p className="text-sm font-bold text-gray-500">Trade cancelado</p>
+        <p className="text-xs text-gray-400 mt-1">
+          No se realizó ningún movimiento de fondos.
+        </p>
+      </div>
+      <Button size="lg" fullWidth variant="outline" onClick={() => navigate("p2p")}>
+        Volver al P2P
+      </Button>
+    </div>
+  )}
+
+  {/* Cancelar antes del escrow */}
+  {trade.status === "awaiting_escrow" && (
+    <Button
+      size="sm" fullWidth variant="ghost"
+      onClick={() => handleAction("cancel")}
+      className="text-gray-500 hover:text-gray-700"
+    >
+      Cancelar trade
+    </Button>
+  )}
+
+  {/* Botón de disputa */}
+  {!["crypto_released", "cancelled", "disputed", "awaiting_escrow"].includes(
+    trade.status
+  ) && (
+    <Button
+      size="sm" fullWidth variant="ghost"
+      onClick={() => handleAction("dispute")}
+      icon={<AlertTriangle className="h-3.5 w-3.5" />}
+      className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5"
+    >
+      Apelar / Iniciar Disputa
+    </Button>
+  )}
+</div>
