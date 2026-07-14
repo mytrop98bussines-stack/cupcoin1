@@ -762,6 +762,15 @@ export function TradePage() {
       className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5"
     >
       Apelar / Iniciar Disputa
-    </Button>
-  )}
-</div>
+            </Button>
+          )}
+        </div>
+      </div>
+
+      {/* Chat */}
+      <div className="px-4 mt-4">
+        <TradeChat tradeId={trade.id} />
+      </div>
+    </div>
+  );
+}
