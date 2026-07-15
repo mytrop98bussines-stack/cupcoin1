@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Card }   from "@/components/ui/Card";
-import { CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/mock";
+import { CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/data";
 import {
   Upload, Camera, CheckCircle2, Shield,
   Loader2, X, Crown, Truck, MapPin,

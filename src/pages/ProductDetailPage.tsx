@@ -4,7 +4,7 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { CONDITION_LABELS, CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/mock";
+import { CONDITION_LABELS, CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/data";
 import {
   MapPin, Calendar, Star, MessageCircle,
   ShoppingCart, Share2, Heart, Loader2,

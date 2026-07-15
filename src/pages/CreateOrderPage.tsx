@@ -3,7 +3,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { Card }   from "@/components/ui/Card";
-import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/mock";
+import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/data";
 import {
   ArrowLeftRight,
   Shield,

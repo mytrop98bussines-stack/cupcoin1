@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { CRYPTO_ICONS } from "@/data/mock";
+import { CRYPTO_ICONS } from "@/data/data";
 import {
   Wallet, Copy, ArrowUpRight, ArrowDownLeft,
   TrendingUp, TrendingDown, Shield, Loader2, Check,

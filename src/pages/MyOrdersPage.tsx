@@ -7,7 +7,7 @@ import {
   ArrowLeftRight, Plus, Loader2, AlertTriangle,
   CheckCircle2, X, Clock, Trash2,
 } from "lucide-react";
-import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/mock";
+import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/data";
 import type { P2POrder } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";

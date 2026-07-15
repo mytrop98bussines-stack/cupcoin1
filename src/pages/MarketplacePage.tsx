@@ -5,7 +5,7 @@ import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import {
   CONDITION_LABELS,
-} from "@/data/mock";
+} from "@/data/data";
 import {
   Search,
   Plus,

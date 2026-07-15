@@ -5,7 +5,7 @@ import { Badge }     from "@/components/ui/Badge";
 import { Button }    from "@/components/ui/Button";
 import { Avatar }    from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
-import { PAYMENT_METHOD_LABELS } from "@/data/mock";
+import { PAYMENT_METHOD_LABELS } from "@/data/data";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
   Send, Copy, Phone, Lock, Unlock, XCircle,

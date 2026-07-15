@@ -8,7 +8,7 @@ import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
   CRYPTO_ICONS,
-} from "@/data/mock";
+} from "@/data/data";
 import {
   TrendingUp, TrendingDown, Star, Plus,
   Search, Filter, X, Loader2,
