@@ -199,31 +199,27 @@ export function TradePage() {
       if (!cloudData.secure_url) throw new Error("Error subiendo imagen.");
 
       // 2. Enviar al backend
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(
-        `${BACKEND_URL}/api/trades/${trade.id}/evidence`,
-        {
-          method:  "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:  `Bearer ${token}`,
-          },
-          body: JSON.stringify({
-  imageUrl:    cloudData.secure_url,
-  description: isBuyer
-    ? "Comprobante de pago subido por el comprador."
-    : "Prueba de no pago subida por el vendedor.",
-}),
-      const data = await res.json();
-      if (!data.success) throw new Error(data.error);
+const token = localStorage.getItem("cubax_token");
+const res   = await fetch(
+  `${BACKEND_URL}/api/trades/${trade.id}/evidence`,
+  {
+    method:  "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization:  `Bearer ${token}`,
+    },
+    body: JSON.stringify({
+      imageUrl:    cloudData.secure_url,
+      description: isBuyer
+        ? "Comprobante de pago subido por el comprador."
+        : "Prueba de no pago subida por el vendedor.",
+    }),
+  }  // ← este cierre faltaba
+);
+const data = await res.json();
+if (!data.success) throw new Error(data.error);
 
-      setEvidenceUploaded(true);
-    } catch (err: any) {
-      setError("Error subiendo prueba: " + err.message);
-    } finally {
-      setUploadingEvidence(false);
-    }
-  };
+setEvidenceUploaded(true);
 
   // ─── Acciones del trade ───────────────────────────────────
   const handleAction = useCallback(async (action: string) => {
