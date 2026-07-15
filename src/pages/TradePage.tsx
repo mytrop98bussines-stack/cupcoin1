@@ -209,11 +209,11 @@ export function TradePage() {
             Authorization:  `Bearer ${token}`,
           },
           body: JSON.stringify({
-            imageUrl:    cloudData.secure_url,
-            description: "Prueba de no pago subida por el vendedor.",
-          }),
-        }
-      );
+  imageUrl:    cloudData.secure_url,
+  description: isBuyer
+    ? "Comprobante de pago subido por el comprador."
+    : "Prueba de no pago subida por el vendedor.",
+}),
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
 
@@ -639,19 +639,55 @@ export function TradePage() {
       )}
 
       {/* Panel del comprador en disputa */}
-      {isBuyer && (
-        <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
-          <AlertTriangle className="h-6 w-6 text-red-500 mx-auto mb-2" />
-          <p className="text-sm font-bold text-red-600 dark:text-red-400 text-center mb-1">
-            Disputa iniciada
-          </p>
-          <p className="text-xs text-gray-400 text-center">
-            El vendedor tiene 30 minutos para presentar pruebas de que no recibió el pago.
-            Si no lo hace, los fondos te serán liberados automáticamente.
-          </p>
-        </div>
-      )}
+{isBuyer && (
+  <div className="space-y-3">
+    <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
+      <AlertTriangle className="h-6 w-6 text-red-500 mx-auto mb-2" />
+      <p className="text-sm font-bold text-red-600 dark:text-red-400 text-center mb-1">
+        Disputa iniciada
+      </p>
+      <p className="text-xs text-gray-400 text-center">
+        Puedes subir tu comprobante de pago como prueba.
+        Si el vendedor no responde en el tiempo límite,
+        los fondos te serán liberados automáticamente.
+      </p>
+    </div>
 
+    {/* Input oculto para evidencia del comprador */}
+    <input
+      type="file"
+      accept="image/*"
+      ref={evidenceInputRef}
+      onChange={handleUploadEvidence}
+      className="hidden"
+    />
+
+    {evidenceUploaded ? (
+      <div className="p-3 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+        <CheckCircle2 className="h-6 w-6 text-emerald-500 mx-auto mb-1" />
+        <p className="text-xs font-bold text-emerald-600 dark:text-emerald-400">
+          ✅ Comprobante subido correctamente
+        </p>
+        <p className="text-[11px] text-gray-400 mt-1">
+          Un moderador revisará el caso con tus pruebas.
+        </p>
+      </div>
+    ) : (
+      <Button
+        size="lg"
+        fullWidth
+        loading={uploadingEvidence}
+        onClick={() => evidenceInputRef.current?.click()}
+        icon={<Upload className="h-4 w-4" />}
+        className="bg-emerald-500 hover:bg-emerald-600 text-white"
+      >
+        {uploadingEvidence
+          ? "Subiendo comprobante..."
+          : "📎 Subir comprobante de pago"}
+      </Button>
+    )}
+  </div>
+)}
       {/* Panel del vendedor en disputa */}
       {isSeller && (
         <div className="space-y-3">
