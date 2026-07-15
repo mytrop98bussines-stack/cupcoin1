@@ -1,11 +1,22 @@
 import { useState, useEffect } from "react";
 import { Card }        from "@/components/ui/Card";
 import { Button }      from "@/components/ui/Button";
-import { Gavel, Loader2, Zap, X } from "lucide-react";
+import {
+  Gavel, Loader2, Zap, X,
+  CheckCircle2, AlertTriangle,
+} from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 import type { Dispute, Trade, ChatMessage } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
+
+interface Evidence {
+  id:          string;
+  uploadedBy:  string;
+  imageUrl:    string;
+  description: string;
+  createdAt:   number;
+}
 
 interface Props {
   dispute: Dispute;
@@ -17,6 +28,7 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
   const { user } = useAppStore();
 
   const [messages, setMessages]       = useState<ChatMessage[]>([]);
+  const [evidence, setEvidence]       = useState<Evidence[]>([]);
   const [loading, setLoading]         = useState(false);
   const [loadingChat, setLoadingChat] = useState(true);
   const [adminNote, setAdminNote]     = useState("");
@@ -48,6 +60,38 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
 
     void loadMessages();
     const intervalId = window.setInterval(loadMessages, 5000);
+
+    return () => {
+      stopped = true;
+      window.clearInterval(intervalId);
+    };
+  }, [trade.id]);
+
+  // ─── Cargar evidencias ────────────────────────────────────
+  useEffect(() => {
+    if (!trade.id) return;
+
+    let stopped = false;
+
+    const loadEvidence = async () => {
+      if (stopped) return;
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/trades/${encodeURIComponent(trade.id)}/evidence`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+        if (data.success && !stopped) {
+          setEvidence(data.evidence);
+        }
+      } catch (err) {
+        console.error("❌ Error cargando evidencias:", err);
+      }
+    };
+
+    void loadEvidence();
+    const intervalId = window.setInterval(loadEvidence, 10000);
 
     return () => {
       stopped = true;
@@ -152,6 +196,80 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
             )}
           </div>
 
+          {/* ═══ PRUEBAS SUBIDAS ═══════════════════════════════ */}
+          <div className="space-y-2">
+            <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+              📎 Pruebas presentadas ({evidence.length})
+            </p>
+
+            {evidence.length === 0 ? (
+              <div className="p-3 bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl text-center">
+                <AlertTriangle className="h-4 w-4 text-amber-500 mx-auto mb-1" />
+                <p className="text-xs text-gray-400">
+                  Ninguna de las partes ha subido pruebas todavía.
+                </p>
+              </div>
+            ) : (
+              <div className="space-y-3">
+                {evidence.map((ev) => {
+                  const isBuyerEvidence  = ev.uploadedBy === dispute.buyerId;
+                  const isSellerEvidence = ev.uploadedBy === dispute.sellerId;
+                  return (
+                    <div
+                      key={ev.id}
+                      className={`p-3 rounded-xl border space-y-2 ${
+                        isBuyerEvidence
+                          ? "bg-emerald-50 dark:bg-emerald-500/10 border-emerald-200 dark:border-emerald-500/20"
+                          : "bg-blue-50 dark:bg-blue-500/10 border-blue-200 dark:border-blue-500/20"
+                      }`}
+                    >
+                      <div className="flex items-center justify-between">
+                        <p className={`text-xs font-bold ${
+                          isBuyerEvidence
+                            ? "text-emerald-600 dark:text-emerald-400"
+                            : "text-blue-600 dark:text-blue-400"
+                        }`}>
+                          {isBuyerEvidence
+                            ? `🟢 Prueba del Comprador (${dispute.buyerName})`
+                            : `🔵 Prueba del Vendedor (${dispute.sellerName})`
+                          }
+                        </p>
+                        <span className="text-[10px] text-gray-400">
+                          {new Date(ev.createdAt).toLocaleTimeString("es-CU", {
+                            hour:   "2-digit",
+                            minute: "2-digit",
+                          })}
+                        </span>
+                      </div>
+                      <a
+                        href={ev.imageUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="block relative group"
+                      >
+                        <img
+                          src={ev.imageUrl}
+                          alt="Prueba"
+                          className="w-full h-40 object-cover rounded-xl border border-gray-200 dark:border-white/10 group-hover:opacity-80 transition-opacity"
+                        />
+                        <div className="absolute inset-0 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity bg-black/40 rounded-xl">
+                          <p className="text-white text-xs font-bold">
+                            👁 Ver completo
+                          </p>
+                        </div>
+                      </a>
+                      {ev.description && (
+                        <p className="text-xs text-gray-500 dark:text-gray-400 italic">
+                          "{ev.description}"
+                        </p>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+
           {/* Chat del trade */}
           <div className="space-y-2">
             <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
@@ -232,7 +350,7 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
           <div className="flex items-start gap-2 p-3 bg-amber-50 dark:bg-amber-500/10 border border-amber-200 dark:border-amber-500/20 rounded-xl">
             <p className="text-xs text-amber-700 dark:text-amber-400">
               ⚠️ La decisión es <strong>irreversible</strong>.
-              Revisa el chat completo antes de resolver.
+              Revisa el chat y las pruebas completas antes de resolver.
               Los fondos serán transferidos automáticamente.
             </p>
           </div>
@@ -258,4 +376,4 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
       </div>
     </div>
   );
-}
+                }
