@@ -621,4 +621,35 @@ export function AuthPage() {
             loading={loading}
             className="shadow-lg shadow-brand-500/20"
           >
+            {isLogin ? "Iniciar sesión" : "Crear cuenta gratis"}
+          </Button>
+        </form>
+
+        {/* Trust badges */}
+        <div className="flex items-center justify-center gap-4 mt-5">
+          {["Sin VPN", "Cifrado SSL", "Sin comisiones"].map((badge) => (
+            <div
+              key={badge}
+              className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
+            >
+              <Shield className="h-3 w-3 text-emerald-500" />
+              {badge}
+            </div>
+          ))}
+        </div>
+
+        {/* Switch */}
+        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
+          {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
+          <button
+            onClick={handleSwitchView}
+            className="text-brand-500 hover:text-brand-400 font-bold"
+          >
+            {isLogin ? "Regístrate gratis" : "Inicia sesión"}
+          </button>
+        </p>
+      </div>
+    </div>
+  );
+}
         
