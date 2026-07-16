@@ -10,7 +10,6 @@ import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
-// ─── Logo ─────────────────────────────────────────────────
 function CubaXLogo({ size = 32 }: { size?: number }) {
   return (
     <svg
@@ -31,6 +30,7 @@ export function AuthPage() {
   const { currentView, navigate, login } = useAppStore();
   const isLogin = currentView === "login";
 
+  // ─── Estados login/registro ───────────────────────────────
   const [email, setEmail]               = useState("");
   const [password, setPassword]         = useState("");
   const [name, setName]                 = useState("");
@@ -42,6 +42,14 @@ export function AuthPage() {
   const [showReset, setShowReset]       = useState(false);
   const [resetEmail, setResetEmail]     = useState("");
   const [resetLoading, setResetLoading] = useState(false);
+
+  // ─── Estados 2FA ──────────────────────────────────────────
+  const [twoFARequired, setTwoFARequired]     = useState(false);
+  const [twoFACode, setTwoFACode]             = useState("");
+  const [twoFAUid, setTwoFAUid]               = useState("");
+  const [twoFALoading, setTwoFALoading]       = useState(false);
+  const [twoFAError, setTwoFAError]           = useState<string | null>(null);
+  const [resendCooldown, setResendCooldown]   = useState(0);
 
   // ─── Validación ───────────────────────────────────────────
   const validate = useCallback((): boolean => {
@@ -99,10 +107,7 @@ export function AuthPage() {
         const data = await res.json();
 
         if (!data.success) {
-          if (
-            data.code === "EMAIL_EXISTS" ||
-            data.code === "INVALID_EMAIL"
-          ) {
+          if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
             setErrors({ email: data.error });
           } else if (
             data.code === "INVALID_PASSWORD" ||
@@ -124,6 +129,24 @@ export function AuthPage() {
         localStorage.setItem("cubax_name",          data.displayName);
 
         const userData = data.userData || {};
+
+        // ✅ Verificar si tiene 2FA activado
+        if (userData.twoFAEnabled) {
+          setTwoFAUid(data.uid);
+          setTwoFARequired(true);
+          setLoading(false);
+
+          // Enviar código automáticamente
+          await fetch(`${BACKEND_URL}/api/auth/2fa/send`, {
+            method:  "POST",
+            headers: { "Content-Type": "application/json" },
+            body:    JSON.stringify({ uid: data.uid }),
+          });
+
+          return;
+        }
+
+        // ✅ Sin 2FA → login directo
         const appUser: AppUser = {
           uid:           data.uid,
           email:         data.email,
@@ -148,6 +171,81 @@ export function AuthPage() {
     },
     [email, password, name, isLogin, validate, login, navigate]
   );
+
+  // ─── Verificar código 2FA ─────────────────────────────────
+  const handleVerify2FA = async () => {
+    if (!twoFACode.trim() || twoFACode.length !== 6) {
+      setTwoFAError("Ingresa el código de 6 dígitos.");
+      return;
+    }
+
+    setTwoFALoading(true);
+    setTwoFAError(null);
+
+    try {
+      const res  = await fetch(`${BACKEND_URL}/api/auth/2fa/verify`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ uid: twoFAUid, code: twoFACode }),
+      });
+      const data = await res.json();
+
+      if (!data.success) {
+        setTwoFAError(data.error || "Código incorrecto.");
+        return;
+      }
+
+      // ✅ Código correcto → completar login
+      const userRes  = await fetch(`${BACKEND_URL}/api/auth/me`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ uid: twoFAUid }),
+      });
+      const userData = await userRes.json();
+
+      if (userData.success) {
+        const u = userData.userData;
+        const appUser: AppUser = {
+          uid:           twoFAUid,
+          email:         u.email,
+          displayName:   u.displayName,
+          photoURL:      u.photoURL      || null,
+          kycStatus:     u.kycStatus     || "unverified",
+          createdAt:     u.createdAt     || Date.now(),
+          totalTrades:   u.totalTrades   || 0,
+          rating:        u.rating        || 5.0,
+          walletAddress: u.walletAddress || null,
+          role:          u.role          || "user",
+        };
+        login(appUser);
+        navigate("dashboard");
+      }
+
+    } catch (err: any) {
+      setTwoFAError("Error de conexión.");
+    } finally {
+      setTwoFALoading(false);
+    }
+  };
+
+  // ─── Reenviar código 2FA ──────────────────────────────────
+  const handleResend2FA = async () => {
+    if (resendCooldown > 0) return;
+
+    await fetch(`${BACKEND_URL}/api/auth/2fa/send`, {
+      method:  "POST",
+      headers: { "Content-Type": "application/json" },
+      body:    JSON.stringify({ uid: twoFAUid }),
+    });
+
+    setResendCooldown(60);
+    const interval = setInterval(() => {
+      setResendCooldown((prev) => {
+        if (prev <= 1) { clearInterval(interval); return 0; }
+        return prev - 1;
+      });
+    }, 1000);
+  };
 
   // ─── Reset de contraseña ──────────────────────────────────
   const handlePasswordReset = useCallback(async () => {
@@ -187,6 +285,91 @@ export function AuthPage() {
     setResetSent(false);
     navigate(isLogin ? "register" : "login");
   };
+
+  // ─── PANTALLA DE 2FA ──────────────────────────────────────
+  if (twoFARequired) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
+        <div className="px-4 pt-4">
+          <button
+            onClick={() => {
+              setTwoFARequired(false);
+              setTwoFACode("");
+              setTwoFAError(null);
+            }}
+            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+          </button>
+        </div>
+
+        <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
+          <div className="text-center mb-8">
+            <div className="h-16 w-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mx-auto mb-4">
+              <Shield className="h-8 w-8 text-brand-500" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              Verificación 2FA
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              Revisa tus notificaciones en la app.
+              Te enviamos un código de 6 dígitos.
+            </p>
+          </div>
+
+          {/* Error 2FA */}
+          {twoFAError && (
+            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
+              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+              <p className="text-xs text-red-700 dark:text-red-400">{twoFAError}</p>
+            </div>
+          )}
+
+          <div className="space-y-4">
+            {/* Input del código */}
+            <div>
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
+                Código de 6 dígitos
+              </label>
+              <input
+                type="number"
+                placeholder="000000"
+                value={twoFACode}
+                onChange={(e) => {
+                  const val = e.target.value.slice(0, 6);
+                  setTwoFACode(val);
+                  if (twoFAError) setTwoFAError(null);
+                }}
+                className="w-full px-4 py-4 text-center text-2xl font-black tracking-widest rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
+                inputMode="numeric"
+              />
+            </div>
+
+            <Button
+              size="lg"
+              fullWidth
+              loading={twoFALoading}
+              onClick={handleVerify2FA}
+              disabled={twoFACode.length !== 6}
+            >
+              Verificar código
+            </Button>
+
+            {/* Reenviar */}
+            <button
+              onClick={handleResend2FA}
+              disabled={resendCooldown > 0}
+              className="w-full text-xs text-brand-500 font-semibold disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {resendCooldown > 0
+                ? `Reenviar código en ${resendCooldown}s`
+                : "¿No recibiste el código? Reenviar"}
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // ─── PANTALLA DE RESET ────────────────────────────────────
   if (showReset) {
@@ -244,9 +427,7 @@ export function AuthPage() {
               {globalError && (
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
                   <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                  <p className="text-xs text-red-700 dark:text-red-400">
-                    {globalError}
-                  </p>
+                  <p className="text-xs text-red-700 dark:text-red-400">{globalError}</p>
                 </div>
               )}
               <Input
@@ -305,9 +486,7 @@ export function AuthPage() {
         {globalError && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-700 dark:text-red-400">
-              {globalError}
-            </p>
+            <p className="text-xs text-red-700 dark:text-red-400">{globalError}</p>
           </div>
         )}
 
@@ -442,34 +621,4 @@ export function AuthPage() {
             loading={loading}
             className="shadow-lg shadow-brand-500/20"
           >
-            {isLogin ? "Iniciar sesión" : "Crear cuenta gratis"}
-          </Button>
-        </form>
-
-        {/* Trust badges */}
-        <div className="flex items-center justify-center gap-4 mt-5">
-          {["Sin VPN", "Cifrado SSL", "Sin comisiones"].map((badge) => (
-            <div
-              key={badge}
-              className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
-            >
-              <Shield className="h-3 w-3 text-emerald-500" />
-              {badge}
-            </div>
-          ))}
-        </div>
-
-        {/* Switch login/register */}
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
-          {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
-          <button
-            onClick={handleSwitchView}
-            className="text-brand-500 hover:text-brand-400 font-bold"
-          >
-            {isLogin ? "Regístrate gratis" : "Inicia sesión"}
-          </button>
-        </p>
-      </div>
-    </div>
-  );
-          }
+        
