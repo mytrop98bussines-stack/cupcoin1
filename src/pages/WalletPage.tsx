@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { Card }         from "@/components/ui/Card";
 import { CRYPTO_ICONS } from "@/data/data";
 import {
   Wallet, Copy, ArrowUpRight, ArrowDownLeft,
@@ -240,7 +241,7 @@ useEffect(() => {
   const loadHistory = async () => {
     try {
       const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/wallet/history`, {
+      const res   = await fetch(`${BACKEND_URL}/api/wallet/history`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
