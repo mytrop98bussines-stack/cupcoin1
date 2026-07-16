@@ -107,18 +107,21 @@ export function AuthPage() {
         const data = await res.json();
 
         if (!data.success) {
-          if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
-            setErrors({ email: data.error });
-          } else if (
-            data.code === "INVALID_PASSWORD" ||
-            data.code === "INVALID_LOGIN_CREDENTIALS"
-          ) {
-            setErrors({ password: data.error });
-          } else {
-            setGlobalError(data.error);
-          }
-          setLoading(false);
-          return;
+  if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
+    setErrors({ email: data.error });
+  } else if (
+    data.code === "INVALID_PASSWORD" ||
+    data.code === "INVALID_LOGIN_CREDENTIALS"
+  ) {
+    setErrors({ password: data.error });
+  } else if (data.code === "ACCOUNT_SUSPENDED") {
+    // ✅ Cuenta suspendida — error especial
+    setGlobalError("🚫 " + data.error);
+  } else {
+    setGlobalError(data.error);
+  }
+  setLoading(false);
+  return;
         }
 
         // ✅ Guardar sesión en localStorage
