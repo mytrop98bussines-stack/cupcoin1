@@ -85,6 +85,8 @@ export function TradePage() {
   const [ratingComment, setRatingComment]         = useState("");
   const [submittingRating, setSubmittingRating]   = useState(false);
   const [ratingDone, setRatingDone]               = useState(false);
+  // ─── Estado para reporte ──────────────────────────────────
+  const [showReport, setShowReport] = useState(false);
 
   // ─── Cargar trade via backend con polling ─────────────────
   useEffect(() => {
@@ -542,23 +544,32 @@ const handleSubmitRating = async () => {
         )}
 
         {/* Contraparte */}
-        <Card padding="sm">
-          <div className="flex items-center gap-3">
-            <Avatar
-              name={isBuyer ? trade.sellerName : trade.buyerName}
-              size="sm"
-            />
-            <div className="flex-1">
-              <p className="font-bold text-sm text-gray-900 dark:text-white">
-                {isBuyer ? trade.sellerName : trade.buyerName}
-              </p>
-              <p className="text-[10px] text-gray-400">
-                {isBuyer ? "Vendedor" : "Comprador"}
-              </p>
-            </div>
-            <Badge variant="success" size="sm">Online</Badge>
-          </div>
-        </Card>
+<Card padding="sm">
+  <div className="flex items-center gap-3">
+    <Avatar
+      name={isBuyer ? trade.sellerName : trade.buyerName}
+      size="sm"
+    />
+    <div className="flex-1">
+      <p className="font-bold text-sm text-gray-900 dark:text-white">
+        {isBuyer ? trade.sellerName : trade.buyerName}
+      </p>
+      <p className="text-[10px] text-gray-400">
+        {isBuyer ? "Vendedor" : "Comprador"}
+      </p>
+    </div>
+    <Badge variant="success" size="sm">Online</Badge>
+
+    {/* ✅ Botón de reporte */}
+    <button
+      onClick={() => setShowReport(true)}
+      className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+      title="Reportar usuario"
+    >
+      <AlertTriangle className="h-4 w-4 text-gray-400 hover:text-red-500 transition-colors" />
+    </button>
+  </div>
+</Card>
 
         {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
         <div className="space-y-2">
@@ -924,6 +935,14 @@ const handleSubmitRating = async () => {
       </div>
     </div>
   </div>
+)}
+      {/* ═══ MODAL DE REPORTE ════════════════════════════════ */}
+{showReport && trade && (
+  <ReportUserModal
+    reportedUserId={isBuyer ? trade.sellerId : trade.buyerId}
+    reportedUserName={isBuyer ? trade.sellerName : trade.buyerName}
+    onClose={() => setShowReport(false)}
+  />
 )}
 
       {/* Chat */}
