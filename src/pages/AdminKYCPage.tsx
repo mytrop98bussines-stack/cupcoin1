@@ -6,7 +6,7 @@ import { DisputeList }    from "@/components/admin/DisputeList";
 import { MembershipList } from "@/components/admin/MembershipList";
 import { ReportsList }    from "@/components/admin/ReportsList";
 import { Badge }   from "@/components/ui/Badge";
-import { Shield, Gavel, Crown, Loader2, Flag } from "lucide-react";
+import { Shield, Gavel, Crown, Loader2, Flag, } from "lucide-react";
 
 type AdminTab = "kyc" | "disputes" | "memberships" | "reports"; 
 
