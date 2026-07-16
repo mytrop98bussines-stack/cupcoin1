@@ -332,6 +332,39 @@ export function TradePage() {
     }
   }, [trade, user, isBuyer, isSeller, isParticipant]);
 
+  // ─── Enviar rating ────────────────────────────────────────
+const handleSubmitRating = async () => {
+  if (!trade || !user) return;
+
+  setSubmittingRating(true);
+  try {
+    const token = localStorage.getItem("cubax_token");
+    const res   = await fetch(
+      `${BACKEND_URL}/api/trades/${trade.id}/rate`,
+      {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          rating:  ratingValue,
+          comment: ratingComment.trim(),
+        }),
+      }
+    );
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error);
+
+    setRatingDone(true);
+    setShowRating(false);
+  } catch (err: any) {
+    setError(err.message || "Error enviando valoración.");
+  } finally {
+    setSubmittingRating(false);
+  }
+};
+
   // ─── Loading ──────────────────────────────────────────────
   if (!trade) {
     return (
@@ -731,41 +764,48 @@ export function TradePage() {
           )}
 
           {/* Trade completado */}
-          {trade.status === "crypto_released" && (
-            <div className="space-y-2">
-              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-                  ¡Trade completado con éxito!
-                </p>
-                <p className="text-xs text-gray-400 mt-1">
-                  {trade.amount} {trade.asset} enviados al comprador
-                </p>
-              </div>
-              <Button
-                size="lg" fullWidth variant="outline"
-                icon={<ArrowLeft className="h-4 w-4" />}
-                onClick={() => navigate("p2p")}
-              >
-                Volver al Mercado P2P
-              </Button>
-            </div>
-          )}
+{trade.status === "crypto_released" && (
+  <div className="space-y-2">
+    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+      <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+      <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+        ¡Trade completado con éxito!
+      </p>
+      <p className="text-xs text-gray-400 mt-1">
+        {trade.amount} {trade.asset} enviados al comprador
+      </p>
+    </div>
 
-          {/* Trade cancelado */}
-          {trade.status === "cancelled" && (
-            <div className="space-y-2">
-              <div className="p-3 bg-gray-100 dark:bg-white/5 rounded-xl text-center">
-                <p className="text-sm font-bold text-gray-500">Trade cancelado</p>
-                <p className="text-xs text-gray-400 mt-1">
-                  No se realizó ningún movimiento de fondos.
-                </p>
-              </div>
-              <Button size="lg" fullWidth variant="outline" onClick={() => navigate("p2p")}>
-                Volver al P2P
-              </Button>
-            </div>
-          )}
+    {/* ✅ Botón de valorar */}
+    {!ratingDone && (
+      <Button
+        size="lg"
+        fullWidth
+        onClick={() => setShowRating(true)}
+        className="bg-amber-500 hover:bg-amber-600 text-white"
+        icon={<Star className="h-4 w-4" />}
+      >
+        ⭐ Valorar a {isBuyer ? trade.sellerName : trade.buyerName}
+      </Button>
+    )}
+
+    {ratingDone && (
+      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
+        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+          ✅ Valoración enviada. ¡Gracias!
+        </p>
+      </div>
+    )}
+
+    <Button
+      size="lg" fullWidth variant="outline"
+      icon={<ArrowLeft className="h-4 w-4" />}
+      onClick={() => navigate("p2p")}
+    >
+      Volver al Mercado P2P
+    </Button>
+  </div>
+)}
 
           {/* Cancelar antes del escrow */}
           {trade.status === "awaiting_escrow" && (
@@ -793,6 +833,92 @@ export function TradePage() {
           )}
         </div>
       </div>
+
+      {/* ═══ MODAL DE RATING ═════════════════════════════════ */}
+{showRating && (
+  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-6">
+    <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-2xl shadow-2xl p-5 space-y-4 animate-slide-up">
+
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <h3 className="font-bold text-gray-900 dark:text-white text-base">
+          ⭐ Valorar a {isBuyer ? trade.sellerName : trade.buyerName}
+        </h3>
+        <button
+          onClick={() => setShowRating(false)}
+          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
+        >
+          <X className="h-4 w-4 text-gray-400" />
+        </button>
+      </div>
+
+      {/* Estrellas */}
+      <div className="text-center space-y-2">
+        <p className="text-xs text-gray-400">
+          ¿Cómo fue tu experiencia con esta persona?
+        </p>
+        <div className="flex items-center justify-center gap-2">
+          {[1, 2, 3, 4, 5].map((star) => (
+            <button
+              key={star}
+              onClick={() => setRatingValue(star)}
+              className={`text-3xl transition-transform hover:scale-110 ${
+                star <= ratingValue
+                  ? "opacity-100"
+                  : "opacity-30"
+              }`}
+            >
+              ⭐
+            </button>
+          ))}
+        </div>
+        <p className="text-sm font-bold text-gray-900 dark:text-white">
+          {ratingValue === 1 && "Muy malo"}
+          {ratingValue === 2 && "Malo"}
+          {ratingValue === 3 && "Regular"}
+          {ratingValue === 4 && "Bueno"}
+          {ratingValue === 5 && "¡Excelente!"}
+        </p>
+      </div>
+
+      {/* Comentario opcional */}
+      <div>
+        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">
+          Comentario (opcional)
+        </label>
+        <textarea
+          placeholder="Cuéntanos sobre tu experiencia..."
+          value={ratingComment}
+          onChange={(e) => setRatingComment(e.target.value)}
+          rows={3}
+          maxLength={200}
+          className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 px-4 py-3 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none resize-none"
+        />
+        <p className="text-[10px] text-gray-400 text-right mt-1">
+          {ratingComment.length}/200
+        </p>
+      </div>
+
+      {/* Botones */}
+      <div className="flex gap-2">
+        <button
+          onClick={() => setShowRating(false)}
+          className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-bold text-gray-500"
+        >
+          Omitir
+        </button>
+        <Button
+          size="lg"
+          loading={submittingRating}
+          onClick={handleSubmitRating}
+          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
+        >
+          Enviar valoración
+        </Button>
+      </div>
+    </div>
+  </div>
+)}
 
       {/* Chat */}
       <div className="px-4 mt-4">
