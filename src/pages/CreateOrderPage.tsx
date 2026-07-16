@@ -5,13 +5,10 @@ import { Input }  from "@/components/ui/Input";
 import { Card }   from "@/components/ui/Card";
 import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/data";
 import {
-  ArrowLeftRight,
-  Shield,
-  CheckCircle2,
-  AlertTriangle,
-  Loader2,
-  Info,
-  Crown,
+  ArrowLeftRight, Shield, CheckCircle2,
+  AlertTriangle, Loader2, Info, Crown,
+  Truck, MapPin, CreditCard, Clock,
+  Phone,
 } from "lucide-react";
 import type { OrderType, CryptoAsset, PaymentMethod } from "@/types";
 
