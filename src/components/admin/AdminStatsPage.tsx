@@ -2,15 +2,14 @@ import { useState, useEffect } from "react";
 import { Card } from "@/components/ui/Card";
 import {
   Users, ArrowLeftRight, TrendingUp, ShoppingBag,
-  Wallet, Crown, AlertTriangle, Flag,
-  RefreshCw, CheckCircle2,
+  Wallet, AlertTriangle, Flag, RefreshCw,
 } from "lucide-react";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 export function AdminStats() {
-  const [stats, setStats]       = useState<any>(null);
-  const [loading, setLoading]   = useState(true);
+  const [stats, setStats]           = useState<any>(null);
+  const [loading, setLoading]       = useState(true);
   const [refreshing, setRefreshing] = useState(false);
 
   const loadStats = async () => {
@@ -99,11 +98,11 @@ export function AdminStats() {
         </h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Total",          value: stats.users.total,         color: "text-gray-900 dark:text-white" },
-            { label: "Verificados KYC", value: stats.users.verified,      color: "text-emerald-500"              },
-            { label: "Con membresía",   value: stats.users.activeMembers, color: "text-brand-500"                },
-            { label: "Nuevos hoy",      value: stats.users.newToday,      color: "text-blue-500"                 },
-            { label: "Nuevos esta semana", value: stats.users.newThisWeek, color: "text-violet-500"              },
+            { label: "Total",             value: stats.users.total,          color: "text-gray-900 dark:text-white" },
+            { label: "Verificados KYC",   value: stats.users.verified,       color: "text-emerald-500"              },
+            { label: "Con membresía",     value: stats.users.activeMembers,  color: "text-brand-500"                },
+            { label: "Nuevos hoy",        value: stats.users.newToday,       color: "text-blue-500"                 },
+            { label: "Nuevos esta semana",value: stats.users.newThisWeek,    color: "text-violet-500"               },
           ].map((item) => (
             <Card key={item.label} padding="md" className="text-center">
               <p className={`text-2xl font-black ${item.color}`}>{item.value}</p>
@@ -120,11 +119,11 @@ export function AdminStats() {
         </h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Total",           value: stats.trades.total,       color: "text-gray-900 dark:text-white" },
-            { label: "Completados",     value: stats.trades.completed,   color: "text-emerald-500"              },
-            { label: "Hoy",             value: stats.trades.today,       color: "text-blue-500"                 },
-            { label: "Esta semana",     value: stats.trades.thisWeek,    color: "text-violet-500"               },
-            { label: "Tasa de éxito",   value: `${stats.trades.successRate}%`, color: "text-brand-500"         },
+            { label: "Total",          value: stats.trades.total,                  color: "text-gray-900 dark:text-white" },
+            { label: "Completados",    value: stats.trades.completed,              color: "text-emerald-500"              },
+            { label: "Hoy",            value: stats.trades.today,                  color: "text-blue-500"                 },
+            { label: "Esta semana",    value: stats.trades.thisWeek,               color: "text-violet-500"               },
+            { label: "Tasa de éxito",  value: `${stats.trades.successRate}%`,      color: "text-brand-500"                },
           ].map((item) => (
             <Card key={item.label} padding="md" className="text-center">
               <p className={`text-2xl font-black ${item.color}`}>{item.value}</p>
@@ -183,10 +182,10 @@ export function AdminStats() {
         </h3>
         <div className="grid grid-cols-2 gap-3">
           {[
-            { label: "Depósitos totales",     value: `${stats.finance.totalDeposits} USDT`,          color: "text-emerald-500" },
-            { label: "Retiros totales",        value: `${stats.finance.totalWithdrawals} USDT`,       color: "text-red-500"     },
-            { label: "Ingresos membresías",    value: `${stats.finance.membershipRevenue} USDT`,      color: "text-brand-500"   },
-            { label: "Membresías este mes",    value: `${stats.finance.membershipRevenueMonth} USDT`, color: "text-amber-500"   },
+            { label: "Depósitos totales",      value: `${stats.finance.totalDeposits} USDT`,          color: "text-emerald-500" },
+            { label: "Retiros totales",         value: `${stats.finance.totalWithdrawals} USDT`,       color: "text-red-500"     },
+            { label: "Ingresos membresías",     value: `${stats.finance.membershipRevenue} USDT`,      color: "text-brand-500"   },
+            { label: "Membresías este mes",     value: `${stats.finance.membershipRevenueMonth} USDT`, color: "text-amber-500"   },
           ].map((item) => (
             <Card key={item.label} padding="md" className="text-center">
               <p className={`text-lg font-black ${item.color}`}>{item.value}</p>
