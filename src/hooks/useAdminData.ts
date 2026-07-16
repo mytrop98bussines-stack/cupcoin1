@@ -35,6 +35,7 @@ export function useAdminData(): AdminData {
           fetch(`${BACKEND_URL}/admin/kyc/pending`,     { headers }),
           fetch(`${BACKEND_URL}/admin/disputes`,         { headers }),
           fetch(`${BACKEND_URL}/admin/payments/pending`, { headers }),
+          fetch(`${BACKEND_URL}/admin/reports`, { headers }),
         ]);
 
         const [usersData, disputesData, paymentsData] = await Promise.all([
