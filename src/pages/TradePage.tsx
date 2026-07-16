@@ -9,7 +9,8 @@ import { PAYMENT_METHOD_LABELS } from "@/data/data";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
   Send, Copy, Phone, Lock, Unlock, XCircle,
-  Loader2, ArrowLeft, Upload, Timer,
+  Loader2, ArrowLeft, Upload, Timer, Star,
+  X,
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
 
@@ -79,6 +80,11 @@ export function TradePage() {
   const [evidenceUploaded, setEvidenceUploaded]   = useState(false);
   const [timeLeft, setTimeLeft]                   = useState<number | null>(null);
   const evidenceInputRef                          = useRef<HTMLInputElement>(null);
+  const [showRating, setShowRating]               = useState(false);
+  const [ratingValue, setRatingValue]             = useState(5);
+  const [ratingComment, setRatingComment]         = useState("");
+  const [submittingRating, setSubmittingRating]   = useState(false);
+  const [ratingDone, setRatingDone]               = useState(false);
 
   // ─── Cargar trade via backend con polling ─────────────────
   useEffect(() => {
