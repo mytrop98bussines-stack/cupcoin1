@@ -1,18 +1,22 @@
 import { useState } from "react";
-import { useAdminData } from "@/hooks/useAdminData";
-import { AdminLayout }  from "@/components/admin/AdminLayout";
+import { useAdminData }   from "@/hooks/useAdminData";
+import { AdminLayout }    from "@/components/admin/AdminLayout";
 import { KYCList }        from "@/components/admin/KYCList";
 import { DisputeList }    from "@/components/admin/DisputeList";
 import { MembershipList } from "@/components/admin/MembershipList";
 import { ReportsList }    from "@/components/admin/ReportsList";
-import { AdminStats } from "@/components/admin/AdminStats"; 
-import { Badge }   from "@/components/ui/Badge";
-import { Shield, Gavel, Crown, Loader2, Flag, } from "lucide-react";
+import { AdminStats }     from "@/components/admin/AdminStats";
+import { Badge }          from "@/components/ui/Badge";
+import {
+  Shield, Gavel, Crown, Loader2,
+  Flag, TrendingUp,              // ← TrendingUp agregado
+} from "lucide-react";
 
-type AdminTab = "kyc" | "disputes" | "memberships" | "reports" | "stats"; 
+type AdminTab = "kyc" | "disputes" | "memberships" | "reports" | "stats";
 
 export function AdminKYCPage() {
-  const { pendingUsers, disputes, payments, loading } = useAdminData();
+  // ✅ reports agregado
+  const { pendingUsers, disputes, payments, reports, loading } = useAdminData();
   const [activeTab, setActiveTab] = useState<AdminTab>("kyc");
 
   if (loading) {
@@ -30,38 +34,38 @@ export function AdminKYCPage() {
     {
       key:   "kyc"         as AdminTab,
       label: "KYC",
-      icon:  <Shield className="h-3.5 w-3.5" />,
+      icon:  <Shield     className="h-3.5 w-3.5" />,
       count: pendingUsers.length,
       color: "text-amber-500",
     },
     {
       key:   "disputes"    as AdminTab,
       label: "Disputas",
-      icon:  <Gavel  className="h-3.5 w-3.5" />,
+      icon:  <Gavel      className="h-3.5 w-3.5" />,
       count: disputes.length,
       color: "text-red-500",
     },
     {
       key:   "memberships" as AdminTab,
       label: "Membresías",
-      icon:  <Crown  className="h-3.5 w-3.5" />,
+      icon:  <Crown      className="h-3.5 w-3.5" />,
       count: payments.length,
       color: "text-blue-500",
     },
     {
       key:   "reports"     as AdminTab,
       label: "Reportes",
-      icon:  <Flag   className="h-3.5 w-3.5" />,
-      count: reports.length,
-      color: "bg-red-700",
+      icon:  <Flag       className="h-3.5 w-3.5" />,
+      count: reports.length,   // ✅ ya funciona
+      color: "text-red-700",
     },
     {
-    key:   "stats"  as AdminTab,
-    label: "Stats",
-    icon:  <TrendingUp className="h-3.5 w-3.5" />,
-    count: 0,
-    color: "bg-brand-500",
-  },
+      key:   "stats"       as AdminTab,
+      label: "Stats",
+      icon:  <TrendingUp  className="h-3.5 w-3.5" />, // ✅ ya funciona
+      count: 0,
+      color: "text-brand-500",
+    },
   ];
 
   return (
@@ -103,9 +107,10 @@ export function AdminKYCPage() {
             {tab.label}
             {tab.count > 0 && (
               <span className={`h-4 w-4 rounded-full text-white text-[9px] font-black flex items-center justify-center ${
-                tab.key === "kyc"         ? "bg-amber-500" :
-                tab.key === "disputes"    ? "bg-red-500"   :
-                                           "bg-blue-500"
+                tab.key === "kyc"      ? "bg-amber-500" :
+                tab.key === "disputes" ? "bg-red-500"   :
+                tab.key === "reports"  ? "bg-red-700"   :
+                                         "bg-blue-500"
               }`}>
                 {tab.count}
               </span>
@@ -118,7 +123,8 @@ export function AdminKYCPage() {
       {activeTab === "kyc"         && <KYCList        users={pendingUsers} />}
       {activeTab === "disputes"    && <DisputeList     disputes={disputes}  />}
       {activeTab === "memberships" && <MembershipList  payments={payments}  />}
+      {activeTab === "reports"     && <ReportsList     reports={reports}    />} {/* ✅ agregado */}
       {activeTab === "stats"       && <AdminStats />}
     </AdminLayout>
   );
-                }
+}
