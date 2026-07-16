@@ -5,10 +5,11 @@ import { KYCList }        from "@/components/admin/KYCList";
 import { DisputeList }    from "@/components/admin/DisputeList";
 import { MembershipList } from "@/components/admin/MembershipList";
 import { ReportsList }    from "@/components/admin/ReportsList";
+import { AdminStats } from "@/components/admin/AdminStats"; 
 import { Badge }   from "@/components/ui/Badge";
 import { Shield, Gavel, Crown, Loader2, Flag, } from "lucide-react";
 
-type AdminTab = "kyc" | "disputes" | "memberships" | "reports"; 
+type AdminTab = "kyc" | "disputes" | "memberships" | "reports" | "stats"; 
 
 export function AdminKYCPage() {
   const { pendingUsers, disputes, payments, loading } = useAdminData();
@@ -54,6 +55,13 @@ export function AdminKYCPage() {
       count: reports.length,
       color: "bg-red-700",
     },
+    {
+    key:   "stats"  as AdminTab,
+    label: "Stats",
+    icon:  <TrendingUp className="h-3.5 w-3.5" />,
+    count: 0,
+    color: "bg-brand-500",
+  },
   ];
 
   return (
