@@ -126,6 +126,12 @@ export function MyOrdersPage() {
   const activeOrders   = orders.filter((o) => o.status === "active");
   const inactiveOrders = orders.filter((o) => o.status !== "active");
 
+  // ✅ Órdenes próximas a expirar (más de 25 días activas)
+  const expiringOrders = activeOrders.filter((o) => {
+    const daysOld = (Date.now() - (o.createdAt || 0)) / (1000 * 60 * 60 * 24);
+    return daysOld >= 25;
+  });
+
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
@@ -152,6 +158,21 @@ export function MyOrdersPage() {
           Publicar
         </Button>
       </div>
+
+      {/* ✅ Aviso de órdenes próximas a expirar */}
+      {expiringOrders.length > 0 && (
+        <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+          <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+          <div className="flex-1">
+            <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+              ⏰ {expiringOrders.length} anuncio{expiringOrders.length > 1 ? "s" : ""} próximo{expiringOrders.length > 1 ? "s" : ""} a expirar
+            </p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5">
+              Los anuncios expiran a los 30 días. Cancélalos y republícalos para mantenerlos activos.
+            </p>
+          </div>
+        </div>
+      )}
 
       {/* Error / Éxito */}
       {error && (
@@ -267,11 +288,31 @@ function OrderCard({
   onReactivate:      () => void;
 }) {
   const isActive   = order.status === "active";
+  const isExpired  = order.status === "expired";
   const confirming = confirmCancel === order.id;
   const cancelling = cancellingId  === order.id;
 
+  // ✅ Días de vida de la orden
+  const daysOld    = Math.floor(
+    (Date.now() - (order.createdAt || 0)) / (1000 * 60 * 60 * 24)
+  );
+  const isExpiring = isActive && daysOld >= 25;
+
   return (
-    <Card padding="md" className="space-y-3">
+    <Card
+      padding="md"
+      className={`space-y-3 ${isExpiring ? "border-amber-500/30" : ""}`}
+    >
+
+      {/* ✅ Aviso de expiración próxima */}
+      {isExpiring && (
+        <div className="flex items-center gap-2 p-2 rounded-lg bg-amber-500/10 border border-amber-500/20">
+          <Clock className="h-3.5 w-3.5 text-amber-500 flex-shrink-0" />
+          <p className="text-[11px] font-semibold text-amber-600 dark:text-amber-400">
+            ⏰ Expira en {30 - daysOld} día{30 - daysOld !== 1 ? "s" : ""}
+          </p>
+        </div>
+      )}
 
       {/* Header */}
       <div className="flex items-center justify-between">
@@ -289,17 +330,19 @@ function OrderCard({
             </p>
           </div>
         </div>
+
+        {/* ✅ Badge actualizado con estado expirado */}
         <Badge
           variant={
             isActive
               ? order.type === "sell" ? "success" : "danger"
-              : "default"
+              : isExpired ? "warning" : "default"
           }
           size="sm"
         >
           {isActive
             ? order.type === "sell" ? "Venta activa" : "Compra activa"
-            : "Inactiva"}
+            : isExpired ? "⏰ Expirada" : "Inactiva"}
         </Badge>
       </div>
 
@@ -372,7 +415,7 @@ function OrderCard({
               className="flex-1 flex items-center justify-center gap-1.5 py-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 text-xs font-bold hover:bg-emerald-500/20 transition-colors"
             >
               <CheckCircle2 className="h-3.5 w-3.5" />
-              Reactivar orden
+              {isExpired ? "Republicar orden" : "Reactivar orden"}
             </button>
           )}
         </div>
