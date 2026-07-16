@@ -118,6 +118,7 @@ export function AdminKYCPage() {
       {activeTab === "kyc"         && <KYCList        users={pendingUsers} />}
       {activeTab === "disputes"    && <DisputeList     disputes={disputes}  />}
       {activeTab === "memberships" && <MembershipList  payments={payments}  />}
+      {activeTab === "stats"       && <AdminStats />}
     </AdminLayout>
   );
                 }
