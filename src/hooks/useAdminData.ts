@@ -7,6 +7,7 @@ interface AdminData {
   pendingUsers: User[];
   disputes:     Dispute[];
   payments:     MembershipPayment[];
+  reports:      any[];           // ← nuevo
   loading:      boolean;
 }
 
@@ -15,6 +16,7 @@ export function useAdminData(): AdminData {
     pendingUsers: [],
     disputes:     [],
     payments:     [],
+    reports:      [],            // ← nuevo
     loading:      true,
   });
 
@@ -31,17 +33,18 @@ export function useAdminData(): AdminData {
           Authorization:  `Bearer ${token}`,
         };
 
-        const [usersRes, disputesRes, paymentsRes] = await Promise.all([
+        const [usersRes, disputesRes, paymentsRes, reportsRes] = await Promise.all([
           fetch(`${BACKEND_URL}/admin/kyc/pending`,     { headers }),
           fetch(`${BACKEND_URL}/admin/disputes`,         { headers }),
           fetch(`${BACKEND_URL}/admin/payments/pending`, { headers }),
-          fetch(`${BACKEND_URL}/admin/reports`, { headers }),
+          fetch(`${BACKEND_URL}/admin/reports`,          { headers }), // ← nuevo
         ]);
 
-        const [usersData, disputesData, paymentsData] = await Promise.all([
+        const [usersData, disputesData, paymentsData, reportsData] = await Promise.all([
           usersRes.json(),
           disputesRes.json(),
-          paymentsRes.json(),  // ✅ correcto
+          paymentsRes.json(),
+          reportsRes.json(),     // ← nuevo
         ]);
 
         if (!stopped) {
@@ -49,6 +52,7 @@ export function useAdminData(): AdminData {
             pendingUsers: usersData.success    ? usersData.users        : [],
             disputes:     disputesData.success ? disputesData.disputes   : [],
             payments:     paymentsData.success ? paymentsData.payments   : [],
+            reports:      reportsData.success  ? reportsData.reports     : [], // ← nuevo
             loading:      false,
           });
         }
