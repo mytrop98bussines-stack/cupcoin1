@@ -470,6 +470,40 @@ export function CreateOrderPage() {
           </div>
         </Card>
       )}
+      {/* ✅ Teléfono de pago guardado */}
+{(user as any).phone && (
+  <div className="flex items-center gap-2 p-3 rounded-xl bg-brand-500/5 border border-brand-500/20">
+    <Phone className="h-4 w-4 text-brand-500 flex-shrink-0" />
+    <div className="flex-1">
+      <p className="text-xs font-bold text-brand-600 dark:text-brand-400">
+        Número de pago guardado
+      </p>
+      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+        {(user as any).phone} — Los compradores verán este número
+      </p>
+    </div>
+  </div>
+)}
+
+{!(user as any).phone && (
+  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+    <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+    <div className="flex-1">
+      <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+        Sin número de pago
+      </p>
+      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+        Agrega tu número en el perfil para que aparezca automáticamente.
+      </p>
+    </div>
+    <button
+      onClick={() => navigate("profile")}
+      className="text-[11px] font-bold text-amber-500 hover:text-amber-400"
+    >
+      Agregar →
+    </button>
+  </div>
+)}
 
       {/* Botón publicar */}
       <Button
