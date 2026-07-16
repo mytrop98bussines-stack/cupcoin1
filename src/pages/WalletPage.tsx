@@ -231,6 +231,30 @@ export function WalletPage() {
     setDepositAddress(null);
   };
 
+  const [movements, setMovements]         = useState<any[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(true);
+
+useEffect(() => {
+  if (!user?.uid) return;
+
+  const loadHistory = async () => {
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/wallet/history`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+      if (data.success) setMovements(data.movements);
+    } catch (err) {
+      console.error("❌ Error cargando historial:", err);
+    } finally {
+      setLoadingHistory(false);
+    }
+  };
+
+  void loadHistory();
+}, [user?.uid]);
+
   const currentChainInfo = activeAction.asset ? CHAIN_OPTIONS[activeAction.asset]?.[0] : null;
 
   return (
@@ -281,6 +305,97 @@ export function WalletPage() {
           </div>
         </div>
       </div>
+
+      {/* ═══ HISTORIAL DE MOVIMIENTOS ════════════════════════ */}
+<div>
+  <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
+    Historial de movimientos
+  </h3>
+
+  {loadingHistory ? (
+    <div className="text-center py-8">
+      <div className="h-5 w-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+      <p className="text-xs text-gray-400">Cargando historial...</p>
+    </div>
+
+  ) : movements.length === 0 ? (
+    <Card padding="lg" className="text-center">
+      <p className="text-2xl mb-2">📭</p>
+      <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+        Sin movimientos
+      </p>
+      <p className="text-xs text-gray-400">
+        Aquí aparecerán tus depósitos, retiros y trades.
+      </p>
+    </Card>
+
+  ) : (
+    <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
+      {movements.map((mov) => {
+        const isPositive = mov.amount > 0;
+        return (
+          <div
+            key={mov.id}
+            className="flex items-center gap-3 px-4 py-3.5"
+          >
+            {/* Icono */}
+            <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${
+              isPositive
+                ? "bg-emerald-500/10"
+                : "bg-red-500/10"
+            }`}>
+              {mov.icon}
+            </div>
+
+            {/* Info */}
+            <div className="flex-1 min-w-0">
+              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                {mov.label}
+              </p>
+              <div className="flex items-center gap-2">
+                <p className="text-[10px] text-gray-400">
+                  {new Date(mov.createdAt).toLocaleDateString("es-CU", {
+                    day:   "numeric",
+                    month: "short",
+                    year:  "numeric",
+                  })}
+                </p>
+                {/* Status badge */}
+                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                  mov.status === "completed"
+                    ? "bg-emerald-500/10 text-emerald-500"
+                    : mov.status === "pending"
+                    ? "bg-amber-500/10 text-amber-500"
+                    : "bg-red-500/10 text-red-500"
+                }`}>
+                  {mov.status === "completed" ? "✓ Completado" :
+                   mov.status === "pending"   ? "⏳ Pendiente" : "❌ Fallido"}
+                </span>
+              </div>
+              {/* TxHash si existe */}
+              {mov.txHash && (
+                <p className="text-[9px] text-gray-400 font-mono truncate mt-0.5">
+                  Tx: {mov.txHash.slice(0, 20)}...
+                </p>
+              )}
+            </div>
+
+            {/* Monto */}
+            <div className="text-right flex-shrink-0">
+              <p className={`text-sm font-black ${
+                isPositive
+                  ? "text-emerald-500"
+                  : "text-red-500"
+              }`}>
+                {isPositive ? "+" : ""}{mov.amount} {mov.asset}
+              </p>
+            </div>
+          </div>
+        );
+      })}
+    </Card>
+  )}
+</div>
 
       {/* ═══ MINI RESUMEN ════════════════════════════════ */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
