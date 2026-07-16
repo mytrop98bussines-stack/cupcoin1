@@ -4,10 +4,11 @@ import { AdminLayout }  from "@/components/admin/AdminLayout";
 import { KYCList }        from "@/components/admin/KYCList";
 import { DisputeList }    from "@/components/admin/DisputeList";
 import { MembershipList } from "@/components/admin/MembershipList";
+import { ReportsList }    from "@/components/admin/ReportsList";
 import { Badge }   from "@/components/ui/Badge";
-import { Shield, Gavel, Crown, Loader2 } from "lucide-react";
+import { Shield, Gavel, Crown, Loader2, Flag } from "lucide-react";
 
-type AdminTab = "kyc" | "disputes" | "memberships";
+type AdminTab = "kyc" | "disputes" | "memberships" | "reports"; 
 
 export function AdminKYCPage() {
   const { pendingUsers, disputes, payments, loading } = useAdminData();
@@ -45,6 +46,13 @@ export function AdminKYCPage() {
       icon:  <Crown  className="h-3.5 w-3.5" />,
       count: payments.length,
       color: "text-blue-500",
+    },
+    {
+      key:   "reports"     as AdminTab,
+      label: "Reportes",
+      icon:  <Flag   className="h-3.5 w-3.5" />,
+      count: reports.length,
+      color: "bg-red-700",
     },
   ];
 
