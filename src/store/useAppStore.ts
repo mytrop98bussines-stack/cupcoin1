@@ -11,6 +11,7 @@ import type {
   ThemeMode,
   AppView,
 } from "@/types";
+import { setCache, getCache } from "@/lib/cache";
 
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
@@ -39,18 +40,21 @@ interface AppState {
   depositAddresses:  Record<string, string>;
   selectedTradeId:   string | null;
   selectedProductId: string | null;
+  selectedPublicUserId: string | null;   // ← nuevo
   isLoading:         boolean;
   mobileMenuOpen:    boolean;
   loadingPrices:     boolean;
   modalOpen:         boolean;
+  language:          "es" | "en";        // ← nuevo
 
   // ─── Tema ────────────────────────────────────────────────
   setTheme:    (theme: ThemeMode) => void;
   toggleTheme: () => void;
 
   // ─── Navegación ──────────────────────────────────────────
-  navigate: (view: AppView) => void;
-  goBack:   () => void;
+  navigate:          (view: AppView) => void;
+  goBack:            () => void;
+  navigateToProfile: (userId: string) => void; // ← nuevo
 
   // ─── Usuario ─────────────────────────────────────────────
   setUser: (user: User | null) => void;
@@ -112,12 +116,16 @@ interface AppState {
   subscribeToNotifications: (userId: string) => () => void;
   markNotificationRead:     (id: string) => Promise<void>;
 
+  // ─── Idioma ──────────────────────────────────────────────
+  setLanguage: (lang: "es" | "en") => void;          // ← nuevo
+
   // ─── UI ──────────────────────────────────────────────────
-  setSelectedTradeId:   (id: string | null) => void;
-  setSelectedProductId: (id: string | null) => void;
-  setLoading:           (loading: boolean) => void;
-  setMobileMenuOpen:    (open: boolean) => void;
-  setModalOpen:         (open: boolean) => void;
+  setSelectedTradeId:      (id: string | null) => void;
+  setSelectedProductId:    (id: string | null) => void;
+  setSelectedPublicUserId: (id: string | null) => void; // ← nuevo
+  setLoading:              (loading: boolean) => void;
+  setMobileMenuOpen:       (open: boolean) => void;
+  setModalOpen:            (open: boolean) => void;
 }
 
 // ─── Tema inicial ─────────────────────────────────────────
@@ -142,6 +150,7 @@ const getInitialView = (): AppView => {
       "wallet", "settings", "notifications", "membership", "profile",
       "security", "help", "terms", "language", "notification-settings",
       "trade-history", "my-orders", "admin-kyc", "admin-disputes",
+      "public-profile",  // ← nuevo
     ];
     if (stored && validViews.includes(stored)) return stored;
   }
@@ -149,14 +158,16 @@ const getInitialView = (): AppView => {
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
-  theme:             getInitialTheme(),
-  currentView:       getInitialView(),
-  previousView:      null,
-  user:              null,
-  isAuthenticated:   false,
-  balances:          [],
-  depositAddresses:  {},
-  modalOpen:         false,
+  theme:                getInitialTheme(),
+  currentView:          getInitialView(),
+  previousView:         null,
+  user:                 null,
+  isAuthenticated:      false,
+  balances:             [],
+  depositAddresses:     {},
+  modalOpen:            false,
+  selectedPublicUserId: null,   // ← nuevo
+  language:             (localStorage.getItem("cubax_language") as "es" | "en") || "es", // ← nuevo
 
   prices: [
     { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
@@ -208,6 +219,12 @@ export const useAppStore = create<AppState>((set, get) => ({
       localStorage.setItem("cubax_last_view", prev);
       set({ currentView: prev, previousView: null });
     }
+  },
+
+  // ✅ Navegar al perfil público de un usuario
+  navigateToProfile: (userId: string) => {
+    set({ selectedPublicUserId: userId });
+    get().navigate("public-profile" as AppView);
   },
 
   // =========================================================
@@ -293,10 +310,10 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (!response.ok) throw new Error("Error CoinGecko");
       const data = await response.json();
       const prices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT", name: "Tether",   priceUSD: data.tether?.usd          ?? 1.00,    change24h: data.tether?.usd_24h_change          ?? 0 },
-        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd      ?? 1.00,    change24h: data["usd-coin"]?.usd_24h_change      ?? 0 },
-        { id: "3", symbol: "BTC",  name: "Bitcoin",  priceUSD: data.bitcoin?.usd          ?? 67500,   change24h: data.bitcoin?.usd_24h_change          ?? 0 },
-        { id: "4", symbol: "ETH",  name: "Ethereum", priceUSD: data.ethereum?.usd         ?? 3500,    change24h: data.ethereum?.usd_24h_change         ?? 0 },
+        { id: "1", symbol: "USDT", name: "Tether",   priceUSD: data.tether?.usd          ?? 1.00,  change24h: data.tether?.usd_24h_change          ?? 0 },
+        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd      ?? 1.00,  change24h: data["usd-coin"]?.usd_24h_change      ?? 0 },
+        { id: "3", symbol: "BTC",  name: "Bitcoin",  priceUSD: data.bitcoin?.usd          ?? 67500, change24h: data.bitcoin?.usd_24h_change          ?? 0 },
+        { id: "4", symbol: "ETH",  name: "Ethereum", priceUSD: data.ethereum?.usd         ?? 3500,  change24h: data.ethereum?.usd_24h_change         ?? 0 },
       ];
       set({ prices, loadingPrices: false });
       console.log("✅ [Prices] Actualizados desde CoinGecko");
@@ -323,9 +340,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       const data = await response.json();
       if (data?.success && data?.coin_address) {
-        set({
-          depositAddresses: { ...get().depositAddresses, [assetKey]: data.coin_address },
-        });
+        set({ depositAddresses: { ...get().depositAddresses, [assetKey]: data.coin_address } });
       }
     } catch (error) {
       console.error("❌ [fetchDepositAddress] Error:", error);
@@ -396,15 +411,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   addOrder:  (order)  => set({ orders: [order, ...get().orders] }),
 
   fetchOrders: async () => {
+    // ✅ Cache primero
+    const cached = getCache<P2POrder[]>("orders");
+    if (cached) set({ orders: cached });
+
     try {
       const res  = await fetch(`${RENDER_API_URL}/orders`);
       const data = await res.json();
       if (data.success) {
         set({ orders: data.orders });
+        setCache("orders", data.orders);
         console.log("✅ [Orders] Órdenes cargadas");
       }
     } catch (error) {
-      console.error("❌ [Orders] Error fetchOrders:", error);
+      console.error("❌ [Orders] Error fetchOrders — usando cache:", error);
     }
   },
 
@@ -490,7 +510,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // =========================================================
+ // =========================================================
   // MENSAJES
   // =========================================================
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
@@ -518,10 +538,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       }
     };
 
-    // Carga inicial
     void loadMessages();
-
-    // Polling cada 5 segundos
     const intervalId = window.setInterval(loadMessages, 5000);
 
     return () => {
@@ -561,15 +578,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProducts: (products) => set({ products }),
 
   fetchProducts: async () => {
+    // ✅ Cache primero
+    const cached = getCache<Product[]>("products");
+    if (cached) set({ products: cached });
+
     try {
       const res  = await fetch(`${RENDER_API_URL}/products`);
       const data = await res.json();
       if (data.success) {
         set({ products: data.products });
+        setCache("products", data.products);
         console.log("✅ [Marketplace] Productos cargados");
       }
     } catch (error) {
-      console.error("❌ [Marketplace] Error fetchProducts:", error);
+      console.error("❌ [Marketplace] Error fetchProducts — usando cache:", error);
     }
   },
 
@@ -612,7 +634,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // Compatibilidad: ya no usa onSnapshot, solo carga una vez
   subscribeToProducts: () => {
     void get().fetchProducts();
     return () => {};
@@ -625,6 +646,11 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchNotifications: async (userId: string) => {
     if (!userId || userId === "invitado") return;
+
+    // ✅ Cache primero
+    const cached = getCache<Notification[]>(`notifications_${userId}`);
+    if (cached) set({ notifications: cached });
+
     try {
       const res  = await fetch(`${RENDER_API_URL}/notifications/${userId}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -632,14 +658,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       const data = await res.json();
       if (data.success) {
         set({ notifications: data.notifications });
+        setCache(`notifications_${userId}`, data.notifications);
         console.log("✅ [Notifications] Cargadas");
       }
     } catch (error) {
-      console.error("❌ Error fetchNotifications:", error);
+      console.error("❌ Error fetchNotifications — usando cache:", error);
     }
   },
 
-  // Compatibilidad: ya no usa onSnapshot, hace polling cada 30 segundos
   subscribeToNotifications: (userId: string) => {
     if (!userId || userId === "invitado") return () => {};
 
@@ -651,7 +677,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     };
 
     void load();
-
     const intervalId = window.setInterval(load, 30000);
 
     return () => {
@@ -681,11 +706,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // =========================================================
+  // IDIOMA
+  // =========================================================
+  setLanguage: (lang) => {
+    localStorage.setItem("cubax_language", lang);
+    set({ language: lang });
+  },
+
+  // =========================================================
   // UI
   // =========================================================
-  setSelectedTradeId:   (id)      => set({ selectedTradeId:   id }),
-  setSelectedProductId: (id)      => set({ selectedProductId: id }),
-  setLoading:           (loading) => set({ isLoading:         loading }),
-  setMobileMenuOpen:    (open)    => set({ mobileMenuOpen:    open }),
-  setModalOpen:         (open)    => set({ modalOpen:         open }),
+  setSelectedTradeId:      (id)      => set({ selectedTradeId:      id }),
+  setSelectedProductId:    (id)      => set({ selectedProductId:    id }),
+  setSelectedPublicUserId: (id)      => set({ selectedPublicUserId: id }),
+  setLoading:              (loading) => set({ isLoading:            loading }),
+  setMobileMenuOpen:       (open)    => set({ mobileMenuOpen:       open }),
+  setModalOpen:            (open)    => set({ modalOpen:            open }),
 }));
