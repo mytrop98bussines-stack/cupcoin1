@@ -13,6 +13,7 @@ const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 export function SecurityPage() {
   const { user } = useAppStore();
 
+  // ─── Estados contraseña ───────────────────────────────────
   const [currentPassword, setCurrentPassword] = useState("");
   const [newPassword, setNewPassword]         = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -22,6 +23,12 @@ export function SecurityPage() {
   const [loading, setLoading]                 = useState(false);
   const [success, setSuccess]                 = useState(false);
   const [error, setError]                     = useState<string | null>(null);
+
+  // ─── Estados 2FA ──────────────────────────────────────────
+  const [togglingTwoFA, setTogglingTwoFA] = useState(false);
+  const [twoFASuccess, setTwoFASuccess]   = useState<string | null>(null);
+
+  const twoFAEnabled = (user as any)?.twoFAEnabled || false;
 
   const passwordStrength = (() => {
     if (!newPassword)            return { level: 0, label: "",          color: ""               };
@@ -62,10 +69,7 @@ export function SecurityPage() {
           "Content-Type": "application/json",
           Authorization:  `Bearer ${token}`,
         },
-        body: JSON.stringify({
-          currentPassword,
-          newPassword,
-        }),
+        body: JSON.stringify({ currentPassword, newPassword }),
       });
       const data = await res.json();
 
@@ -83,9 +87,44 @@ export function SecurityPage() {
     }
   }, [currentPassword, newPassword, confirmPassword]);
 
+  // ─── Activar/Desactivar 2FA ───────────────────────────────
+  const handleToggle2FA = async () => {
+    setTogglingTwoFA(true);
+    setTwoFASuccess(null);
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/auth/2fa/toggle`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ enable: !twoFAEnabled }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        useAppStore.setState((state) => ({
+          user: state.user
+            ? { ...state.user, twoFAEnabled: data.twoFAEnabled }
+            : null,
+        }));
+        setTwoFASuccess(
+          data.twoFAEnabled
+            ? "✅ 2FA activado correctamente."
+            : "✅ 2FA desactivado."
+        );
+        setTimeout(() => setTwoFASuccess(null), 3000);
+      }
+    } catch (err: any) {
+      setError("Error al cambiar el estado del 2FA.");
+    } finally {
+      setTogglingTwoFA(false);
+    }
+  };
+
   if (!user) return null;
 
-  // ─── Info de sesión desde localStorage ───────────────────
   const lastLogin = localStorage.getItem("cubax_last_login")
     ? new Date(Number(localStorage.getItem("cubax_last_login"))).toLocaleString("es-CU")
     : "—";
@@ -123,7 +162,7 @@ export function SecurityPage() {
         </div>
       )}
 
-      {/* Éxito */}
+      {/* Éxito contraseña */}
       {success && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
           <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
@@ -135,6 +174,72 @@ export function SecurityPage() {
           </button>
         </div>
       )}
+
+      {/* Éxito 2FA */}
+      {twoFASuccess && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
+          <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
+          <p className="text-xs text-emerald-700 dark:text-emerald-400">{twoFASuccess}</p>
+        </div>
+      )}
+
+      {/* ═══ DOBLE AUTENTICACIÓN 2FA ═════════════════════════ */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
+          Doble autenticación (2FA)
+        </h3>
+        <Card padding="md">
+          <div className="flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
+              <Shield className="h-5 w-5 text-brand-500" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold text-gray-900 dark:text-white">
+                {twoFAEnabled ? "2FA Activado ✅" : "2FA Desactivado"}
+              </p>
+              <p className="text-xs text-gray-400">
+                {twoFAEnabled
+                  ? "Tu cuenta está protegida con doble autenticación."
+                  : "Activa 2FA para mayor seguridad en tu cuenta."}
+              </p>
+            </div>
+
+            {/* Toggle */}
+            <button
+              onClick={handleToggle2FA}
+              disabled={togglingTwoFA}
+              className={`relative h-6 w-11 rounded-full transition-colors flex items-center flex-shrink-0 disabled:opacity-50 ${
+                twoFAEnabled ? "bg-brand-500" : "bg-gray-300 dark:bg-white/20"
+              }`}
+            >
+              {togglingTwoFA ? (
+                <Loader2 className="h-4 w-4 animate-spin text-white mx-auto" />
+              ) : (
+                <div className={`h-5 w-5 rounded-full bg-white shadow-sm transition-transform ${
+                  twoFAEnabled ? "translate-x-[22px]" : "translate-x-0.5"
+                }`} />
+              )}
+            </button>
+          </div>
+
+          {/* Info según estado */}
+          <div className={`mt-3 p-2.5 rounded-xl border ${
+            twoFAEnabled
+              ? "bg-emerald-500/10 border-emerald-500/20"
+              : "bg-amber-500/10 border-amber-500/20"
+          }`}>
+            <p className={`text-xs text-center ${
+              twoFAEnabled
+                ? "text-emerald-600 dark:text-emerald-400"
+                : "text-amber-600 dark:text-amber-400"
+            }`}>
+              {twoFAEnabled
+                ? "🔐 Cada vez que inicies sesión recibirás un código de verificación en tus notificaciones."
+                : "⚠️ Sin 2FA tu cuenta es más vulnerable. Recomendamos activarlo."}
+            </p>
+          </div>
+        </Card>
+      </div>
 
       {/* ═══ CAMBIAR CONTRASEÑA ══════════════════════════════ */}
       <div>
@@ -247,7 +352,7 @@ export function SecurityPage() {
         <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.05]">
           {[
             {
-              icon:  <Clock       className="h-4 w-4 text-blue-500"    />,
+              icon:  <Clock        className="h-4 w-4 text-blue-500"    />,
               label: "Último acceso",
               value: lastLogin,
             },
@@ -257,7 +362,7 @@ export function SecurityPage() {
               value: createdAt,
             },
             {
-              icon:  <Shield      className="h-4 w-4 text-brand-500"   />,
+              icon:  <Shield       className="h-4 w-4 text-brand-500"   />,
               label: "Proveedor",
               value: "Correo y contraseña",
             },
@@ -284,10 +389,10 @@ export function SecurityPage() {
         </h3>
         <Card padding="md" className="space-y-3">
           {[
-            { icon: "🔐", title: "Usa una contraseña fuerte",   desc: "Mínimo 12 caracteres con letras, números y símbolos."          },
-            { icon: "🚫", title: "No compartas tu contraseña",  desc: "CubaX nunca te pedirá tu contraseña por chat o correo."        },
-            { icon: "📱", title: "Protege tu dispositivo",      desc: "Activa el bloqueo de pantalla en tu teléfono."                 },
-            { icon: "⚠️", title: "Cuidado con el phishing",     desc: "Verifica siempre que estés en la app oficial de CubaX."        },
+            { icon: "🔐", title: "Usa una contraseña fuerte",  desc: "Mínimo 12 caracteres con letras, números y símbolos."   },
+            { icon: "🚫", title: "No compartas tu contraseña", desc: "CubaX nunca te pedirá tu contraseña por chat o correo." },
+            { icon: "📱", title: "Protege tu dispositivo",     desc: "Activa el bloqueo de pantalla en tu teléfono."          },
+            { icon: "⚠️", title: "Cuidado con el phishing",    desc: "Verifica siempre que estés en la app oficial de CubaX." },
           ].map((tip) => (
             <div key={tip.title} className="flex items-start gap-3">
               <span className="text-lg flex-shrink-0">{tip.icon}</span>
@@ -301,4 +406,4 @@ export function SecurityPage() {
       </div>
     </div>
   );
-}
+        }
