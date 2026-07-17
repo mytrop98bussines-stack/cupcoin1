@@ -381,9 +381,8 @@ export default function App() {
   // ─── Guardar vista actual ─────────────────────────────────
   const { currentView } = useAppStore();
   useEffect(() => {
-    if (AUTHENTICATED_VIEWS.includes(currentView)) {
-      localStorage.setItem("cubax_last_view", currentView);
-effectively    }
+   if (AUTHENTICATED_VIEWS.includes(currentView)) {
+    localStorage.setItem("cubax_last_view", currentView);}
   }, [currentView]);
 
   // ─── Pantalla de carga ────────────────────────────────────
