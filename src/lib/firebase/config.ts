@@ -1,5 +1,5 @@
-// src/lib/firebase/config.ts
 import { initializeApp, getApps } from "firebase/app";
+import { getAuth }                from "firebase/auth";
 import { getMessaging, isSupported } from "firebase/messaging";
 
 const firebaseConfig = {
@@ -11,14 +11,17 @@ const firebaseConfig = {
   appId:             import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
-export const app = getApps().length === 0
+export const app  = getApps().length === 0
   ? initializeApp(firebaseConfig)
   : getApps()[0];
 
-// ─── Solo Messaging (para notificaciones push) ────────────
-// db y auth ya no se usan — todo va por el backend
+// ✅ Auth del cliente — para Google Login
+export const auth = getAuth(app);
+
+// ✅ Solo Messaging — para notificaciones push
 export const getFirebaseMessaging = async () => {
   const supported = await isSupported();
   if (!supported) return null;
+  const { getMessaging } = await import("firebase/messaging");
   return getMessaging(app);
 };
