@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Header }     from "@/components/layout/Header";
 import { BottomNav }  from "@/components/layout/BottomNav";
+import { WifiOff }    from "lucide-react";
 
 // ─── Logo ─────────────────────────────────────────────────
 function CubaXLogo({ size = 48 }: { size?: number }) {
@@ -37,6 +38,7 @@ import { WalletPage }        from "@/pages/WalletPage";
 import { SettingsPage }      from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { MembershipPage }    from "@/pages/MembershipPage";
+import { PublicProfilePage } from "@/pages/PublicProfilePage"; // ← nuevo
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -53,9 +55,6 @@ import { AdminKYCPage }      from "@/pages/AdminKYCPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
 import type { User as AppUser } from "@/types";
-
-// ─── Sin imports de Firebase en el cliente ────────────────
-// Todo pasa por el backend en Render
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
@@ -85,6 +84,7 @@ const VIEW_TITLES: Record<string, string> = {
   "trade-history":         "Historial de Trades",
   "my-orders":             "Mis Anuncios P2P",
   membership:              "Membresía CubaX",
+  "public-profile":        "Perfil",              // ← nuevo
 };
 
 const SHOW_BACK_VIEWS = [
@@ -93,6 +93,7 @@ const SHOW_BACK_VIEWS = [
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
+  "public-profile",                               // ← nuevo
 ];
 
 const AUTHENTICATED_VIEWS = [
@@ -102,6 +103,7 @@ const AUTHENTICATED_VIEWS = [
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
+  "public-profile",                               // ← nuevo
 ];
 
 // =========================================================
@@ -120,19 +122,31 @@ function AppContent() {
     subscribeToNotifications,
   } = useAppStore();
 
+  // ─── Detector de conexión ─────────────────────────────────
+  const [isOffline, setIsOffline] = useState(!navigator.onLine);
+
+  useEffect(() => {
+    const goOffline = () => setIsOffline(true);
+    const goOnline  = () => setIsOffline(false);
+    window.addEventListener("offline", goOffline);
+    window.addEventListener("online",  goOnline);
+    return () => {
+      window.removeEventListener("offline", goOffline);
+      window.removeEventListener("online",  goOnline);
+    };
+  }, []);
+
   // ─── Modo oscuro ──────────────────────────────────────────
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // ─── Sincronización via backend (Sin Firestore directo) ───
-  // Reemplaza el onSnapshot que bloqueaba en Cuba
+  // ─── Sincronización via backend ───────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
     let stopped = false;
 
-    // Función que lee el usuario desde el backend
     const syncUser = async () => {
       if (stopped) return;
       try {
@@ -145,12 +159,10 @@ function AppContent() {
 
         if (data.success && data.userData && !stopped) {
           const fullUserData = data.userData as AppUser;
-
           useAppStore.setState({ user: fullUserData });
 
           const balances         = (fullUserData as any).balances         || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
           const depositAddresses = (fullUserData as any).depositAddresses || {};
-
           setWalletData(balances, depositAddresses);
         }
       } catch (err) {
@@ -158,10 +170,7 @@ function AppContent() {
       }
     };
 
-    // Sincronizar al entrar
     void syncUser();
-
-    // Polling cada 30 segundos para mantener el balance actualizado
     const intervalId = window.setInterval(syncUser, 30000);
 
     return () => {
@@ -170,18 +179,15 @@ function AppContent() {
     };
   }, [user?.uid, setWalletData]);
 
-  // ─── Cargar datos iniciales al autenticarse ───────────────
+  // ─── Cargar datos iniciales ───────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
 
-    // Cargar órdenes, productos y notificaciones
     void fetchOrders();
     void fetchProducts();
     const unsubNotifs = subscribeToNotifications(user.uid);
 
-    return () => {
-      unsubNotifs();
-    };
+    return () => { unsubNotifs(); };
   }, [user?.uid]);
 
   // ─── Seguridad: solo admin ────────────────────────────────
@@ -214,6 +220,15 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-black">
+
+      {/* ✅ Banner offline */}
+      {isOffline && (
+        <div className="w-full bg-amber-500 text-white text-xs font-bold text-center py-2 px-4 flex items-center justify-center gap-2">
+          <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
+          Sin conexión — mostrando datos guardados
+        </div>
+      )}
+
       <Header
         title={VIEW_TITLES[currentView] || ""}
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
@@ -227,28 +242,29 @@ function AppContent() {
           overscrollBehaviorX:     "none",
         }}
       >
-        {currentView === "dashboard"      && <DashboardPage />}
-        {currentView === "p2p"            && <P2PPage />}
-        {currentView === "create-order"   && <CreateOrderPage />}
-        {currentView === "trade"          && <TradePage />}
-        {currentView === "kyc"            && <KYCPage />}
-        {currentView === "marketplace"    && <MarketplacePage />}
-        {currentView === "product-detail" && <ProductDetailPage />}
-        {currentView === "create-product" && <CreateProductPage />}
-        {currentView === "wallet"         && <WalletPage />}
-        {currentView === "settings"       && <SettingsPage />}
-        {currentView === "notifications"  && <NotificationsPage />}
-        {currentView === "membership"     && <MembershipPage />}
-        {currentView === "profile"        && <ProfilePage />}
-        {currentView === "security"       && <SecurityPage />}
-        {currentView === "help"           && <HelpPage />}
-        {currentView === "terms"          && <TermsPage />}
-        {currentView === "language"       && <LanguagePage />}
+        {currentView === "dashboard"       && <DashboardPage />}
+        {currentView === "p2p"             && <P2PPage />}
+        {currentView === "create-order"    && <CreateOrderPage />}
+        {currentView === "trade"           && <TradePage />}
+        {currentView === "kyc"             && <KYCPage />}
+        {currentView === "marketplace"     && <MarketplacePage />}
+        {currentView === "product-detail"  && <ProductDetailPage />}
+        {currentView === "create-product"  && <CreateProductPage />}
+        {currentView === "wallet"          && <WalletPage />}
+        {currentView === "settings"        && <SettingsPage />}
+        {currentView === "notifications"   && <NotificationsPage />}
+        {currentView === "membership"      && <MembershipPage />}
+        {currentView === "profile"         && <ProfilePage />}
+        {currentView === "security"        && <SecurityPage />}
+        {currentView === "help"            && <HelpPage />}
+        {currentView === "terms"           && <TermsPage />}
+        {currentView === "language"        && <LanguagePage />}
         {currentView === "notification-settings" && <NotificationSettingsPage />}
-        {currentView === "trade-history"  && <TradeHistoryPage />}
-        {currentView === "my-orders"      && <MyOrdersPage />}
-        {currentView === "admin-kyc"      && user?.role === "admin" && <AdminKYCPage />}
-        {currentView === "admin-disputes" && user?.role === "admin" && <AdminDisputesPage />}
+        {currentView === "trade-history"   && <TradeHistoryPage />}
+        {currentView === "my-orders"       && <MyOrdersPage />}
+        {currentView === "public-profile"  && <PublicProfilePage />}  {/* ← nuevo */}
+        {currentView === "admin-kyc"       && user?.role === "admin" && <AdminKYCPage />}
+        {currentView === "admin-disputes"  && user?.role === "admin" && <AdminDisputesPage />}
       </main>
 
       {showBottomNav && !modalOpen && <BottomNav />}
@@ -287,7 +303,6 @@ export default function App() {
               currentView:     safeView as any,
             });
           } else {
-            // Token inválido — limpiar sesión
             localStorage.removeItem("cubax_token");
             localStorage.removeItem("cubax_refresh_token");
             localStorage.removeItem("cubax_uid");
@@ -300,7 +315,6 @@ export default function App() {
         .catch((err) => {
           console.warn("⚠️ Error restaurando sesión:", err.message);
 
-          // Fallback offline con datos del localStorage
           const emailSaved = localStorage.getItem("cubax_email");
           const nameSaved  = localStorage.getItem("cubax_name");
 
@@ -369,7 +383,7 @@ export default function App() {
   useEffect(() => {
     if (AUTHENTICATED_VIEWS.includes(currentView)) {
       localStorage.setItem("cubax_last_view", currentView);
-    }
+effectively    }
   }, [currentView]);
 
   // ─── Pantalla de carga ────────────────────────────────────
@@ -387,4 +401,4 @@ export default function App() {
   }
 
   return <AppContent />;
-        }
+    }
