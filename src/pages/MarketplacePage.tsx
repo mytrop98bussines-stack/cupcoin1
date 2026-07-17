@@ -3,19 +3,13 @@ import { useAppStore } from "@/store/useAppStore";
 import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { CONDITION_LABELS } from "@/data/data";
 import {
-  CONDITION_LABELS,
-} from "@/data/data";
-import {
-  Search,
-  Plus,
-  MapPin,
-  Filter,
-  ShoppingBag,
+  Search, Plus, MapPin, Filter,
+  ShoppingBag, X,
 } from "lucide-react";
 import type { ProductCategory } from "@/types";
 
-// ─── Constante del backend ────────────────────────────────
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 export function MarketplacePage() {
@@ -26,21 +20,25 @@ export function MarketplacePage() {
     setProducts,
   } = useAppStore();
 
-  const [searchQuery, setSearchQuery]         = useState("");
+  const [searchQuery, setSearchQuery]           = useState("");
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "all">("all");
-  const [showFilters, setShowFilters]         = useState(false);
-  const [loadingProducts, setLoadingProducts] = useState(true);
+  const [showFilters, setShowFilters]           = useState(false);
+  const [loadingProducts, setLoadingProducts]   = useState(true);
 
   // ─── Cargar productos via backend ─────────────────────────
   useEffect(() => {
+    // ✅ Si ya hay productos en el store no recargar
+    if (products.length > 0) {
+      setLoadingProducts(false);
+      return;
+    }
+
     setLoadingProducts(true);
 
     fetch(`${BACKEND_URL}/products`)
       .then((r) => r.json())
       .then((data) => {
-        if (data.success) {
-          setProducts(data.products);
-        }
+        if (data.success) setProducts(data.products);
       })
       .catch((error) => {
         console.error("❌ Error cargando productos:", error);
@@ -50,16 +48,27 @@ export function MarketplacePage() {
       });
   }, [setProducts]);
 
-  // ─── Filtrado local ───────────────────────────────────────
+  // ─── Filtrado mejorado ────────────────────────────────────
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (p.status !== "active") return false;
-      if (selectedCategory !== "all" && p.category !== selectedCategory) return false;
-      if (
-        searchQuery &&
-        !p.title.toLowerCase().includes(searchQuery.toLowerCase()) &&
-        !p.description.toLowerCase().includes(searchQuery.toLowerCase())
-      ) return false;
+
+      if (selectedCategory !== "all" && p.category !== selectedCategory) {
+        return false;
+      }
+
+      if (searchQuery) {
+        const q = searchQuery.toLowerCase().trim();
+        const matchTitle       = p.title?.toLowerCase().includes(q);
+        const matchDescription = p.description?.toLowerCase().includes(q);
+        const matchLocation    = p.location?.toLowerCase().includes(q);
+        const matchCategory    = p.category?.toLowerCase().includes(q);
+
+        if (!matchTitle && !matchDescription && !matchLocation && !matchCategory) {
+          return false;
+        }
+      }
+
       return true;
     });
   }, [products, selectedCategory, searchQuery]);
@@ -70,18 +79,17 @@ export function MarketplacePage() {
   };
 
   const categories: { value: ProductCategory | "all"; label: string }[] = [
-    { value: "all",         label: "Todos"         },
-    { value: "phones",      label: "📱 Teléfonos"  },
-    { value: "computers",   label: "💻 Computadoras"},
-    { value: "electronics", label: "🔌 Electrónica" },
-    { value: "clothing",    label: "👕 Ropa"        },
-    { value: "services",    label: "🛠 Servicios"   },
-    { value: "home",        label: "🏠 Hogar"       },
-    { value: "vehicles",    label: "🚗 Vehículos"   },
-    { value: "other",       label: "📦 Otros"       },
+    { value: "all",         label: "Todos"          },
+    { value: "phones",      label: "📱 Teléfonos"   },
+    { value: "computers",   label: "💻 Computadoras" },
+    { value: "electronics", label: "🔌 Electrónica"  },
+    { value: "clothing",    label: "👕 Ropa"         },
+    { value: "services",    label: "🛠 Servicios"    },
+    { value: "home",        label: "🏠 Hogar"        },
+    { value: "vehicles",    label: "🚗 Vehículos"    },
+    { value: "other",       label: "📦 Otros"        },
   ];
 
-  // ─── Emoji por categoría ──────────────────────────────────
   const getCategoryEmoji = (category: string) => {
     const map: Record<string, string> = {
       phones:      "📱",
@@ -117,17 +125,25 @@ export function MarketplacePage() {
         </Button>
       </div>
 
-      {/* ═══ BÚSQUEDA ════════════════════════════════════════ */}
+      {/* ═══ BÚSQUEDA MEJORADA ═══════════════════════════════ */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
           <input
             type="text"
-            placeholder="Buscar productos..."
+            placeholder="Buscar productos, ubicación..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-4 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
+            className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
           />
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="absolute right-3 top-1/2 -translate-y-1/2"
+            >
+              <X className="h-3.5 w-3.5 text-gray-400 hover:text-gray-600" />
+            </button>
+          )}
         </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
@@ -140,6 +156,18 @@ export function MarketplacePage() {
           <Filter className="h-4 w-4" />
         </button>
       </div>
+
+      {/* ✅ Contador de resultados */}
+      {searchQuery && (
+        <p className="text-xs text-gray-400 px-1">
+          {filteredProducts.length === 0
+            ? "Sin resultados para"
+            : `${filteredProducts.length} resultado${filteredProducts.length !== 1 ? "s" : ""} para`}{" "}
+          <strong className="text-gray-600 dark:text-gray-300">
+            "{searchQuery}"
+          </strong>
+        </p>
+      )}
 
       {/* ═══ CATEGORÍAS ══════════════════════════════════════ */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4">
@@ -170,9 +198,19 @@ export function MarketplacePage() {
       ) : filteredProducts.length === 0 ? (
         <Card padding="lg" className="text-center">
           <ShoppingBag className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-          <p className="text-sm text-gray-500 dark:text-gray-400">
-            No hay productos disponibles.
+          <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+            {searchQuery
+              ? `Sin resultados para "${searchQuery}"`
+              : "No hay productos disponibles."}
           </p>
+          {searchQuery && (
+            <button
+              onClick={() => setSearchQuery("")}
+              className="text-xs text-brand-500 font-semibold mt-2"
+            >
+              Limpiar búsqueda
+            </button>
+          )}
         </Card>
 
       ) : (
@@ -243,4 +281,4 @@ export function MarketplacePage() {
       )}
     </div>
   );
-      }
+}
