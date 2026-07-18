@@ -115,35 +115,35 @@ export function AuthPage() {
     }
 
     // Google login exitoso sin 2FA
-    if (token && uid) {
-      clearUrl();
-      setGoogleLoading(true);
+if (token && uid) {
+  clearUrl();
+  setGoogleLoading(true);
 
-      fetch(`${BACKEND_URL}/api/user/me`, {
-        headers: { Authorization: `Bearer ${token}` },
-      })
-        .then((r) => r.json())
-        .then((me) => {
-          if (!me.success) {
-            setGlobalError("No se pudo cargar el usuario.");
-            return;
-          }
+  fetch(`${BACKEND_URL}/api/auth/me`, {
+    method:  "POST",
+    headers: { "Content-Type": "application/json" },
+    body:    JSON.stringify({ uid }),
+  })
+    .then((r) => r.json())
+    .then((me) => {
+      if (!me.success) {
+        setGlobalError("No se pudo cargar el usuario.");
+        return;
+      }
 
-          finishLogin({
-            token,
-            refreshToken: refreshToken || "",
-            uid,
-            email:       me.user.email,
-            displayName: me.user.displayName,
-            photoURL:    me.user.photoURL || null,
-            userData:    me.user,
-          });
-        })
-        .catch(() => setGlobalError("Error al completar la sesión con Google."))
-        .finally(() => setGoogleLoading(false));
-    }
-  }, [finishLogin]);
-
+      finishLogin({
+        token,
+        refreshToken: refreshToken || "",
+        uid,
+        email:       me.userData.email,
+        displayName: me.userData.displayName,
+        photoURL:    me.userData.photoURL || null,
+        userData:    me.userData,
+      });
+    })
+    .catch(() => setGlobalError("Error al completar la sesión con Google."))
+    .finally(() => setGoogleLoading(false));
+}
   // ─── Validación ───────────────────────────────────────────
   const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
