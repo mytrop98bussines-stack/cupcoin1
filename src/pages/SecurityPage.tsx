@@ -709,6 +709,17 @@ export function SecurityPage() {
               Activar 2FA con Authenticator
             </Button>
           )}
+          
+          {/* Error 2FA (para la pantalla principal) */}
+{twoFAError && (
+  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
+    <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+    <p className="text-xs text-red-700 dark:text-red-400 flex-1">{twoFAError}</p>
+    <button onClick={() => setTwoFAError(null)}>
+      <X className="h-3.5 w-3.5 text-red-400" />
+    </button>
+  </div>
+)}
 
         </Card>
       </div>
