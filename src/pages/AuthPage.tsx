@@ -143,7 +143,10 @@ if (token && uid) {
     })
     .catch(() => setGlobalError("Error al completar la sesión con Google."))
     .finally(() => setGoogleLoading(false));
-}
+    }
+    }, [finishLogin]);
+
+  // ─── Validación ───────────────────────────────────────────
   // ─── Validación ───────────────────────────────────────────
   const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
