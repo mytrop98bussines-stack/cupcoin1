@@ -143,17 +143,39 @@ const getInitialTheme = (): ThemeMode => {
 // ─── Vista inicial ────────────────────────────────────────
 const getInitialView = (): AppView => {
   if (typeof window !== "undefined") {
+    const params = new URLSearchParams(window.location.search);
+
+    const hasOAuthCallback =
+      params.has("token") ||
+      params.has("requires2FA") ||
+      params.has("challengeToken") ||
+      params.has("error");
+
+    // ✅ Si venimos de Google OAuth, forzar AuthPage
+    if (hasOAuthCallback) {
+      return "login";
+    }
+
+    // ✅ Si ya hay sesión guardada, abrir dashboard
+    const token = localStorage.getItem("cubax_token");
+    if (token) {
+      return "dashboard";
+    }
+
     const stored = localStorage.getItem("cubax_last_view") as AppView | null;
+
     const validViews = [
       "landing", "login", "register", "dashboard", "p2p", "create-order",
       "trade", "kyc", "marketplace", "product-detail", "create-product",
       "wallet", "settings", "notifications", "membership", "profile",
       "security", "help", "terms", "language", "notification-settings",
       "trade-history", "my-orders", "admin-kyc", "admin-disputes",
-      "public-profile",  // ← nuevo
+      "public-profile",
     ];
+
     if (stored && validViews.includes(stored)) return stored;
   }
+
   return "landing";
 };
 
