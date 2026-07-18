@@ -38,7 +38,7 @@ import { WalletPage }        from "@/pages/WalletPage";
 import { SettingsPage }      from "@/pages/SettingsPage";
 import { NotificationsPage } from "@/pages/NotificationsPage";
 import { MembershipPage }    from "@/pages/MembershipPage";
-import { PublicProfilePage } from "@/pages/PublicProfilePage"; // ← nuevo
+import { PublicProfilePage } from "@/pages/PublicProfilePage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -84,7 +84,7 @@ const VIEW_TITLES: Record<string, string> = {
   "trade-history":         "Historial de Trades",
   "my-orders":             "Mis Anuncios P2P",
   membership:              "Membresía CubaX",
-  "public-profile":        "Perfil",              // ← nuevo
+  "public-profile":        "Perfil",
 };
 
 const SHOW_BACK_VIEWS = [
@@ -93,7 +93,7 @@ const SHOW_BACK_VIEWS = [
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
-  "public-profile",                               // ← nuevo
+  "public-profile",
 ];
 
 const AUTHENTICATED_VIEWS = [
@@ -103,7 +103,7 @@ const AUTHENTICATED_VIEWS = [
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
-  "public-profile",                               // ← nuevo
+  "public-profile",
 ];
 
 // =========================================================
@@ -262,7 +262,7 @@ function AppContent() {
         {currentView === "notification-settings" && <NotificationSettingsPage />}
         {currentView === "trade-history"   && <TradeHistoryPage />}
         {currentView === "my-orders"       && <MyOrdersPage />}
-        {currentView === "public-profile"  && <PublicProfilePage />}  {/* ← nuevo */}
+        {currentView === "public-profile"  && <PublicProfilePage />}
         {currentView === "admin-kyc"       && user?.role === "admin" && <AdminKYCPage />}
         {currentView === "admin-disputes"  && user?.role === "admin" && <AdminDisputesPage />}
       </main>
@@ -280,6 +280,21 @@ export default function App() {
   const { navigate }                        = useAppStore();
 
   useEffect(() => {
+    // ✅ Detectar callback de Google OAuth
+    const urlParams = new URLSearchParams(window.location.search);
+    const hasOAuthCallback =
+      urlParams.has("token")          ||
+      urlParams.has("requires2FA")    ||
+      urlParams.has("challengeToken") ||
+      urlParams.has("error");
+
+    // Si viene de Google OAuth → ir a login (AuthPage procesa la URL)
+    if (hasOAuthCallback) {
+      navigate("login");
+      setIsInitializing(false);
+      return;
+    }
+
     const savedToken = localStorage.getItem("cubax_token");
     const savedUid   = localStorage.getItem("cubax_uid");
 
@@ -381,8 +396,9 @@ export default function App() {
   // ─── Guardar vista actual ─────────────────────────────────
   const { currentView } = useAppStore();
   useEffect(() => {
-   if (AUTHENTICATED_VIEWS.includes(currentView)) {
-    localStorage.setItem("cubax_last_view", currentView);}
+    if (AUTHENTICATED_VIEWS.includes(currentView)) {
+      localStorage.setItem("cubax_last_view", currentView);
+    }
   }, [currentView]);
 
   // ─── Pantalla de carga ────────────────────────────────────
@@ -400,4 +416,4 @@ export default function App() {
   }
 
   return <AppContent />;
-    }
+  }
