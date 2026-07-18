@@ -47,20 +47,24 @@ export function NotificationSettingsPage() {
   // ─── Mensajes en primer plano ─────────────────────────────
   useEffect(() => {
     if (permission !== "granted") return;
+
     const unsubscribe = onForegroundMessage((payload) => {
       console.log("📬 Mensaje en primer plano:", payload);
     });
+
     return () => unsubscribe?.();
   }, [permission]);
 
   // ─── Activar notificaciones ───────────────────────────────
   const handleEnable = async () => {
     if (!user?.uid) return;
+
     setEnabling(true);
     setError(null);
 
     try {
       const token = await requestNotificationPermission(user.uid);
+
       if (token) {
         setPermission("granted");
         setSuccess("✅ Notificaciones activadas correctamente.");
@@ -68,7 +72,9 @@ export function NotificationSettingsPage() {
       } else {
         setPermission(Notification.permission);
         if (Notification.permission === "denied") {
-          setError("Notificaciones bloqueadas. Ve a los ajustes de tu navegador para permitirlas.");
+          setError(
+            "Notificaciones bloqueadas. Toca el candado 🔒 al lado de la URL, luego Notificaciones y elige Permitir."
+          );
         }
       }
     } catch (err: any) {
@@ -87,7 +93,8 @@ export function NotificationSettingsPage() {
 
     try {
       const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/profile/update`, {
+
+      const res  = await fetch(`${BACKEND_URL}/profile/update`, {
         method:  "POST",
         headers: {
           "Content-Type": "application/json",
@@ -95,6 +102,7 @@ export function NotificationSettingsPage() {
         },
         body: JSON.stringify({ notifPrefs: newPrefs }),
       });
+
       const data = await res.json();
 
       if (!data.success) throw new Error(data.error);
@@ -216,11 +224,13 @@ export function NotificationSettingsPage() {
               {permission === "granted"
                 ? "Recibirás alertas en tiempo real"
                 : permission === "denied"
-                ? "Actívalas en los ajustes de tu navegador"
+                ? "Actívalas desde el candado 🔒 de la URL"
                 : "Activa las notificaciones para no perderte nada"}
             </p>
           </div>
-          {permission !== "granted" && permission !== "denied" && (
+
+          {/* Botón Activar (solo si nunca decidió) */}
+          {permission === "default" && (
             <button
               onClick={handleEnable}
               disabled={enabling}
@@ -231,6 +241,24 @@ export function NotificationSettingsPage() {
                 : <Bell    className="h-3.5 w-3.5"               />
               }
               {enabling ? "Activando..." : "Activar"}
+            </button>
+          )}
+
+          {/* Botón Ayuda (si está bloqueado) */}
+          {permission === "denied" && (
+            <button
+              onClick={() => {
+                alert(
+                  "Para activar las notificaciones:\n\n" +
+                  "1. Toca el candado 🔒 al lado de la URL\n" +
+                  "2. Permisos → Notificaciones → Permitir\n" +
+                  "3. Recarga la página"
+                );
+              }}
+              className="flex items-center gap-1.5 px-3 py-2 rounded-xl bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold hover:bg-red-500/20 transition-all flex-shrink-0"
+            >
+              <BellOff className="h-3.5 w-3.5" />
+              Cómo desbloquear
             </button>
           )}
         </div>
@@ -278,4 +306,4 @@ export function NotificationSettingsPage() {
       </Card>
     </div>
   );
-              }
+          }
