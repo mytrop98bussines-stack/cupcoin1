@@ -17,35 +17,62 @@ export async function requestNotificationPermission(
   userId: string
 ): Promise<string | null> {
   if (!messaging) return null;
+  if (typeof Notification === "undefined") return null;
 
   try {
-    const permission = await Notification.requestPermission();
+    let permission = Notification.permission;
+
+    // Solo pedir si nunca decidió
+    if (permission === "default") {
+      permission = await Notification.requestPermission();
+    }
+
     if (permission !== "granted") {
-      console.warn("⚠️ Permiso de notificaciones denegado.");
+      console.warn("⚠️ Notificaciones no permitidas:", permission);
       return null;
     }
 
-    const token = await getToken(messaging, {
-      vapidKey: import.meta.env.VITE_FIREBASE_VAPID_KEY,
-    });
+    // ✅ Registrar Service Worker (necesario para push)
+    let swRegistration: ServiceWorkerRegistration | undefined;
 
-    if (token) {
-      // ✅ Guardar token via backend en lugar de Firestore directo
-      const authToken = localStorage.getItem("cubax_token");
-      await fetch(`${BACKEND_URL}/notifications/fcm-token`, {
-        method:  "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${authToken}`,
-        },
-        body: JSON.stringify({ userId, fcmToken: token }),
-      });
-      console.log("✅ FCM Token guardado:", token.slice(0, 20) + "...");
+    if ("serviceWorker" in navigator) {
+      try {
+        swRegistration = await navigator.serviceWorker.register(
+          "/firebase-messaging-sw.js"
+        );
+        console.log("✅ Service Worker registrado.");
+      } catch (err) {
+        console.warn("⚠️ No se pudo registrar el service worker:", err);
+      }
     }
 
+    const token = await getToken(messaging, {
+      vapidKey:                  import.meta.env.VITE_FIREBASE_VAPID_KEY,
+      serviceWorkerRegistration: swRegistration,
+    });
+
+    if (!token) {
+      console.warn("⚠️ No se obtuvo token FCM.");
+      return null;
+    }
+
+    // ✅ Guardar token via backend
+    const authToken = localStorage.getItem("cubax_token");
+
+    await fetch(`${BACKEND_URL}/notifications/fcm-token`, {
+      method:  "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${authToken}`,
+      },
+      body: JSON.stringify({ userId, fcmToken: token }),
+    });
+
+    console.log("✅ FCM Token guardado:", token.slice(0, 20) + "...");
     return token;
-  } catch (error) {
-    console.warn("⚠️ No se pudo obtener el token FCM:", error);
+
+  } catch (error: any) {
+    console.warn("⚠️ Error obteniendo token FCM:", error.message);
     return null;
   }
 }
@@ -69,6 +96,7 @@ export async function notifyUser(
 
   try {
     const authToken = localStorage.getItem("cubax_token");
+
     await fetch(`${BACKEND_URL}/notifications/send`, {
       method:  "POST",
       headers: {
@@ -83,8 +111,9 @@ export async function notifyUser(
         type: data.type || "system",
       }),
     });
+
     console.log(`✅ Notificación enviada a ${recipientUid}: ${title}`);
   } catch (error) {
     console.error("❌ Error enviando notificación:", error);
   }
-}
+  }
