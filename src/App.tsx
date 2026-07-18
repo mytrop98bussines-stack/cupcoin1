@@ -3,6 +3,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { Header }     from "@/components/layout/Header";
 import { BottomNav }  from "@/components/layout/BottomNav";
 import { WifiOff }    from "lucide-react";
+import { requestNotificationPermission } from "@/lib/firebase/messaging";
 
 // ─── Logo ─────────────────────────────────────────────────
 function CubaXLogo({ size = 48 }: { size?: number }) {
@@ -128,8 +129,10 @@ function AppContent() {
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
     const goOnline  = () => setIsOffline(false);
+
     window.addEventListener("offline", goOffline);
     window.addEventListener("online",  goOnline);
+
     return () => {
       window.removeEventListener("offline", goOffline);
       window.removeEventListener("online",  goOnline);
@@ -149,6 +152,7 @@ function AppContent() {
 
     const syncUser = async () => {
       if (stopped) return;
+
       try {
         const res  = await fetch(`${BACKEND_URL}/api/auth/me`, {
           method:  "POST",
@@ -159,10 +163,16 @@ function AppContent() {
 
         if (data.success && data.userData && !stopped) {
           const fullUserData = data.userData as AppUser;
+
           useAppStore.setState({ user: fullUserData });
 
-          const balances         = (fullUserData as any).balances         || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
-          const depositAddresses = (fullUserData as any).depositAddresses || {};
+          const balances =
+            (fullUserData as any).balances ||
+            { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
+
+          const depositAddresses =
+            (fullUserData as any).depositAddresses || {};
+
           setWalletData(balances, depositAddresses);
         }
       } catch (err) {
@@ -171,6 +181,7 @@ function AppContent() {
     };
 
     void syncUser();
+
     const intervalId = window.setInterval(syncUser, 30000);
 
     return () => {
@@ -185,9 +196,33 @@ function AppContent() {
 
     void fetchOrders();
     void fetchProducts();
+
     const unsubNotifs = subscribeToNotifications(user.uid);
 
-    return () => { unsubNotifs(); };
+    return () => {
+      unsubNotifs();
+    };
+  }, [user?.uid, fetchOrders, fetchProducts, subscribeToNotifications]);
+
+  // ─── Registrar notificaciones Push FCM ────────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    // No pedir permiso si el navegador no soporta notificaciones
+    if (typeof Notification === "undefined") return;
+
+    // Si el usuario bloqueó, no insistir
+    if (Notification.permission === "denied") {
+      console.warn("🔕 Notificaciones bloqueadas por el usuario.");
+      return;
+    }
+
+    // Esperar un poco para no pedir permiso justo al entrar
+    const timer = window.setTimeout(() => {
+      requestNotificationPermission(user.uid);
+    }, 3000);
+
+    return () => window.clearTimeout(timer);
   }, [user?.uid]);
 
   // ─── Seguridad: solo admin ────────────────────────────────
@@ -200,7 +235,7 @@ function AppContent() {
     }
   }, [currentView, user, navigate]);
 
-  // ─── Loading ──────────────────────────────────────────────
+  // ─── Loading si intenta entrar a una vista protegida sin user ─
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
@@ -220,8 +255,6 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-black">
-
-      {/* ✅ Banner offline */}
       {isOffline && (
         <div className="w-full bg-amber-500 text-white text-xs font-bold text-center py-2 px-4 flex items-center justify-center gap-2">
           <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
@@ -277,18 +310,19 @@ function AppContent() {
 // =========================================================
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
-  const { navigate }                        = useAppStore();
+  const { navigate } = useAppStore();
 
   useEffect(() => {
     // ✅ Detectar callback de Google OAuth
     const urlParams = new URLSearchParams(window.location.search);
+
     const hasOAuthCallback =
       urlParams.has("token")          ||
       urlParams.has("requires2FA")    ||
       urlParams.has("challengeToken") ||
       urlParams.has("error");
 
-    // Si viene de Google OAuth → ir a login (AuthPage procesa la URL)
+    // Si viene de Google OAuth → ir a login para que AuthPage procese URL
     if (hasOAuthCallback) {
       navigate("login");
       setIsInitializing(false);
@@ -308,6 +342,7 @@ export default function App() {
         .then((data) => {
           if (data.success && data.userData) {
             const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
+
             const safeView = AUTHENTICATED_VIEWS.includes(lastView)
               ? lastView
               : "dashboard";
@@ -324,6 +359,7 @@ export default function App() {
             localStorage.removeItem("cubax_last_view");
             localStorage.removeItem("cubax_email");
             localStorage.removeItem("cubax_name");
+
             navigate("landing");
           }
         })
@@ -355,25 +391,25 @@ export default function App() {
           }
         })
         .finally(() => setIsInitializing(false));
-
     } else {
       navigate("landing");
       setIsInitializing(false);
     }
-  }, []);
+  }, [navigate]);
 
   // ─── Refrescar token cada 50 minutos ─────────────────────
   useEffect(() => {
-    const interval = setInterval(async () => {
+    const interval = window.setInterval(async () => {
       const refreshToken = localStorage.getItem("cubax_refresh_token");
       if (!refreshToken) return;
 
       try {
-        const res  = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+        const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ refreshToken }),
         });
+
         const data = await res.json();
 
         if (data.success) {
@@ -390,11 +426,12 @@ export default function App() {
       }
     }, 50 * 60 * 1000);
 
-    return () => clearInterval(interval);
-  }, []);
+    return () => window.clearInterval(interval);
+  }, [navigate]);
 
   // ─── Guardar vista actual ─────────────────────────────────
   const { currentView } = useAppStore();
+
   useEffect(() => {
     if (AUTHENTICATED_VIEWS.includes(currentView)) {
       localStorage.setItem("cubax_last_view", currentView);
@@ -416,4 +453,4 @@ export default function App() {
   }
 
   return <AppContent />;
-  }
+        }
