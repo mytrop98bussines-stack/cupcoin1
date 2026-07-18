@@ -204,25 +204,16 @@ function AppContent() {
     };
   }, [user?.uid, fetchOrders, fetchProducts, subscribeToNotifications]);
 
-  // ─── Registrar notificaciones Push FCM ────────────────────
+  // ─── Registrar token FCM solo si el usuario ya dio permiso ─
   useEffect(() => {
     if (!user?.uid) return;
-
-    // No pedir permiso si el navegador no soporta notificaciones
     if (typeof Notification === "undefined") return;
 
-    // Si el usuario bloqueó, no insistir
-    if (Notification.permission === "denied") {
-      console.warn("🔕 Notificaciones bloqueadas por el usuario.");
-      return;
-    }
-
-    // Esperar un poco para no pedir permiso justo al entrar
-    const timer = window.setTimeout(() => {
+    // Solo re-registrar si ya dio permiso antes
+    // (no mostramos popup automático, eso lo hace NotificationSettingsPage)
+    if (Notification.permission === "granted") {
       requestNotificationPermission(user.uid);
-    }, 3000);
-
-    return () => window.clearTimeout(timer);
+    }
   }, [user?.uid]);
 
   // ─── Seguridad: solo admin ────────────────────────────────
@@ -235,7 +226,7 @@ function AppContent() {
     }
   }, [currentView, user, navigate]);
 
-  // ─── Loading si intenta entrar a una vista protegida sin user ─
+  // ─── Loading si intenta entrar a vista protegida sin user ─
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
@@ -255,6 +246,8 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-black">
+
+      {/* ✅ Banner offline */}
       {isOffline && (
         <div className="w-full bg-amber-500 text-white text-xs font-bold text-center py-2 px-4 flex items-center justify-center gap-2">
           <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
@@ -322,7 +315,7 @@ export default function App() {
       urlParams.has("challengeToken") ||
       urlParams.has("error");
 
-    // Si viene de Google OAuth → ir a login para que AuthPage procese URL
+    // Si viene de Google OAuth → ir a login para que AuthPage procese la URL
     if (hasOAuthCallback) {
       navigate("login");
       setIsInitializing(false);
@@ -391,6 +384,7 @@ export default function App() {
           }
         })
         .finally(() => setIsInitializing(false));
+
     } else {
       navigate("landing");
       setIsInitializing(false);
@@ -453,4 +447,4 @@ export default function App() {
   }
 
   return <AppContent />;
-        }
+      }
