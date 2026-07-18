@@ -1,13 +1,12 @@
 import { getMessaging, getToken, onMessage } from "firebase/messaging";
 import { app } from "./config";
 
-// ✅ Inicialización segura para entornos sin soporte de SW
 let messaging: ReturnType<typeof getMessaging> | null = null;
 
 try {
   messaging = getMessaging(app);
 } catch (error) {
-  console.warn("⚠️ Firebase Messaging no disponible en este entorno:", error);
+  console.warn("⚠️ Firebase Messaging no disponible:", error);
 }
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
@@ -22,7 +21,7 @@ export async function requestNotificationPermission(
   try {
     let permission = Notification.permission;
 
-    // Solo pedir si nunca decidió
+    // ✅ Solo pedir si nunca decidió (esto evita el doble popup)
     if (permission === "default") {
       permission = await Notification.requestPermission();
     }
@@ -32,7 +31,7 @@ export async function requestNotificationPermission(
       return null;
     }
 
-    // ✅ Registrar Service Worker (necesario para push)
+    // ✅ Registrar Service Worker
     let swRegistration: ServiceWorkerRegistration | undefined;
 
     if ("serviceWorker" in navigator) {
@@ -42,7 +41,7 @@ export async function requestNotificationPermission(
         );
         console.log("✅ Service Worker registrado.");
       } catch (err) {
-        console.warn("⚠️ No se pudo registrar el service worker:", err);
+        console.warn("⚠️ SW no registrado:", err);
       }
     }
 
@@ -56,7 +55,6 @@ export async function requestNotificationPermission(
       return null;
     }
 
-    // ✅ Guardar token via backend
     const authToken = localStorage.getItem("cubax_token");
 
     await fetch(`${BACKEND_URL}/notifications/fcm-token`, {
@@ -72,7 +70,7 @@ export async function requestNotificationPermission(
     return token;
 
   } catch (error: any) {
-    console.warn("⚠️ Error obteniendo token FCM:", error.message);
+    console.warn("⚠️ Error FCM:", error.message);
     return null;
   }
 }
@@ -116,4 +114,4 @@ export async function notifyUser(
   } catch (error) {
     console.error("❌ Error enviando notificación:", error);
   }
-  }
+}
