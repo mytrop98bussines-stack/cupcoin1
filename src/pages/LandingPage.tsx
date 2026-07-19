@@ -1,5 +1,6 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
+import { Logo }   from "@/components/Logo";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
 import {
   Shield,
@@ -15,30 +16,13 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-// ─── COMPONENTE INTERNO DEL LOGO DE CUBAX ─────────────────
-function CubaXLogo({ size = 32 }: { size?: number }) {
-  return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 100 100" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M15 15H42L85 85H58L15 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-      <path d="M85 15H58L45.5 35L57.5 45L85 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-      <path d="M15 85H42L54.5 65L42.5 55L15 85Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-    </svg>
-  );
-}
-
-// ─── MAPEO DINÁMICO DE ICONOS CRYPTO (LLAVES EN MAYÚSCULAS) ───
+// ─── MAPEO DINÁMICO DE ICONOS CRYPTO ───────────────────────
 const MAPEO_CRYPTO_SVG: Record<string, string> = {
-  BTC: "/crypto/btc.svg",
+  BTC:  "/crypto/btc.svg",
   USDT: "/crypto/usdt.svg",
-  ETH: "/crypto/eth.svg",
+  ETH:  "/crypto/eth.svg",
   USDC: "/crypto/usdc.svg",
-  TRX: "/crypto/trx.svg"
+  TRX:  "/crypto/trx.svg"
 };
 
 export function LandingPage() {
@@ -103,11 +87,8 @@ export function LandingPage() {
       {/* ═══ HEADER ══════════════════════════════════════════ */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-100 dark:border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
-          <div className="flex items-center gap-2">
-            <CubaXLogo size={28} />
-            <span className="font-bold text-lg tracking-tight">
-              Cuba<span className="text-brand-500">X</span>
-            </span>
+          <div className="flex items-center">
+            <Logo size={28} className="text-black dark:text-white" />
           </div>
           <Button size="sm" onClick={() => navigate("login")}>
             Iniciar Sesión
@@ -225,9 +206,8 @@ export function LandingPage() {
         ) : (
           <div className="space-y-2">
             {cryptoPrices?.slice(0, 4).map((coin) => {
-              // ─── NORMALIZACIÓN CORREGIDA ───────────────────────────
               const symbolUpper = coin.symbol.toUpperCase();
-              const symbolLower = coin.symbol.toLowerCase(); // Forzamos minúsculas para buscar tu archivo real
+              const symbolLower = coin.symbol.toLowerCase();
               const isUp        = coin.price_change_percentage_24h >= 0;
               const tieneIconoSvg = !!MAPEO_CRYPTO_SVG[symbolUpper];
 
@@ -239,10 +219,9 @@ export function LandingPage() {
                   <div className="flex items-center gap-3">
                     <div className="h-9 w-9 rounded-full bg-zinc-100 dark:bg-zinc-900 flex items-center justify-center p-1.5 overflow-hidden">
                       {tieneIconoSvg ? (
-                        <img 
-                          // Apunta dinámicamente a tu archivo local en minúscula (ej: /crypto/usdt.svg)
-                          src={`/crypto/${symbolLower}.svg`} 
-                          alt={symbolUpper} 
+                        <img
+                          src={`/crypto/${symbolLower}.svg`}
+                          alt={symbolUpper}
                           className="h-full w-full object-contain"
                         />
                       ) : (
@@ -340,7 +319,7 @@ export function LandingPage() {
               Empieza a operar hoy
             </h2>
             <p className="text-sm text-white/70 mb-5 max-w-xs mx-auto">
-              Únete a miles de cubanos que ya usan CubaX para manejar su
+              Únete a miles de cubanos que ya usan CupCoin para manejar su
               cripto con seguridad.
             </p>
 
@@ -371,14 +350,11 @@ export function LandingPage() {
       {/* ═══ FOOTER ══════════════════════════════════════════ */}
       <footer className="border-t border-gray-100 dark:border-white/[0.06] py-6">
         <div className="max-w-lg mx-auto px-4 text-center">
-          <div className="flex items-center justify-center gap-2 mb-2">
-            <CubaXLogo size={22} />
-            <span className="font-bold text-sm">
-              Cuba<span className="text-brand-500">X</span>
-            </span>
+          <div className="flex items-center justify-center mb-2">
+            <Logo size={22} className="text-black dark:text-white" />
           </div>
           <p className="text-[11px] text-gray-400 dark:text-gray-500">
-            © 2026 CubaX. Plataforma P2P & Crypto para Cuba.
+            © 2026 CupCoin. Plataforma P2P & Crypto para Cuba.
           </p>
           <div className="flex items-center justify-center gap-3 mt-2">
             {["Términos", "Privacidad", "Soporte"].map((link) => (
@@ -394,4 +370,4 @@ export function LandingPage() {
       </footer>
     </div>
   );
-                          }
+                }
