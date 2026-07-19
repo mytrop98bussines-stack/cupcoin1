@@ -1,14 +1,17 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100">
-  <rect width="100" height="100" rx="22" fill="#000000"/>
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Fondo negro con esquinas redondeadas grandes -->
+  <rect width="512" height="512" rx="120" fill="#000000"/>
+  
+  <!-- Letra c blanca gigante y centrada -->
   <text
-    x="50"
-    y="50"
-    font-family="system-ui, -apple-system, sans-serif"
-    font-size="75"
+    x="256"
+    y="290"
+    font-family="system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
+    font-size="420"
     font-weight="900"
     fill="white"
     text-anchor="middle"
-    dominant-baseline="central"
-    letter-spacing="-4"
+    dominant-baseline="middle"
+    letter-spacing="-20"
   >c</text>
 </svg>
