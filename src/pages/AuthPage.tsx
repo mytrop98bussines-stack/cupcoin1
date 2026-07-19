@@ -1,7 +1,11 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
+import { useState, useCallback, useEffect } from "react";
+import { useAppStore } from "@/store/useAppStore";
+import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
+import { Logo }   from "@/components/Logo";
 import {
   Mail, Lock, User, Eye, EyeOff,
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
@@ -9,17 +13,6 @@ import {
 import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
-
-// ─── Logo ─────────────────────────────────────────────────
-function CubaXLogo({ size = 32 }: { size?: number }) {
-  return (
-    <svg width={size} height={size} viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
-      <path d="M15 15H42L85 85H58L15 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-      <path d="M85 15H58L45.5 35L57.5 45L85 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-      <path d="M15 85H42L54.5 65L42.5 55L15 85Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-    </svg>
-  );
-}
 
 export function AuthPage() {
   const { currentView, navigate, login } = useAppStore();
