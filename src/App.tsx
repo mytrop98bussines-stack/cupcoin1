@@ -4,23 +4,7 @@ import { Header }     from "@/components/layout/Header";
 import { BottomNav }  from "@/components/layout/BottomNav";
 import { WifiOff }    from "lucide-react";
 import { requestNotificationPermission } from "@/lib/firebase/messaging";
-
-// ─── Logo ─────────────────────────────────────────────────
-function CubaXLogo({ size = 48 }: { size?: number }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 100 100"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      <path d="M15 15H42L85 85H58L15 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-      <path d="M85 15H58L45.5 35L57.5 45L85 15Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-      <path d="M15 85H42L54.5 65L42.5 55L15 85Z" fill="#000000" stroke="#cbd5e1" strokeWidth="5" strokeLinejoin="miter" />
-    </svg>
-  );
-}
+import { Logo }       from "@/components/Logo";
 
 // ─── Páginas públicas ─────────────────────────────────────
 import { LandingPage } from "@/pages/LandingPage";
@@ -84,7 +68,7 @@ const VIEW_TITLES: Record<string, string> = {
   "notification-settings": "Notificaciones",
   "trade-history":         "Historial de Trades",
   "my-orders":             "Mis Anuncios P2P",
-  membership:              "Membresía CubaX",
+  membership:              "Membresía CupCoin",
   "public-profile":        "Perfil",
 };
 
@@ -209,8 +193,6 @@ function AppContent() {
     if (!user?.uid) return;
     if (typeof Notification === "undefined") return;
 
-    // Solo re-registrar si ya dio permiso antes
-    // (no mostramos popup automático, eso lo hace NotificationSettingsPage)
     if (Notification.permission === "granted") {
       requestNotificationPermission(user.uid);
     }
@@ -230,7 +212,7 @@ function AppContent() {
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
-        <CubaXLogo size={48} />
+        <Logo size={48} className="text-black dark:text-white" />
         <p className="text-sm font-semibold tracking-wide animate-pulse text-gray-900 dark:text-white">
           Sincronizando cuenta...
         </p>
@@ -315,7 +297,6 @@ export default function App() {
       urlParams.has("challengeToken") ||
       urlParams.has("error");
 
-    // Si viene de Google OAuth → ir a login para que AuthPage procese la URL
     if (hasOAuthCallback) {
       navigate("login");
       setIsInitializing(false);
@@ -437,14 +418,11 @@ export default function App() {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
         <div className="flex flex-col items-center gap-3 animate-pulse">
-          <CubaXLogo size={56} />
-          <h2 className="text-lg font-black tracking-tight mt-1 text-gray-900 dark:text-white">
-            Cargando <span className="text-brand-500">CubaX</span>
-          </h2>
+          <Logo size={56} className="text-black dark:text-white" />
         </div>
       </div>
     );
   }
 
   return <AppContent />;
-      }
+            }
