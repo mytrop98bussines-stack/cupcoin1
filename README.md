@@ -1,4 +1,4 @@
-# CubaX — Plataforma Financiera Descentralizada para Cuba 🇨🇺
+# CupCoin — Plataforma Financiera Descentralizada para Cuba 🇨🇺
 MIT License — Copyright (c) 2026 CubaX
 
 > **La primera plataforma P2P de criptomonedas diseñada específicamente para el mercado cubano.**
