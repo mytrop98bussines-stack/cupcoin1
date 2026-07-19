@@ -1,4 +1,54 @@
-<svg width="100" height="100" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg">
-  <circle cx="50" cy="50" r="45" fill="#F7931A"/>
-  <text x="50" y="68" font-family="Arial Black, sans-serif" font-size="55" font-weight="900" text-anchor="middle" fill="white">C</text>
+<svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
+  <!-- Círculo exterior -->
+  <circle 
+    cx="100" 
+    cy="100" 
+    r="85" 
+    stroke="#0A0A0A" 
+    stroke-width="14" 
+    fill="none"
+  />
+  
+  <!-- Semicírculo interior IZQUIERDO -->
+  <path 
+    d="M 100 50 
+       A 30 50 0 0 0 100 150" 
+    stroke="#0A0A0A" 
+    stroke-width="14" 
+    fill="none"
+    stroke-linecap="round"
+  />
+  
+  <!-- Semicírculo interior DERECHO -->
+  <path 
+    d="M 100 65 
+       A 20 35 0 0 1 100 135" 
+    stroke="#0A0A0A" 
+    stroke-width="12" 
+    fill="none"
+    stroke-linecap="round"
+  />
+  
+  <!-- Línea divisoria vertical (con corte limpio) -->
+  <line 
+    x1="100" 
+    y1="15" 
+    x2="100" 
+    y2="55" 
+    stroke="#0A0A0A" 
+    stroke-width="14"
+    stroke-linecap="round"
+  />
+  <line 
+    x1="100" 
+    y1="145" 
+    x2="100" 
+    y2="185" 
+    stroke="#0A0A0A" 
+    stroke-width="14"
+    stroke-linecap="round"
+  />
+  
+  <!-- Punto central -->
+  <circle cx="100" cy="100" r="8" fill="#0A0A0A"/>
 </svg>
