@@ -1,9 +1,6 @@
 import { useState, useCallback, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
-import { useState, useCallback, useEffect } from "react";
-import { useAppStore } from "@/store/useAppStore";
-import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { Logo }   from "@/components/Logo";
 import {
@@ -33,11 +30,11 @@ export function AuthPage() {
   const [googleLoading, setGoogleLoading]   = useState(false);
 
   // ─── Estados 2FA ──────────────────────────────────────────
-  const [twoFARequired, setTwoFARequired]           = useState(false);
-  const [twoFACode, setTwoFACode]                   = useState("");
+  const [twoFARequired, setTwoFARequired]             = useState(false);
+  const [twoFACode, setTwoFACode]                     = useState("");
   const [twoFAChallengeToken, setTwoFAChallengeToken] = useState("");
-  const [twoFALoading, setTwoFALoading]             = useState(false);
-  const [twoFAError, setTwoFAError]                 = useState<string | null>(null);
+  const [twoFALoading, setTwoFALoading]               = useState(false);
+  const [twoFAError, setTwoFAError]                   = useState<string | null>(null);
 
   // ─── Helper: completar login ───────────────────────────────
   const finishLogin = useCallback((data: any) => {
@@ -71,24 +68,19 @@ export function AuthPage() {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
-    const error         = params.get("error");
-    const requires2FA   = params.get("requires2FA");
+    const error          = params.get("error");
+    const requires2FA    = params.get("requires2FA");
     const challengeToken = params.get("challengeToken");
-    const token         = params.get("token");
-    const refreshToken  = params.get("refreshToken");
-    const uid           = params.get("uid");
-    const emailParam    = params.get("email");
-    const nameParam     = params.get("name");
-    const photoParam    = params.get("photo");
+    const token          = params.get("token");
+    const refreshToken   = params.get("refreshToken");
+    const uid            = params.get("uid");
 
-    // Limpiar URL
     const clearUrl = () => {
       window.history.replaceState({}, document.title, window.location.pathname);
     };
 
     if (!error && !requires2FA && !token) return;
 
-    // Error de Google OAuth
     if (error) {
       setGlobalError(decodeURIComponent(error));
       clearUrl();
@@ -96,7 +88,6 @@ export function AuthPage() {
       return;
     }
 
-    // Google login requiere 2FA
     if (requires2FA === "1" && challengeToken) {
       setTwoFAChallengeToken(challengeToken);
       setTwoFARequired(true);
@@ -107,39 +98,37 @@ export function AuthPage() {
       return;
     }
 
-    // Google login exitoso sin 2FA
-if (token && uid) {
-  clearUrl();
-  setGoogleLoading(true);
+    if (token && uid) {
+      clearUrl();
+      setGoogleLoading(true);
 
-  fetch(`${BACKEND_URL}/api/auth/me`, {
-    method:  "POST",
-    headers: { "Content-Type": "application/json" },
-    body:    JSON.stringify({ uid }),
-  })
-    .then((r) => r.json())
-    .then((me) => {
-      if (!me.success) {
-        setGlobalError("No se pudo cargar el usuario.");
-        return;
-      }
+      fetch(`${BACKEND_URL}/api/auth/me`, {
+        method:  "POST",
+        headers: { "Content-Type": "application/json" },
+        body:    JSON.stringify({ uid }),
+      })
+        .then((r) => r.json())
+        .then((me) => {
+          if (!me.success) {
+            setGlobalError("No se pudo cargar el usuario.");
+            return;
+          }
 
-      finishLogin({
-        token,
-        refreshToken: refreshToken || "",
-        uid,
-        email:       me.userData.email,
-        displayName: me.userData.displayName,
-        photoURL:    me.userData.photoURL || null,
-        userData:    me.userData,
-      });
-    })
-    .catch(() => setGlobalError("Error al completar la sesión con Google."))
-    .finally(() => setGoogleLoading(false));
+          finishLogin({
+            token,
+            refreshToken: refreshToken || "",
+            uid,
+            email:       me.userData.email,
+            displayName: me.userData.displayName,
+            photoURL:    me.userData.photoURL || null,
+            userData:    me.userData,
+          });
+        })
+        .catch(() => setGlobalError("Error al completar la sesión con Google."))
+        .finally(() => setGoogleLoading(false));
     }
-    }, [finishLogin]);
+  }, [finishLogin]);
 
-  // ─── Validación ───────────────────────────────────────────
   // ─── Validación ───────────────────────────────────────────
   const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
@@ -172,7 +161,6 @@ if (token && uid) {
   const handleGoogleLogin = () => {
     setGoogleLoading(true);
     setGlobalError(null);
-    // El backend maneja todo el OAuth
     window.location.href = `${BACKEND_URL}/auth/google/start`;
   };
 
@@ -219,7 +207,6 @@ if (token && uid) {
           return;
         }
 
-        // ✅ Requiere 2FA — NO guardar sesión todavía
         if (data.requires2FA) {
           setTwoFAChallengeToken(data.challengeToken);
           setTwoFARequired(true);
@@ -228,7 +215,6 @@ if (token && uid) {
           return;
         }
 
-        // ✅ Sin 2FA → login directo
         finishLogin(data);
 
       } catch (err: any) {
@@ -265,7 +251,6 @@ if (token && uid) {
       if (!data.success) {
         setTwoFAError(data.error || "Código incorrecto.");
 
-        // Si el challenge expiró o es inválido → volver al login
         if (data.error?.includes("expirada") || data.error?.includes("inválida")) {
           setTimeout(() => {
             setTwoFARequired(false);
@@ -277,7 +262,6 @@ if (token && uid) {
         return;
       }
 
-      // ✅ Código correcto → completar login
       finishLogin(data);
 
     } catch {
@@ -354,7 +338,7 @@ if (token && uid) {
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
               Abre tu app de autenticación e ingresa
-              el código de 6 dígitos de CubaX.
+              el código de 6 dígitos de CupCoin.
             </p>
             <div className="flex items-center justify-center gap-2 mt-3">
               {["Google Authenticator", "Aegis", "Microsoft Authenticator"].map((app) => (
@@ -368,7 +352,6 @@ if (token && uid) {
             </div>
           </div>
 
-          {/* Error */}
           {twoFAError && (
             <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
               <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
@@ -377,7 +360,6 @@ if (token && uid) {
           )}
 
           <div className="space-y-4">
-            {/* Input código */}
             <div>
               <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
                 Código de verificación
@@ -409,7 +391,6 @@ if (token && uid) {
               Verificar código
             </Button>
 
-            {/* Info */}
             <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
               <p className="text-[11px] text-gray-400 text-center">
                 🔐 El código cambia cada 30 segundos.
@@ -417,7 +398,6 @@ if (token && uid) {
               </p>
             </div>
 
-            {/* Volver */}
             <button
               onClick={() => {
                 setTwoFARequired(false);
@@ -533,8 +513,8 @@ if (token && uid) {
       <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
 
         <div className="text-center mb-8">
-          <div className="inline-flex p-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
-            <CubaXLogo size={36} />
+          <div className="inline-flex px-5 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
+            <Logo size={36} className="text-black dark:text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
             {isLogin ? "Bienvenido de vuelta" : "Crear cuenta"}
@@ -546,7 +526,6 @@ if (token && uid) {
           </p>
         </div>
 
-        {/* Error global */}
         {globalError && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -554,7 +533,6 @@ if (token && uid) {
           </div>
         )}
 
-        {/* Formulario */}
         <form onSubmit={handleSubmit} className="space-y-4">
           {!isLogin && (
             <Input
@@ -608,7 +586,6 @@ if (token && uid) {
             }
           />
 
-          {/* Fuerza de contraseña */}
           {!isLogin && password.length > 0 && (
             <div className="space-y-1.5">
               <div className="flex gap-1">
@@ -639,7 +616,6 @@ if (token && uid) {
             </div>
           )}
 
-          {/* Olvidé contraseña */}
           {isLogin && (
             <div className="text-right">
               <button
@@ -656,7 +632,6 @@ if (token && uid) {
             </div>
           )}
 
-          {/* Términos */}
           {!isLogin && (
             <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
               Al registrarte aceptas nuestros{" "}
@@ -688,14 +663,12 @@ if (token && uid) {
             {isLogin ? "Iniciar sesión" : "Crear cuenta gratis"}
           </Button>
 
-          {/* Separador */}
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
             <span className="text-xs text-gray-400 font-medium">o continúa con</span>
             <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
           </div>
 
-           {/* Botón Google */}
           <button
             type="button"
             onClick={handleGoogleLogin}
@@ -718,7 +691,6 @@ if (token && uid) {
           </button>
         </form>
 
-        {/* Trust badges */}
         <div className="flex items-center justify-center gap-4 mt-5">
           {["Sin VPN", "Cifrado SSL", "Sin comisiones"].map((badge) => (
             <div
@@ -731,7 +703,6 @@ if (token && uid) {
           ))}
         </div>
 
-        {/* Switch login/registro */}
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
           {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
           <button
