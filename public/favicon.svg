@@ -1,54 +1,46 @@
 <svg width="200" height="200" viewBox="0 0 200 200" xmlns="http://www.w3.org/2000/svg">
-  <!-- Círculo exterior -->
+  
+  <!-- Círculo exterior grande -->
   <circle 
     cx="100" 
     cy="100" 
-    r="85" 
+    r="88" 
     stroke="#0A0A0A" 
     stroke-width="14" 
     fill="none"
   />
   
-  <!-- Semicírculo interior IZQUIERDO -->
+  <!-- Letra C (semicírculo izquierdo abierto hacia la derecha) -->
   <path 
-    d="M 100 50 
-       A 30 50 0 0 0 100 150" 
+    d="M 130 55 
+       A 45 45 0 1 0 130 145" 
+    stroke="#0A0A0A" 
+    stroke-width="16" 
+    fill="none"
+    stroke-linecap="round"
+  />
+  
+  <!-- Letra P (línea vertical + semicírculo) -->
+  <!-- Palo vertical de la P -->
+  <line 
+    x1="105" 
+    y1="55" 
+    x2="105" 
+    y2="145" 
+    stroke="#0A0A0A" 
+    stroke-width="14"
+    stroke-linecap="round"
+  />
+  
+  <!-- Curva superior de la P -->
+  <path 
+    d="M 105 55 
+       Q 145 55, 145 80 
+       Q 145 105, 105 105" 
     stroke="#0A0A0A" 
     stroke-width="14" 
     fill="none"
     stroke-linecap="round"
   />
   
-  <!-- Semicírculo interior DERECHO -->
-  <path 
-    d="M 100 65 
-       A 20 35 0 0 1 100 135" 
-    stroke="#0A0A0A" 
-    stroke-width="12" 
-    fill="none"
-    stroke-linecap="round"
-  />
-  
-  <!-- Línea divisoria vertical (con corte limpio) -->
-  <line 
-    x1="100" 
-    y1="15" 
-    x2="100" 
-    y2="55" 
-    stroke="#0A0A0A" 
-    stroke-width="14"
-    stroke-linecap="round"
-  />
-  <line 
-    x1="100" 
-    y1="145" 
-    x2="100" 
-    y2="185" 
-    stroke="#0A0A0A" 
-    stroke-width="14"
-    stroke-linecap="round"
-  />
-  
-  <!-- Punto central -->
-  <circle cx="100" cy="100" r="8" fill="#0A0A0A"/>
 </svg>
