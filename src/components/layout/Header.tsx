@@ -1,5 +1,6 @@
 import { useAppStore } from "@/store/useAppStore";
 import { Avatar } from "@/components/ui/Avatar";
+import { Logo }   from "@/components/Logo";
 import {
   Bell,
   Moon,
@@ -9,44 +10,6 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
-
-// Componente Interno: CubaX Monolithic Logo (Gris Platino y Negro)
-function CubaXLogo({ size = 28 }: { size?: number }) {
-  return (
-    <svg 
-      width={size} 
-      height={size} 
-      viewBox="0 0 100 100" 
-      fill="none" 
-      xmlns="http://www.w3.org/2000/svg"
-    >
-      {/* Bloque Principal Izquierdo (\) */}
-      <path 
-        d="M15 15H42L85 85H58L15 15Z" 
-        fill="#000000" 
-        stroke="#cbd5e1" 
-        strokeWidth="5" 
-        strokeLinejoin="miter" 
-      />
-      {/* Bloque Superior Derecho (/) */}
-      <path 
-        d="M85 15H58L45.5 35L57.5 45L85 15Z" 
-        fill="#000000" 
-        stroke="#cbd5e1" 
-        strokeWidth="5" 
-        strokeLinejoin="miter" 
-      />
-      {/* Bloque Inferior Izquierdo (/) */}
-      <path 
-        d="M15 85H42L54.5 65L42.5 55L15 85Z" 
-        fill="#000000" 
-        stroke="#cbd5e1" 
-        strokeWidth="5" 
-        strokeLinejoin="miter" 
-      />
-    </svg>
-  );
-}
 
 interface HeaderProps {
   title?: string;
@@ -95,12 +58,8 @@ export function Header({ title, showBack = false }: HeaderProps) {
           )}
 
           {showLogo && !showBack && (
-            <div className="flex items-center gap-1.5">
-              {/* Aquí renderizamos el SVG directamente sin usar <img> */}
-              <CubaXLogo size={26} />
-              <span className="font-bold text-gray-900 dark:text-white text-lg tracking-tight">
-                Cuba<span className="text-brand-500">X</span>
-              </span>
+            <div className="flex items-center">
+              <Logo size={26} className="text-black dark:text-white" />
             </div>
           )}
 
@@ -155,18 +114,18 @@ export function Header({ title, showBack = false }: HeaderProps) {
       >
         <nav className="p-4 space-y-1">
           {[
-            { view: "dashboard" as const, label: "Dashboard" },
-            { view: "p2p" as const, label: "Mercado P2P" },
+            { view: "dashboard"   as const, label: "Dashboard" },
+            { view: "p2p"         as const, label: "Mercado P2P" },
             { view: "marketplace" as const, label: "Marketplace" },
-            { view: "wallet" as const, label: "Wallet" },
-            { view: "kyc" as const, label: "Verificación KYC" },
-            { view: "settings" as const, label: "Configuración" },
+            { view: "wallet"      as const, label: "Wallet" },
+            { view: "kyc"         as const, label: "Verificación KYC" },
+            { view: "settings"    as const, label: "Configuración" },
           ].map((item) => (
             <button
               key={item.view}
               onClick={() => {
                 navigate(item.view);
-                setMobileMenuOpen(false); // Buena práctica: cierra el menú al hacer clic
+                setMobileMenuOpen(false);
               }}
               className={cn(
                 "w-full text-left px-4 py-2.5 rounded-xl text-sm font-medium transition-colors",
@@ -182,4 +141,4 @@ export function Header({ title, showBack = false }: HeaderProps) {
       </div>
     </header>
   );
-        }
+}
