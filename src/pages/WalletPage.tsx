@@ -306,6 +306,23 @@ useEffect(() => {
           </div>
         </div>
       </div>
+      
+      <button
+  onClick={() => navigate("stellar")}
+  className="flex items-center gap-3 p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors w-full"
+>
+  <div className="h-10 w-10 rounded-xl bg-blue-500 flex items-center justify-center">
+    <Star className="h-5 w-5 text-white" />
+  </div>
+  <div className="flex-1 text-left">
+    <p className="font-bold text-sm text-gray-900 dark:text-white">
+      Stellar Wallet
+    </p>
+    <p className="text-xs text-gray-400">
+      Envía y recibe XLM al instante
+    </p>
+  </div>
+</button>
 
       {/* ═══ HISTORIAL DE MOVIMIENTOS ════════════════════════ */}
 <div>
