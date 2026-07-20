@@ -11,19 +11,20 @@ import { LandingPage } from "@/pages/LandingPage";
 import { AuthPage }    from "@/pages/AuthPage";
 
 // ─── Páginas principales ──────────────────────────────────
-import { DashboardPage }     from "@/pages/DashboardPage";
-import { P2PPage }           from "@/pages/P2PPage";
-import { CreateOrderPage }   from "@/pages/CreateOrderPage";
-import { TradePage }         from "@/pages/TradePage";
-import { KYCPage }           from "@/pages/KYCPage";
-import { MarketplacePage }   from "@/pages/MarketplacePage";
-import { ProductDetailPage } from "@/pages/ProductDetailPage";
-import { CreateProductPage } from "@/pages/CreateProductPage";
-import { WalletPage }        from "@/pages/WalletPage";
-import { SettingsPage }      from "@/pages/SettingsPage";
-import { NotificationsPage } from "@/pages/NotificationsPage";
-import { MembershipPage }    from "@/pages/MembershipPage";
-import { PublicProfilePage } from "@/pages/PublicProfilePage";
+import { DashboardPage }      from "@/pages/DashboardPage";
+import { P2PPage }            from "@/pages/P2PPage";
+import { CreateOrderPage }    from "@/pages/CreateOrderPage";
+import { TradePage }          from "@/pages/TradePage";
+import { KYCPage }            from "@/pages/KYCPage";
+import { MarketplacePage }    from "@/pages/MarketplacePage";
+import { ProductDetailPage }  from "@/pages/ProductDetailPage";
+import { CreateProductPage }  from "@/pages/CreateProductPage";
+import { WalletPage }         from "@/pages/WalletPage";
+import { StellarWalletPage }  from "@/pages/StellarWalletPage";
+import { SettingsPage }       from "@/pages/SettingsPage";
+import { NotificationsPage }  from "@/pages/NotificationsPage";
+import { MembershipPage }     from "@/pages/MembershipPage";
+import { PublicProfilePage }  from "@/pages/PublicProfilePage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -56,6 +57,7 @@ const VIEW_TITLES: Record<string, string> = {
   "product-detail":        "Detalle del producto",
   "create-product":        "Publicar producto",
   wallet:                  "Mi Wallet",
+  stellar:                 "Stellar Wallet",
   settings:                "Ajustes",
   notifications:           "Notificaciones",
   "admin-kyc":             "Panel KYC Admin",
@@ -78,15 +80,15 @@ const SHOW_BACK_VIEWS = [
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
-  "public-profile",
+  "public-profile", "stellar",
 ];
 
 const AUTHENTICATED_VIEWS = [
   "dashboard", "p2p", "marketplace", "create-order",
   "trade", "kyc", "product-detail", "create-product",
-  "wallet", "settings", "notifications", "admin-kyc",
-  "admin-disputes", "profile", "security", "help",
-  "terms", "language", "notification-settings",
+  "wallet", "stellar", "settings", "notifications",
+  "admin-kyc", "admin-disputes", "profile", "security",
+  "help", "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
   "public-profile",
 ];
@@ -259,6 +261,7 @@ function AppContent() {
         {currentView === "product-detail"  && <ProductDetailPage />}
         {currentView === "create-product"  && <CreateProductPage />}
         {currentView === "wallet"          && <WalletPage />}
+        {currentView === "stellar"         && <StellarWalletPage />}
         {currentView === "settings"        && <SettingsPage />}
         {currentView === "notifications"   && <NotificationsPage />}
         {currentView === "membership"      && <MembershipPage />}
@@ -425,4 +428,4 @@ export default function App() {
   }
 
   return <AppContent />;
-            }
+    }
