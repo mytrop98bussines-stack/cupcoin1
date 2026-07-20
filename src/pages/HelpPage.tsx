@@ -242,21 +242,21 @@ export function HelpPage() {
               label: "Telegram",
               desc:  "@CupCoin1",
               bg:    "bg-blue-500/10",
-              action: () => window.open("https://t.me/CubaXSoporte", "_blank"),
+              action: () => window.open("https://t.me/CupCoin1", "_blank"),
             },
             {
               icon:  <MessageCircle className="h-4 w-4 text-emerald-500" />,
               label: "WhatsApp",
               desc:  "+44 7376 238274",
               bg:    "bg-emerald-500/10",
-              action: () => window.open("https://wa.me/5353000000", "_blank"),
+              action: () => window.open("https://wa.me/447376238274", "_blank"),
             },
             {
               icon:  <Mail className="h-4 w-4 text-violet-500" />,
               label: "Correo electrónico",
               desc:  "mytrop98bussines@gmail.com",
               bg:    "bg-violet-500/10",
-              action: () => window.open("mailto:soporte@cubax.app", "_blank"),
+              action: () => window.open("mailto:mytrop98bussines@gmail.com", "_blank"),
             },
           ].map((contact) => (
             <button
