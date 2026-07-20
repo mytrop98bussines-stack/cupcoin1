@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, Shield, Loader2, Check,
   Eye, EyeOff, RefreshCw, ChevronDown, ChevronUp,
   AlertTriangle, X, Sparkles, ArrowRight,
-  Info, CheckCircle2,
+  Info, CheckCircle2, Star,
 } from "lucide-react";
 
 type ActionType = "deposit" | "withdraw" | null;
