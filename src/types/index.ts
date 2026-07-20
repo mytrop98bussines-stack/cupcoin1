@@ -48,6 +48,7 @@ export type AppView =
   | "p2p"
   | "trade"
   | "wallet"
+  | "stellar"
   | "marketplace"
   | "product-detail"
   | "create-product"
