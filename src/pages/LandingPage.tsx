@@ -10,7 +10,6 @@ import {
   Globe,
   Lock,
   ChevronRight,
-  Star,
   TrendingUp,
   TrendingDown,
   CheckCircle2,
@@ -68,13 +67,6 @@ export function LandingPage() {
     },
   ];
 
-  const stats = [
-    { value: "5,200+", label: "Usuarios activos" },
-    { value: "$2.4M",  label: "Vol. mensual"     },
-    { value: "99.8%",  label: "Trades exitosos"  },
-    { value: "<3min",  label: "Tiempo promedio"  },
-  ];
-
   const trustBadges = [
     "Transacciones cifradas",
     "Escrow automático",
@@ -103,9 +95,9 @@ export function LandingPage() {
         <div className="absolute bottom-0 left-0 h-48 w-48 bg-violet-500/5 rounded-full blur-3xl pointer-events-none" />
 
         <div className="relative max-w-lg mx-auto px-4 pt-12 pb-8 text-center">
-          <div className="inline-flex items-center gap-1.5 bg-brand-500/10 text-brand-600 dark:text-brand-400 px-3 py-1.5 rounded-full text-xs font-bold mb-6 border border-brand-500/20">
-            <Star className="h-3.5 w-3.5 fill-current" />
-            #1 Plataforma P2P en Cuba
+          <div className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-full text-xs font-bold mb-6 border border-amber-500/20">
+            <Zap className="h-3.5 w-3.5 fill-current" />
+            En desarrollo activo · Únete a la lista de espera
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black leading-tight mb-4">
@@ -155,25 +147,6 @@ export function LandingPage() {
               Ya tengo cuenta
             </Button>
           </div>
-        </div>
-      </section>
-
-      {/* ═══ STATS ═══════════════════════════════════════════ */}
-      <section className="max-w-lg mx-auto px-4 py-6">
-        <div className="grid grid-cols-4 gap-2">
-          {stats.map((stat) => (
-            <div
-              key={stat.label}
-              className="text-center p-3 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] hover:border-brand-500/20 transition-colors"
-            >
-              <div className="text-base font-black text-brand-500">
-                {stat.value}
-              </div>
-              <div className="text-[9px] text-gray-500 dark:text-gray-400 font-semibold mt-0.5 leading-tight">
-                {stat.label}
-              </div>
-            </div>
-          ))}
         </div>
       </section>
 
@@ -303,7 +276,7 @@ export function LandingPage() {
         </div>
       </section>
 
-      {/* ═══ CTA FINAL ═══════════════════════════════════════ */}
+      {/* ═══ CTA COMUNIDAD ═══════════════════════════════════ */}
       <section className="max-w-lg mx-auto px-4 py-8 pb-12">
         <div className="relative overflow-hidden p-6 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 text-white text-center">
           <div className="absolute -top-8 -right-8 h-32 w-32 bg-white/5 rounded-full" />
@@ -312,27 +285,36 @@ export function LandingPage() {
           <div className="relative z-10">
             <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-xs font-bold mb-4">
               <Zap className="h-3 w-3 fill-current" />
-              Registro en 2 minutos
+              Fase de desarrollo activo
             </div>
 
             <h2 className="text-xl font-black mb-2">
-              Empieza a operar hoy
+              ¿Quieres ser parte del primer P2P cubano?
             </h2>
             <p className="text-sm text-white/70 mb-5 max-w-xs mx-auto">
-              Únete a miles de cubanos que ya usan CupCoin para manejar su
-              cripto con seguridad.
+              Creado por un emprendedor cubano que entiende
+              las necesidades reales de la isla.
             </p>
 
-            <div className="flex items-center justify-center gap-4 mb-5">
-              {trustBadges.map((badge) => (
-                <div
-                  key={badge}
-                  className="flex items-center gap-1 text-[10px] font-semibold text-white/70"
-                >
-                  <CheckCircle2 className="h-3 w-3 text-white/50" />
-                  {badge}
-                </div>
-              ))}
+            <div className="space-y-3 mb-5 text-left max-w-xs mx-auto">
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-white/80 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-white/80">
+                  <strong>Lista de espera</strong> — Sé de los primeros en usar la app
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-white/80 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-white/80">
+                  <strong>Inversores ángeles</strong> — Únete a un proyecto con impacto real
+                </p>
+              </div>
+              <div className="flex items-start gap-2">
+                <CheckCircle2 className="h-4 w-4 text-white/80 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-white/80">
+                  <strong>Comunidad</strong> — Comparte tu feedback y crece con nosotros
+                </p>
+              </div>
             </div>
 
             <Button
@@ -343,6 +325,16 @@ export function LandingPage() {
             >
               Crear cuenta gratis
             </Button>
+
+            <p className="text-[11px] text-white/60 mt-4">
+              Escríbeme directamente:{" "}
+              <a
+                href="mailto:tu@email.com"
+                className="underline font-semibold text-white"
+              >
+                tu@email.com
+              </a>
+            </p>
           </div>
         </div>
       </section>
@@ -350,13 +342,19 @@ export function LandingPage() {
       {/* ═══ FOOTER ══════════════════════════════════════════ */}
       <footer className="border-t border-gray-100 dark:border-white/[0.06] py-6">
         <div className="max-w-lg mx-auto px-4 text-center">
-          <div className="flex items-center justify-center mb-2">
+          <div className="flex items-center justify-center mb-3">
             <Logo size={22} className="text-black dark:text-white" />
           </div>
-          <p className="text-[11px] text-gray-400 dark:text-gray-500">
-            © 2026 CupCoin. Plataforma P2P & Crypto para Cuba.
+
+          <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+            Hecho con ❤️ en Cuba, para Cuba 🇨🇺
           </p>
-          <div className="flex items-center justify-center gap-3 mt-2">
+
+          <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">
+            © 2026 CupCoin. Todos los derechos reservados.
+          </p>
+
+          <div className="flex items-center justify-center gap-3 flex-wrap">
             {["Términos", "Privacidad", "Soporte"].map((link) => (
               <button
                 key={link}
@@ -370,4 +368,4 @@ export function LandingPage() {
       </footer>
     </div>
   );
-                }
+}
