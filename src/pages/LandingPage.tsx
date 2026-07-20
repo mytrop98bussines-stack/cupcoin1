@@ -332,7 +332,7 @@ export function LandingPage() {
                 href="mailto:tu@email.com"
                 className="underline font-semibold text-white"
               >
-                tu@email.com
+                mytrop98bussines@gmail.com
               </a>
             </p>
           </div>
