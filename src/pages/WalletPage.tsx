@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, Shield, Loader2, Check,
   Eye, EyeOff, RefreshCw, ChevronDown, ChevronUp,
   AlertTriangle, X, Sparkles, ArrowRight,
-  Info, CheckCircle2,
+  Info, CheckCircle2, Star, Plus,
 } from "lucide-react";
 
 type ActionType = "deposit" | "withdraw" | null;
@@ -18,14 +18,15 @@ interface BalanceItem {
   usdValue:  number;
   change24h: number;
   price:     number;
+  network?:  string;
 }
 
-// ✅ Corregido: Nombres limpios de los archivos para construir la ruta dinámica
 const LOCAL_ICONS: Record<string, string> = {
   USDT: "usdt.svg",
   USDC: "usdc.svg",
   BTC:  "btc.svg",
   ETH:  "eth.svg",
+  XLM:  "xlm.svg",
   USD:  "usd.svg",
 };
 
@@ -37,6 +38,7 @@ const CHAIN_OPTIONS: Record<
   USDC: [{ label: "Tron (TRC-20)", value: "TRC20", icon: "🔴", fee: "~1 USDT", time: "~1 min" }],
   BTC:  [{ label: "Bitcoin Network", value: "BTC", icon: "🟠", fee: "Variable", time: "~10-30 min" }],
   ETH:  [{ label: "Ethereum (ERC-20)", value: "ERC20", icon: "🔵", fee: "Variable", time: "~3-5 min" }],
+  XLM:  [{ label: "Stellar Network", value: "STELLAR", icon: "⭐", fee: "~0.00001 XLM", time: "~5 seg" }],
 };
 
 const ASSET_COLORS: Record<
@@ -44,9 +46,10 @@ const ASSET_COLORS: Record<
   { bg: string; text: string; gradient: string; border: string }
 > = {
   USDT: { bg: "bg-emerald-500/10", text: "text-emerald-500", gradient: "from-emerald-500/20 to-emerald-600/5", border: "border-emerald-500/20" },
-  USDC: { bg: "bg-blue-500/10", text: "text-blue-500", gradient: "from-blue-500/20 to-blue-600/5", border: "border-blue-500/20" },
-  BTC:  { bg: "bg-orange-500/10", text: "text-orange-500", gradient: "from-orange-500/20 to-orange-600/5", border: "border-orange-500/20" },
-  ETH:  { bg: "bg-violet-500/10", text: "text-violet-500", gradient: "from-violet-500/20 to-violet-600/5", border: "border-violet-500/20" },
+  USDC: { bg: "bg-blue-500/10",    text: "text-blue-500",    gradient: "from-blue-500/20 to-blue-600/5",       border: "border-blue-500/20" },
+  BTC:  { bg: "bg-orange-500/10",  text: "text-orange-500",  gradient: "from-orange-500/20 to-orange-600/5",   border: "border-orange-500/20" },
+  ETH:  { bg: "bg-violet-500/10",  text: "text-violet-500",  gradient: "from-violet-500/20 to-violet-600/5",   border: "border-violet-500/20" },
+  XLM:  { bg: "bg-indigo-500/10",  text: "text-indigo-500",  gradient: "from-indigo-500/20 to-indigo-600/5",   border: "border-indigo-500/20" },
 };
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
@@ -64,6 +67,7 @@ export function WalletPage() {
   const [depositAsset, setDepositAsset]         = useState("USDT");
   const [withdrawAddress, setWithdrawAddress]   = useState("");
   const [withdrawAmount, setWithdrawAmount]     = useState("");
+  const [withdrawMemo, setWithdrawMemo]         = useState("");
   const [isSubmitting, setIsSubmitting]         = useState(false);
   const [isLoadingAddress, setIsLoadingAddress] = useState(false);
   const [selectedChain, setSelectedChain]       = useState("TRC20");
@@ -75,15 +79,91 @@ export function WalletPage() {
   const [withdrawError, setWithdrawError]       = useState<string | null>(null);
   const [depositAddress, setDepositAddress]     = useState<string | null>(null);
 
+  // ─── Estado Stellar ────────────────────────────────────────
+  const [stellarPublic, setStellarPublic]       = useState<string | null>(null);
+  const [stellarBalance, setStellarBalance]     = useState<number>(0);
+  const [stellarLoading, setStellarLoading]     = useState(true);
+  const [creatingStellar, setCreatingStellar]   = useState(false);
+  const [stellarExplorer, setStellarExplorer]   = useState<string>("");
+
   const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
 
-  const balancesList: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map((asset) => {
+  // ─── Cargar wallet Stellar al inicio ──────────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+    void loadStellarWallet();
+  }, [user?.uid]);
+
+  const loadStellarWallet = async () => {
+    setStellarLoading(true);
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/api/stellar/balance`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        setStellarPublic(data.publicKey);
+        setStellarBalance(data.balances?.XLM || 0);
+        setStellarExplorer(
+          data.network === "public"
+            ? `https://stellar.expert/explorer/public/account/${data.publicKey}`
+            : `https://stellar.expert/explorer/testnet/account/${data.publicKey}`
+        );
+      } else if (data.code === "NO_STELLAR_ACCOUNT") {
+        setStellarPublic(null);
+      }
+    } catch (err) {
+      console.error("❌ Error cargando Stellar:", err);
+    } finally {
+      setStellarLoading(false);
+    }
+  };
+
+  const handleCreateStellar = async () => {
+    setCreatingStellar(true);
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/api/stellar/create-account`, {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        await loadStellarWallet();
+      }
+    } catch (err) {
+      console.error("❌ Error creando Stellar:", err);
+    } finally {
+      setCreatingStellar(false);
+    }
+  };
+
+  // ─── Balances list (ahora incluye XLM si existe) ──────────
+  const xlmPrice = prices.find((p) => p.symbol.toUpperCase() === "XLM")?.priceUSD || 0.12;
+
+  const baseAssets: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map((asset) => {
     const amount    = firestoreBalances[asset] || 0;
     const priceInfo = prices.find((p) => p.symbol.toUpperCase() === asset);
     const price     = priceInfo?.priceUSD || (asset === "BTC" ? 67500 : asset === "ETH" ? 3500 : 1);
     const change    = priceInfo?.change24h || 0;
     return { asset, amount, usdValue: amount * price, change24h: change, price };
   });
+
+  const stellarAsset: BalanceItem | null = stellarPublic
+    ? {
+        asset:     "XLM",
+        amount:    stellarBalance,
+        usdValue:  stellarBalance * xlmPrice,
+        change24h: prices.find((p) => p.symbol.toUpperCase() === "XLM")?.change24h || 0,
+        price:     xlmPrice,
+        network:   "Stellar",
+      }
+    : null;
+
+  const balancesList = stellarAsset ? [...baseAssets, stellarAsset] : baseAssets;
 
   const totalUSD = balancesList.reduce((sum, b) => sum + b.usdValue, 0);
   const btcPrice = prices.find((p) => p.symbol === "BTC")?.priceUSD || 67500;
@@ -109,19 +189,14 @@ export function WalletPage() {
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
     await fetchPrices();
+    await loadStellarWallet();
     setTimeout(() => setRefreshing(false), 1000);
   }, [fetchPrices]);
 
-  // ✅ Corregido: Helper dinámico con la ruta absoluta hacia /crypto/ y fallbacks controlados
   const getAssetIcon = (asset: string) => {
     const upper = asset.toUpperCase();
-    
-    if (LOCAL_ICONS[upper]) {
-      return `/crypto/${LOCAL_ICONS[upper]}`;
-    }
-    
-    const lower = asset.toLowerCase();
-    return CRYPTO_ICONS[upper] || CRYPTO_ICONS[lower] || "/crypto/usd.svg";
+    if (LOCAL_ICONS[upper]) return `/crypto/${LOCAL_ICONS[upper]}`;
+    return CRYPTO_ICONS[upper] || CRYPTO_ICONS[asset.toLowerCase()] || "/crypto/usd.svg";
   };
 
   const handleOpenDeposit = async (asset: string) => {
@@ -129,6 +204,12 @@ export function WalletPage() {
     setDepositAsset(assetUpper);
     setDepositAddress(null);
     setActiveAction({ type: "deposit", asset: assetUpper });
+
+    // Stellar (XLM) — usa la dirección directa
+    if (assetUpper === "XLM" && stellarPublic) {
+      setDepositAddress(stellarPublic);
+      return;
+    }
 
     if (!user?.uid || assetUpper !== "USDT") return;
 
@@ -162,6 +243,7 @@ export function WalletPage() {
     setWithdrawSuccess(false);
     setWithdrawAddress("");
     setWithdrawAmount("");
+    setWithdrawMemo("");
     setWithdrawTxId("");
     setWithdrawError(null);
   };
@@ -173,7 +255,11 @@ export function WalletPage() {
   };
 
   const handleSetMaxAmount = () => {
-    if (activeAction.asset) {
+    if (activeAction.asset === "XLM") {
+      // Dejar 1.5 XLM de reserva
+      const max = Math.max(0, stellarBalance - 1.5);
+      setWithdrawAmount(max.toFixed(4));
+    } else if (activeAction.asset) {
       const max = firestoreBalances[activeAction.asset] || 0;
       setWithdrawAmount(String(max));
     }
@@ -181,6 +267,56 @@ export function WalletPage() {
 
   const handleExecuteWithdrawal = async () => {
     if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !user?.uid) return;
+
+    // ─── Retiro Stellar (XLM) ─────────────────────────────
+    if (activeAction.asset === "XLM") {
+      if (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) {
+        setWithdrawError("Dirección Stellar inválida (debe empezar con G).");
+        return;
+      }
+
+      const monto = parseFloat(withdrawAmount);
+      if (monto <= 0 || monto > (stellarBalance - 1.5)) {
+        setWithdrawError("Balance insuficiente (deja al menos 1.5 XLM de reserva).");
+        return;
+      }
+
+      setIsSubmitting(true);
+      setWithdrawError(null);
+
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/api/stellar/send`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            toAddress: withdrawAddress,
+            amount:    monto,
+            memo:      withdrawMemo || undefined,
+          }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          setWithdrawSuccess(true);
+          setWithdrawTxId(data.txHash);
+          setWithdrawStep(3);
+          await loadStellarWallet();
+        } else {
+          setWithdrawError(data.error || "Error procesando el retiro.");
+        }
+      } catch {
+        setWithdrawError("Error de conexión.");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
+
+    // ─── Retiro USDT/TRC20 (existente) ────────────────────
     if (activeAction.asset !== "USDT") return;
 
     if (!withdrawAddress.startsWith("T")) {
@@ -228,6 +364,7 @@ export function WalletPage() {
     setWithdrawSuccess(false);
     setWithdrawAddress("");
     setWithdrawAmount("");
+    setWithdrawMemo("");
     setWithdrawError(null);
     setDepositAddress(null);
   };
@@ -235,32 +372,33 @@ export function WalletPage() {
   const [movements, setMovements]         = useState<any[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(true);
 
-useEffect(() => {
-  if (!user?.uid) return;
+  useEffect(() => {
+    if (!user?.uid) return;
 
-  const loadHistory = async () => {
-    try {
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/api/wallet/history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setMovements(data.movements);
-    } catch (err) {
-      console.error("❌ Error cargando historial:", err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
+    const loadHistory = async () => {
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/api/wallet/history`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const data = await res.json();
+        if (data.success) setMovements(data.movements);
+      } catch (err) {
+        console.error("❌ Error cargando historial:", err);
+      } finally {
+        setLoadingHistory(false);
+      }
+    };
 
-  void loadHistory();
-}, [user?.uid]);
+    void loadHistory();
+  }, [user?.uid]);
 
   const currentChainInfo = activeAction.asset ? CHAIN_OPTIONS[activeAction.asset]?.[0] : null;
+  const isXLM            = activeAction.asset === "XLM";
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4 animate-fade-in">
-      
+
       {/* ═══ HEADER ══════════════════════════════════════ */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
@@ -269,7 +407,7 @@ useEffect(() => {
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 dark:text-white leading-tight">Mi Wallet</h1>
-            <p className="text-[10px] text-gray-400 font-medium">Custodia segura CubaX</p>
+            <p className="text-[10px] text-gray-400 font-medium">Multi-red · CupCoin</p>
           </div>
         </div>
         <button onClick={handleRefresh} className="p-2 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
@@ -307,96 +445,109 @@ useEffect(() => {
         </div>
       </div>
 
-      {/* ═══ HISTORIAL DE MOVIMIENTOS ════════════════════════ */}
-<div>
-  <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
-    Historial de movimientos
-  </h3>
-
-  {loadingHistory ? (
-    <div className="text-center py-8">
-      <div className="h-5 w-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-      <p className="text-xs text-gray-400">Cargando historial...</p>
-    </div>
-
-  ) : movements.length === 0 ? (
-    <Card padding="lg" className="text-center">
-      <p className="text-2xl mb-2">📭</p>
-      <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
-        Sin movimientos
-      </p>
-      <p className="text-xs text-gray-400">
-        Aquí aparecerán tus depósitos, retiros y trades.
-      </p>
-    </Card>
-
-  ) : (
-    <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
-      {movements.map((mov) => {
-        const isPositive = mov.amount > 0;
-        return (
-          <div
-            key={mov.id}
-            className="flex items-center gap-3 px-4 py-3.5"
-          >
-            {/* Icono */}
-            <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${
-              isPositive
-                ? "bg-emerald-500/10"
-                : "bg-red-500/10"
-            }`}>
-              {mov.icon}
+      {/* ═══ BANNER STELLAR (solo si no tiene wallet) ═══════ */}
+      {!stellarLoading && !stellarPublic && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 text-white">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-white/10 rounded-full blur-2xl" />
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              <Star className="h-5 w-5 text-white" />
             </div>
-
-            {/* Info */}
-            <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                {mov.label}
-              </p>
-              <div className="flex items-center gap-2">
-                <p className="text-[10px] text-gray-400">
-                  {new Date(mov.createdAt).toLocaleDateString("es-CU", {
-                    day:   "numeric",
-                    month: "short",
-                    year:  "numeric",
-                  })}
-                </p>
-                {/* Status badge */}
-                <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                  mov.status === "completed"
-                    ? "bg-emerald-500/10 text-emerald-500"
-                    : mov.status === "pending"
-                    ? "bg-amber-500/10 text-amber-500"
-                    : "bg-red-500/10 text-red-500"
-                }`}>
-                  {mov.status === "completed" ? "✓ Completado" :
-                   mov.status === "pending"   ? "⏳ Pendiente" : "❌ Fallido"}
-                </span>
-              </div>
-              {/* TxHash si existe */}
-              {mov.txHash && (
-                <p className="text-[9px] text-gray-400 font-mono truncate mt-0.5">
-                  Tx: {mov.txHash.slice(0, 20)}...
-                </p>
-              )}
-            </div>
-
-            {/* Monto */}
-            <div className="text-right flex-shrink-0">
-              <p className={`text-sm font-black ${
-                isPositive
-                  ? "text-emerald-500"
-                  : "text-red-500"
-              }`}>
-                {isPositive ? "+" : ""}{mov.amount} {mov.asset}
+            <div className="flex-1">
+              <p className="text-sm font-bold">Activa tu wallet Stellar</p>
+              <p className="text-[11px] text-white/70">
+                Envía XLM con comisión de $0.00001
               </p>
             </div>
+            <button
+              onClick={handleCreateStellar}
+              disabled={creatingStellar}
+              className="px-3 py-2 rounded-xl bg-white text-indigo-600 text-xs font-bold hover:bg-gray-50 transition-all disabled:opacity-60"
+            >
+              {creatingStellar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Activar"}
+            </button>
           </div>
-        );
-      })}
-    </Card>
-  )}
-</div>
+        </div>
+      )}
+
+            {/* ═══ HISTORIAL DE MOVIMIENTOS ════════════════════════ */}
+      <div>
+        <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
+          Historial de movimientos
+        </h3>
+
+        {loadingHistory ? (
+          <div className="text-center py-8">
+            <div className="h-5 w-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
+            <p className="text-xs text-gray-400">Cargando historial...</p>
+          </div>
+
+        ) : movements.length === 0 ? (
+          <Card padding="lg" className="text-center">
+            <p className="text-2xl mb-2">📭</p>
+            <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+              Sin movimientos
+            </p>
+            <p className="text-xs text-gray-400">
+              Aquí aparecerán tus depósitos, retiros y trades.
+            </p>
+          </Card>
+
+        ) : (
+          <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
+            {movements.map((mov) => {
+              const isPositive = mov.amount > 0;
+              return (
+                <div key={mov.id} className="flex items-center gap-3 px-4 py-3.5">
+                  <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${
+                    isPositive ? "bg-emerald-500/10" : "bg-red-500/10"
+                  }`}>
+                    {mov.icon}
+                  </div>
+
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                      {mov.label}
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <p className="text-[10px] text-gray-400">
+                        {new Date(mov.createdAt).toLocaleDateString("es-CU", {
+                          day:   "numeric",
+                          month: "short",
+                          year:  "numeric",
+                        })}
+                      </p>
+                      <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                        mov.status === "completed"
+                          ? "bg-emerald-500/10 text-emerald-500"
+                          : mov.status === "pending"
+                          ? "bg-amber-500/10 text-amber-500"
+                          : "bg-red-500/10 text-red-500"
+                      }`}>
+                        {mov.status === "completed" ? "✓ Completado" :
+                         mov.status === "pending"   ? "⏳ Pendiente" : "❌ Fallido"}
+                      </span>
+                    </div>
+                    {mov.txHash && (
+                      <p className="text-[9px] text-gray-400 font-mono truncate mt-0.5">
+                        Tx: {mov.txHash.slice(0, 20)}...
+                      </p>
+                    )}
+                  </div>
+
+                  <div className="text-right flex-shrink-0">
+                    <p className={`text-sm font-black ${
+                      isPositive ? "text-emerald-500" : "text-red-500"
+                    }`}>
+                      {isPositive ? "+" : ""}{mov.amount} {mov.asset}
+                    </p>
+                  </div>
+                </div>
+              );
+            })}
+          </Card>
+        )}
+      </div>
 
       {/* ═══ MINI RESUMEN ════════════════════════════════ */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
@@ -404,16 +555,22 @@ useEffect(() => {
           const colors = ASSET_COLORS[b.asset] || ASSET_COLORS.USDT;
           const isUp   = b.change24h >= 0;
           return (
-            <div key={b.asset} className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`} onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}>
+            <div
+              key={b.asset}
+              className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`}
+              onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}
+            >
               <div className="flex items-center gap-2 mb-2">
-                {/* ✅ Corregido: Se añade onError para evitar la vista de imagen rota */}
-                <img 
-                  src={getAssetIcon(b.asset)} 
-                  alt={b.asset} 
-                  className="h-5 w-5 object-contain" 
+                <img
+                  src={getAssetIcon(b.asset)}
+                  alt={b.asset}
+                  className="h-5 w-5 object-contain"
                   onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
                 />
                 <span className="text-xs font-bold text-gray-900 dark:text-white">{b.asset}</span>
+                {b.network === "Stellar" && (
+                  <Star className="h-2.5 w-2.5 text-indigo-500 fill-current" />
+                )}
               </div>
               <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
                 {hideBalances ? "••••" : `$${b.usdValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
@@ -438,7 +595,7 @@ useEffect(() => {
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white">Depositar Cripto</h3>
-                  <p className="text-[10px] text-gray-400">Recibe fondos en tu wallet CubaX</p>
+                  <p className="text-[10px] text-gray-400">Recibe fondos en tu wallet CupCoin</p>
                 </div>
               </div>
               <button onClick={handleCloseAction} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
@@ -448,17 +605,27 @@ useEffect(() => {
 
             <div>
               <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Selecciona el Activo</label>
-              <div className="grid grid-cols-4 gap-2">
-                {["USDT", "USDC", "BTC", "ETH"].map((asset) => {
+              <div className="grid grid-cols-5 gap-2">
+                {["USDT", "USDC", "BTC", "ETH", "XLM"].map((asset) => {
                   const colors   = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
                   const selected = depositAsset === asset;
+                  const disabled = asset === "XLM" && !stellarPublic;
+
                   return (
-                    <button key={asset} onClick={() => handleOpenDeposit(asset)} className={`flex flex-col items-center gap-2 py-2.5 rounded-xl text-xs font-bold transition-all ${selected ? `${colors.bg} ${colors.text} ring-2 ring-current` : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"}`}>
-                      {/* ✅ Corregido: Cargando con fallback controlado en modales */}
-                      <img 
-                        src={getAssetIcon(asset)} 
-                        alt={asset} 
-                        className="h-6 w-6 object-contain" 
+                    <button
+                      key={asset}
+                      disabled={disabled}
+                      onClick={() => handleOpenDeposit(asset)}
+                      className={`flex flex-col items-center gap-2 py-2.5 rounded-xl text-[10px] font-bold transition-all ${
+                        selected
+                          ? `${colors.bg} ${colors.text} ring-2 ring-current`
+                          : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"
+                      } ${disabled ? "opacity-40" : ""}`}
+                    >
+                      <img
+                        src={getAssetIcon(asset)}
+                        alt={asset}
+                        className="h-6 w-6 object-contain"
                         onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
                       />
                       {asset}
@@ -478,13 +645,23 @@ useEffect(() => {
               </div>
             )}
 
-            {depositAsset !== "USDT" ? (
+            {depositAsset === "XLM" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                <span className="text-sm">⭐</span>
+                <div>
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Red: Stellar</p>
+                  <p className="text-[10px] text-gray-400">Recibe XLM en segundos con comisión mínima</p>
+                </div>
+              </div>
+            )}
+
+            {depositAsset !== "USDT" && depositAsset !== "XLM" ? (
               <div className="py-8 text-center">
                 <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
                   <Info className="h-5 w-5 text-amber-500" />
                 </div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Próximamente</p>
-                <p className="text-xs text-gray-400">Por ahora solo los depósitos de <strong>USDT/TRC20</strong> están disponibles.</p>
+                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
               </div>
             ) : isLoadingAddress ? (
               <div className="py-10 flex flex-col items-center justify-center space-y-3">
@@ -504,6 +681,16 @@ useEffect(() => {
                     {copied ? <><Check className="h-3 w-3" /> Copiada</> : <><Copy className="h-3 w-3" /> Copiar</>}
                   </button>
                 </div>
+                {depositAsset === "XLM" && stellarExplorer && (
+                  <a
+                    href={stellarExplorer}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-[11px] text-indigo-500 font-bold hover:text-indigo-600"
+                  >
+                    Ver en Stellar Expert →
+                  </a>
+                )}
               </div>
             ) : (
               <div className="py-8 text-center">
@@ -522,8 +709,8 @@ useEffect(() => {
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className="h-8 w-8 rounded-lg bg-red-500/10 flex items-center justify-center">
-                  <ArrowUpRight className="h-4 w-4 text-red-500" />
+                <div className={`h-8 w-8 rounded-lg ${isXLM ? "bg-indigo-500/10" : "bg-red-500/10"} flex items-center justify-center`}>
+                  <ArrowUpRight className={`h-4 w-4 ${isXLM ? "text-indigo-500" : "text-red-500"}`} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white">Retirar {activeAction.asset}</h3>
@@ -535,11 +722,11 @@ useEffect(() => {
               </button>
             </div>
 
-            {activeAction.asset !== "USDT" ? (
+            {activeAction.asset !== "USDT" && activeAction.asset !== "XLM" ? (
               <div className="py-8 text-center">
                 <Info className="h-5 w-5 text-amber-500 mx-auto mb-2" />
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Próximamente</p>
-                <p className="text-xs text-gray-400">Por ahora solo los retiros de <strong>USDT/TRC20</strong> están disponibles.</p>
+                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
               </div>
             ) : (
               <>
@@ -547,9 +734,19 @@ useEffect(() => {
                   <div className="flex items-center gap-2">
                     {[1, 2].map((step) => (
                       <div key={step} className="flex items-center gap-2 flex-1">
-                        <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${withdrawStep >= step ? "bg-red-500 text-white" : "bg-gray-100 dark:bg-white/5 text-gray-400"}`}>{step}</div>
-                        <span className={`text-[10px] font-semibold ${withdrawStep >= step ? "text-gray-900 dark:text-white" : "text-gray-400"}`}>{step === 1 ? "Dirección" : "Monto"}</span>
-                        {step < 2 && <div className={`flex-1 h-0.5 rounded-full ${withdrawStep > step ? "bg-red-500" : "bg-gray-200 dark:bg-white/10"}`} />}
+                        <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                          withdrawStep >= step
+                            ? isXLM ? "bg-indigo-500 text-white" : "bg-red-500 text-white"
+                            : "bg-gray-100 dark:bg-white/5 text-gray-400"
+                        }`}>{step}</div>
+                        <span className={`text-[10px] font-semibold ${withdrawStep >= step ? "text-gray-900 dark:text-white" : "text-gray-400"}`}>
+                          {step === 1 ? "Dirección" : "Monto"}
+                        </span>
+                        {step < 2 && <div className={`flex-1 h-0.5 rounded-full ${
+                          withdrawStep > step
+                            ? isXLM ? "bg-indigo-500" : "bg-red-500"
+                            : "bg-gray-200 dark:bg-white/10"
+                        }`} />}
                       </div>
                     ))}
                   </div>
@@ -557,34 +754,76 @@ useEffect(() => {
 
                 {withdrawStep === 1 && (
                   <div className="space-y-4">
-                    <div className="flex items-center gap-3 p-3 rounded-xl border border-red-500/30 bg-red-500/5">
+                    <div className={`flex items-center gap-3 p-3 rounded-xl border ${
+                      isXLM ? "border-indigo-500/30 bg-indigo-500/5" : "border-red-500/30 bg-red-500/5"
+                    }`}>
                       <span className="text-xl">{currentChainInfo?.icon || "🔴"}</span>
                       <div className="flex-1">
-                        <p className="text-xs font-bold text-gray-900 dark:text-white">{currentChainInfo?.label || "Tron (TRC-20)"}</p>
+                        <p className="text-xs font-bold text-gray-900 dark:text-white">{currentChainInfo?.label}</p>
                         <p className="text-[10px] text-gray-400">Comisión: {currentChainInfo?.fee} · Tiempo: {currentChainInfo?.time}</p>
                       </div>
-                      <CheckCircle2 className="h-4 w-4 text-red-500" />
+                      <CheckCircle2 className={`h-4 w-4 ${isXLM ? "text-indigo-500" : "text-red-500"}`} />
                     </div>
 
                     <div>
-                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Dirección TRC20 de destino</label>
-                      <input type="text" value={withdrawAddress} onChange={(e) => setWithdrawAddress(e.target.value)} placeholder="Empieza con T..." className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all" />
-                      {withdrawAddress && !withdrawAddress.startsWith("T") && (
-                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> La dirección debe empezar con T</p>
+                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                        Dirección {isXLM ? "Stellar" : "TRC20"} de destino
+                      </label>
+                      <input
+                        type="text"
+                        value={withdrawAddress}
+                        onChange={(e) => setWithdrawAddress(e.target.value)}
+                        placeholder={isXLM ? "Empieza con G..." : "Empieza con T..."}
+                        className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all"
+                      />
+                      {withdrawAddress && isXLM && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) && (
+                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Debe empezar con G y tener 56 caracteres
+                        </p>
+                      )}
+                      {withdrawAddress && !isXLM && !withdrawAddress.startsWith("T") && (
+                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> La dirección debe empezar con T
+                        </p>
                       )}
                     </div>
-                    <button disabled={!withdrawAddress || !withdrawAddress.startsWith("T")} onClick={() => setWithdrawStep(2)} className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold disabled:opacity-40">
+
+                    {isXLM && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                          Memo (opcional, máx 28 caracteres)
+                        </label>
+                        <input
+                          type="text"
+                          value={withdrawMemo}
+                          onChange={(e) => setWithdrawMemo(e.target.value)}
+                          maxLength={28}
+                          placeholder="Referencia o nota"
+                          className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      disabled={
+                        !withdrawAddress ||
+                        (isXLM && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56)) ||
+                        (!isXLM && !withdrawAddress.startsWith("T"))
+                      }
+                      onClick={() => setWithdrawStep(2)}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold disabled:opacity-40"
+                    >
                       Continuar <ArrowRight className="h-3.5 w-3.5" />
                     </button>
                   </div>
                 )}
 
-                {withdrawStep === 2 && (
+                                {withdrawStep === 2 && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200">
-                      <span className="text-lg">🔴</span>
+                      <span className="text-lg">{isXLM ? "⭐" : "🔴"}</span>
                       <div className="flex-1 truncate">
-                        <p className="text-[11px] font-bold text-gray-900 dark:text-white">Tron (TRC-20)</p>
+                        <p className="text-[11px] font-bold text-gray-900 dark:text-white">{currentChainInfo?.label}</p>
                         <p className="text-[10px] text-gray-400 font-mono truncate">{withdrawAddress}</p>
                       </div>
                       <button onClick={() => setWithdrawStep(1)} className="text-[10px] text-brand-500 font-bold">Editar</button>
@@ -593,25 +832,48 @@ useEffect(() => {
                     <div>
                       <div className="flex justify-between items-center mb-1.5">
                         <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monto a enviar</label>
-                        <button onClick={handleSetMaxAmount} className="text-[10px] font-bold text-red-500">MAX: {firestoreBalances[activeAction.asset] || 0} USDT</button>
+                        <button
+                          onClick={handleSetMaxAmount}
+                          className={`text-[10px] font-bold ${isXLM ? "text-indigo-500" : "text-red-500"}`}
+                        >
+                          MAX: {isXLM
+                            ? Math.max(0, stellarBalance - 1.5).toFixed(4)
+                            : (firestoreBalances[activeAction.asset] || 0)
+                          } {activeAction.asset}
+                        </button>
                       </div>
                       <div className="relative">
-                        <input type="number" value={withdrawAmount} onChange={(e) => setWithdrawAmount(e.target.value)} placeholder="0.00" min="1" className="w-full text-2xl font-bold bg-gray-50 dark:bg-white/5 border border-gray-200 rounded-xl px-4 py-4 pr-20 text-gray-900 dark:text-white focus:outline-none" />
-                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">USDT</span>
+                        <input
+                          type="number"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full text-2xl font-bold bg-gray-50 dark:bg-white/5 border border-gray-200 rounded-xl px-4 py-4 pr-20 text-gray-900 dark:text-white focus:outline-none"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">
+                          {activeAction.asset}
+                        </span>
                       </div>
-                      {withdrawAmount && parseFloat(withdrawAmount) > (firestoreBalances[activeAction.asset] || 0) && (
-                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1"><AlertTriangle className="h-3 w-3" /> Saldo insuficiente</p>
-                      )}
                     </div>
 
                     {withdrawError && (
-                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 text-xs text-red-700 dark:text-red-400">{withdrawError}</div>
+                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 text-xs text-red-700 dark:text-red-400">
+                        {withdrawError}
+                      </div>
                     )}
 
                     <div className="flex gap-2">
-                      <button onClick={() => setWithdrawStep(1)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-xs font-bold">Atrás</button>
-                      <button disabled={isSubmitting || !withdrawAmount || parseFloat(withdrawAmount) < 1 || parseFloat(withdrawAmount) > (firestoreBalances[activeAction.asset] || 0)} onClick={handleExecuteWithdrawal} className="flex-1 flex items-center justify-center gap-2 py-3 rounded-xl bg-red-500 text-white text-xs font-bold disabled:opacity-40">
-                        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Shield className="h-3.5 w-3.5" /> Confirmar Retiro</>}
+                      <button onClick={() => setWithdrawStep(1)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-xs font-bold">
+                        Atrás
+                      </button>
+                      <button
+                        disabled={isSubmitting || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                        onClick={handleExecuteWithdrawal}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl ${
+                          isXLM ? "bg-indigo-500" : "bg-red-500"
+                        } text-white text-xs font-bold disabled:opacity-40`}
+                      >
+                        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Shield className="h-3.5 w-3.5" /> Confirmar</>}
                       </button>
                     </div>
                   </div>
@@ -625,10 +887,22 @@ useEffect(() => {
                       <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 border text-center">
                         <p className="text-[10px] text-gray-400">Hash de transacción</p>
                         <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">{withdrawTxId}</p>
-                        <a href={`https://tronscan.org/#/transaction/${withdrawTxId}`} target="_blank" rel="noopener noreferrer" className="text-[10px] font-bold text-brand-500 block mt-1">Ver en TronScan →</a>
+                        <a
+                          href={isXLM
+                            ? `https://stellar.expert/explorer/testnet/tx/${withdrawTxId}`
+                            : `https://tronscan.org/#/transaction/${withdrawTxId}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-bold text-brand-500 block mt-1"
+                        >
+                          Ver en explorador →
+                        </a>
                       </div>
                     )}
-                    <button onClick={handleCloseAction} className="w-full py-3 rounded-xl bg-gray-900 text-white text-xs font-bold">Volver a Wallet</button>
+                    <button onClick={handleCloseAction} className="w-full py-3 rounded-xl bg-gray-900 text-white text-xs font-bold">
+                      Volver a Wallet
+                    </button>
                   </div>
                 )}
               </>
@@ -651,26 +925,40 @@ useEffect(() => {
             const isExpanded = expandedAsset === balance.asset;
 
             return (
-              <div key={balance.asset} className={`rounded-2xl border transition-all ${isExpanded ? `${colors.border} bg-gradient-to-r ${colors.gradient}` : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"}`}>
+              <div key={balance.asset} className={`rounded-2xl border transition-all ${
+                isExpanded
+                  ? `${colors.border} bg-gradient-to-r ${colors.gradient}`
+                  : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"
+              }`}>
                 <button onClick={() => setExpandedAsset(isExpanded ? null : balance.asset)} className="w-full flex items-center justify-between p-4">
                   <div className="flex items-center gap-3">
-                    {/* ✅ Corregido: Cargando imágenes con fallback controlado en la lista */}
                     <div className={`h-10 w-10 rounded-xl ${colors.bg} flex items-center justify-center overflow-hidden`}>
-                      <img 
-                        src={getAssetIcon(balance.asset)} 
-                        alt={balance.asset} 
-                        className="h-6 w-6 object-contain" 
+                      <img
+                        src={getAssetIcon(balance.asset)}
+                        alt={balance.asset}
+                        className="h-6 w-6 object-contain"
                         onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
                       />
                     </div>
                     <div className="text-left">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
-                      <p className="text-[11px] text-gray-400">{hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 6 : balance.asset === "ETH" ? 4 : 2)} ${balance.asset}`}</p>
+                      <div className="flex items-center gap-1.5">
+                        <p className="text-sm font-bold text-gray-900 dark:text-white">{balance.asset}</p>
+                        {balance.network && (
+                          <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-indigo-500/10 text-indigo-500 font-semibold">
+                            {balance.network}
+                          </span>
+                        )}
+                      </div>
+                      <p className="text-[11px] text-gray-400">
+                        {hideBalances ? "••••" : `${balance.amount.toFixed(balance.asset === "BTC" ? 6 : balance.asset === "ETH" || balance.asset === "XLM" ? 4 : 2)} ${balance.asset}`}
+                      </p>
                     </div>
                   </div>
                   <div className="flex items-center gap-3">
                     <div className="text-right">
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">{hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}</p>
+                      <p className="text-sm font-bold text-gray-900 dark:text-white">
+                        {hideBalances ? "••••" : `$${balance.usdValue.toLocaleString("en-US", { minimumFractionDigits: 2 })}`}
+                      </p>
                       <div className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
                         {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
                         {Math.abs(balance.change24h).toFixed(2)}%
@@ -702,10 +990,16 @@ useEffect(() => {
           <Info className="h-4 w-4 text-blue-500" />
         </div>
         <div>
-          <p className="text-[11px] font-bold text-gray-900 dark:text-white mb-0.5">Depósitos y retiros USDT TRC20</p>
-          <p className="text-[10px] text-gray-400 leading-relaxed">Los depósitos se detectan automáticamente cada 5 minutos. Los retiros se procesan en ~1 minuto via red TRON. Transferencias internas entre usuarios de CubaX son instantáneas y sin comisión.</p>
+          <p className="text-[11px] font-bold text-gray-900 dark:text-white mb-0.5">
+            Multi-red: TRC20 + Stellar
+          </p>
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            USDT vía Tron con detección automática cada 5 min.
+            XLM vía Stellar con confirmación en segundos.
+            Transferencias internas entre usuarios de CupCoin son instantáneas.
+          </p>
         </div>
       </div>
     </div>
   );
-                        }
+}
