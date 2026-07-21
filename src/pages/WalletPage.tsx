@@ -7,7 +7,7 @@ import {
   TrendingUp, TrendingDown, Shield, Loader2, Check,
   Eye, EyeOff, RefreshCw, ChevronDown, ChevronUp,
   AlertTriangle, X, Sparkles, ArrowRight,
-  Info, CheckCircle2, Star, Plus,
+  Info, CheckCircle2, Star,
 } from "lucide-react";
 
 type ActionType = "deposit" | "withdraw" | null;
@@ -34,11 +34,11 @@ const CHAIN_OPTIONS: Record<
   string,
   { label: string; value: string; icon: string; fee: string; time: string }[]
 > = {
-  USDT: [{ label: "Tron (TRC-20)", value: "TRC20", icon: "🔴", fee: "~1 USDT", time: "~1 min" }],
-  USDC: [{ label: "Tron (TRC-20)", value: "TRC20", icon: "🔴", fee: "~1 USDT", time: "~1 min" }],
-  BTC:  [{ label: "Bitcoin Network", value: "BTC", icon: "🟠", fee: "Variable", time: "~10-30 min" }],
-  ETH:  [{ label: "Ethereum (ERC-20)", value: "ERC20", icon: "🔵", fee: "Variable", time: "~3-5 min" }],
-  XLM:  [{ label: "Stellar Network", value: "STELLAR", icon: "⭐", fee: "~0.00001 XLM", time: "~5 seg" }],
+  USDT: [{ label: "Tron (TRC-20)",    value: "TRC20",   icon: "🔴", fee: "~1 USDT",       time: "~1 min" }],
+  USDC: [{ label: "Stellar Network",  value: "STELLAR", icon: "⭐", fee: "~0.00001 XLM",  time: "~5 seg" }],
+  BTC:  [{ label: "Bitcoin Network",  value: "BTC",     icon: "🟠", fee: "Variable",      time: "~10-30 min" }],
+  ETH:  [{ label: "Ethereum (ERC-20)", value: "ERC20",  icon: "🔵", fee: "Variable",      time: "~3-5 min" }],
+  XLM:  [{ label: "Stellar Network",  value: "STELLAR", icon: "⭐", fee: "~0.00001 XLM",  time: "~5 seg" }],
 };
 
 const ASSET_COLORS: Record<
@@ -86,6 +86,11 @@ export function WalletPage() {
   const [creatingStellar, setCreatingStellar]   = useState(false);
   const [stellarExplorer, setStellarExplorer]   = useState<string>("");
 
+  // ─── Estado USDC Stellar ─────────────────────────────────
+  const [usdcBalance, setUsdcBalance]           = useState<number>(0);
+  const [usdcTrustline, setUsdcTrustline]       = useState(false);
+  const [activatingUsdc, setActivatingUsdc]     = useState(false);
+
   const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
 
   // ─── Cargar wallet Stellar al inicio ──────────────────────
@@ -98,7 +103,9 @@ export function WalletPage() {
     setStellarLoading(true);
     try {
       const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/api/stellar/balance`, {
+
+      // Cargar XLM
+      const res = await fetch(`${BACKEND_URL}/api/stellar/balance`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
@@ -111,6 +118,17 @@ export function WalletPage() {
             ? `https://stellar.expert/explorer/public/account/${data.publicKey}`
             : `https://stellar.expert/explorer/testnet/account/${data.publicKey}`
         );
+
+        // Cargar USDC
+        const usdcRes = await fetch(`${BACKEND_URL}/api/stellar/usdc/balance`, {
+          headers: { Authorization: `Bearer ${token}` },
+        });
+        const usdcData = await usdcRes.json();
+
+        if (usdcData.success) {
+          setUsdcBalance(usdcData.balance || 0);
+          setUsdcTrustline(usdcData.hasTrustline || false);
+        }
       } else if (data.code === "NO_STELLAR_ACCOUNT") {
         setStellarPublic(null);
       }
@@ -141,10 +159,32 @@ export function WalletPage() {
     }
   };
 
-  // ─── Balances list (ahora incluye XLM si existe) ──────────
-  const xlmPrice = prices.find((p) => p.symbol.toUpperCase() === "XLM")?.priceUSD || 0.12;
+  const handleActivateUSDC = async () => {
+    setActivatingUsdc(true);
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(`${BACKEND_URL}/api/stellar/usdc/trustline`, {
+        method:  "POST",
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const data = await res.json();
 
-  const baseAssets: BalanceItem[] = ["USDT", "BTC", "ETH", "USDC"].map((asset) => {
+      if (data.success) {
+        await loadStellarWallet();
+      }
+    } catch (err) {
+      console.error("❌ Error activando USDC:", err);
+    } finally {
+      setActivatingUsdc(false);
+    }
+  };
+
+  // ─── Balances list (multi-red) ────────────────────────────
+  const xlmPrice  = prices.find((p) => p.symbol.toUpperCase() === "XLM")?.priceUSD  || 0.12;
+  const usdcPrice = prices.find((p) => p.symbol.toUpperCase() === "USDC")?.priceUSD || 1;
+
+  // USDT en Tron + BTC + ETH
+  const baseAssets: BalanceItem[] = ["USDT", "BTC", "ETH"].map((asset) => {
     const amount    = firestoreBalances[asset] || 0;
     const priceInfo = prices.find((p) => p.symbol.toUpperCase() === asset);
     const price     = priceInfo?.priceUSD || (asset === "BTC" ? 67500 : asset === "ETH" ? 3500 : 1);
@@ -152,6 +192,19 @@ export function WalletPage() {
     return { asset, amount, usdValue: amount * price, change24h: change, price };
   });
 
+  // USDC en Stellar (solo si tiene trustline)
+  const usdcAsset: BalanceItem | null = stellarPublic && usdcTrustline
+    ? {
+        asset:     "USDC",
+        amount:    usdcBalance,
+        usdValue:  usdcBalance * usdcPrice,
+        change24h: 0,
+        price:     usdcPrice,
+        network:   "Stellar",
+      }
+    : null;
+
+  // XLM en Stellar
   const stellarAsset: BalanceItem | null = stellarPublic
     ? {
         asset:     "XLM",
@@ -163,7 +216,11 @@ export function WalletPage() {
       }
     : null;
 
-  const balancesList = stellarAsset ? [...baseAssets, stellarAsset] : baseAssets;
+  const balancesList = [
+    ...baseAssets,
+    ...(usdcAsset    ? [usdcAsset]    : []),
+    ...(stellarAsset ? [stellarAsset] : []),
+  ];
 
   const totalUSD = balancesList.reduce((sum, b) => sum + b.usdValue, 0);
   const btcPrice = prices.find((p) => p.symbol === "BTC")?.priceUSD || 67500;
@@ -199,14 +256,14 @@ export function WalletPage() {
     return CRYPTO_ICONS[upper] || CRYPTO_ICONS[asset.toLowerCase()] || "/crypto/usd.svg";
   };
 
-  const handleOpenDeposit = async (asset: string) => {
+    const handleOpenDeposit = async (asset: string) => {
     const assetUpper = asset.toUpperCase();
     setDepositAsset(assetUpper);
     setDepositAddress(null);
     setActiveAction({ type: "deposit", asset: assetUpper });
 
-    // Stellar (XLM) — usa la dirección directa
-    if (assetUpper === "XLM" && stellarPublic) {
+    // XLM o USDC (Stellar) — usa la misma dirección
+    if ((assetUpper === "XLM" || assetUpper === "USDC") && stellarPublic) {
       setDepositAddress(stellarPublic);
       return;
     }
@@ -256,9 +313,10 @@ export function WalletPage() {
 
   const handleSetMaxAmount = () => {
     if (activeAction.asset === "XLM") {
-      // Dejar 1.5 XLM de reserva
       const max = Math.max(0, stellarBalance - 1.5);
       setWithdrawAmount(max.toFixed(4));
+    } else if (activeAction.asset === "USDC") {
+      setWithdrawAmount(usdcBalance.toFixed(2));
     } else if (activeAction.asset) {
       const max = firestoreBalances[activeAction.asset] || 0;
       setWithdrawAmount(String(max));
@@ -267,6 +325,54 @@ export function WalletPage() {
 
   const handleExecuteWithdrawal = async () => {
     if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !user?.uid) return;
+
+    // ─── Retiro USDC (Stellar) ────────────────────────────
+    if (activeAction.asset === "USDC") {
+      if (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) {
+        setWithdrawError("Dirección Stellar inválida (debe empezar con G).");
+        return;
+      }
+
+      const monto = parseFloat(withdrawAmount);
+      if (monto <= 0 || monto > usdcBalance) {
+        setWithdrawError("Balance USDC insuficiente.");
+        return;
+      }
+
+      setIsSubmitting(true);
+      setWithdrawError(null);
+
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(`${BACKEND_URL}/api/stellar/usdc/send`, {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            toAddress: withdrawAddress,
+            amount:    monto,
+            memo:      withdrawMemo || undefined,
+          }),
+        });
+        const data = await res.json();
+
+        if (data.success) {
+          setWithdrawSuccess(true);
+          setWithdrawTxId(data.txHash);
+          setWithdrawStep(3);
+          await loadStellarWallet();
+        } else {
+          setWithdrawError(data.error || "Error procesando retiro.");
+        }
+      } catch {
+        setWithdrawError("Error de conexión.");
+      } finally {
+        setIsSubmitting(false);
+      }
+      return;
+    }
 
     // ─── Retiro Stellar (XLM) ─────────────────────────────
     if (activeAction.asset === "XLM") {
@@ -316,7 +422,7 @@ export function WalletPage() {
       return;
     }
 
-    // ─── Retiro USDT/TRC20 (existente) ────────────────────
+    // ─── Retiro USDT/TRC20 ────────────────────────────────
     if (activeAction.asset !== "USDT") return;
 
     if (!withdrawAddress.startsWith("T")) {
@@ -394,7 +500,7 @@ export function WalletPage() {
   }, [user?.uid]);
 
   const currentChainInfo = activeAction.asset ? CHAIN_OPTIONS[activeAction.asset]?.[0] : null;
-  const isXLM            = activeAction.asset === "XLM";
+  const isStellar        = activeAction.asset === "XLM" || activeAction.asset === "USDC";
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4 animate-fade-in">
@@ -445,7 +551,7 @@ export function WalletPage() {
         </div>
       </div>
 
-      {/* ═══ BANNER STELLAR (solo si no tiene wallet) ═══════ */}
+      {/* ═══ BANNER STELLAR ══════════════════════════════ */}
       {!stellarLoading && !stellarPublic && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 text-white">
           <div className="absolute -top-6 -right-6 h-24 w-24 bg-white/10 rounded-full blur-2xl" />
@@ -456,7 +562,7 @@ export function WalletPage() {
             <div className="flex-1">
               <p className="text-sm font-bold">Activa tu wallet Stellar</p>
               <p className="text-[11px] text-white/70">
-                Envía XLM con comisión de $0.00001
+                Envía XLM y USDC con comisión de $0.00001
               </p>
             </div>
             <button
@@ -470,6 +576,30 @@ export function WalletPage() {
         </div>
       )}
 
+      {/* ═══ BANNER USDC ═════════════════════════════════ */}
+      {!stellarLoading && stellarPublic && !usdcTrustline && (
+        <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-blue-500 to-blue-700 p-4 text-white">
+          <div className="absolute -top-6 -right-6 h-24 w-24 bg-white/10 rounded-full blur-2xl" />
+          <div className="relative z-10 flex items-center gap-3">
+            <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+              <img src="/crypto/usdc.svg" alt="USDC" className="h-6 w-6" />
+            </div>
+            <div className="flex-1">
+              <p className="text-sm font-bold">Activa USDC en Stellar</p>
+              <p className="text-[11px] text-white/70">
+                Envía y recibe USDC con comisión ínfima
+              </p>
+            </div>
+            <button
+              onClick={handleActivateUSDC}
+              disabled={activatingUsdc}
+              className="px-3 py-2 rounded-xl bg-white text-blue-600 text-xs font-bold hover:bg-gray-50 transition-all disabled:opacity-60"
+            >
+              {activatingUsdc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Activar"}
+            </button>
+          </div>
+        </div>
+      )}
             {/* ═══ HISTORIAL DE MOVIMIENTOS ════════════════════════ */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
@@ -609,7 +739,8 @@ export function WalletPage() {
                 {["USDT", "USDC", "BTC", "ETH", "XLM"].map((asset) => {
                   const colors   = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
                   const selected = depositAsset === asset;
-                  const disabled = asset === "XLM" && !stellarPublic;
+                  const disabled = (asset === "XLM" && !stellarPublic) ||
+                                   (asset === "USDC" && (!stellarPublic || !usdcTrustline));
 
                   return (
                     <button
@@ -645,6 +776,16 @@ export function WalletPage() {
               </div>
             )}
 
+            {depositAsset === "USDC" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <span className="text-sm">⭐</span>
+                <div>
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400">Red: Stellar</p>
+                  <p className="text-[10px] text-gray-400">Envía USDC vía Stellar (barato y rápido)</p>
+                </div>
+              </div>
+            )}
+
             {depositAsset === "XLM" && (
               <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
                 <span className="text-sm">⭐</span>
@@ -655,13 +796,13 @@ export function WalletPage() {
               </div>
             )}
 
-            {depositAsset !== "USDT" && depositAsset !== "XLM" ? (
+            {depositAsset !== "USDT" && depositAsset !== "XLM" && depositAsset !== "USDC" ? (
               <div className="py-8 text-center">
                 <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
                   <Info className="h-5 w-5 text-amber-500" />
                 </div>
                 <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Próximamente</p>
-                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
+                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong>, <strong>USDC/Stellar</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
               </div>
             ) : isLoadingAddress ? (
               <div className="py-10 flex flex-col items-center justify-center space-y-3">
@@ -681,7 +822,7 @@ export function WalletPage() {
                     {copied ? <><Check className="h-3 w-3" /> Copiada</> : <><Copy className="h-3 w-3" /> Copiar</>}
                   </button>
                 </div>
-                {depositAsset === "XLM" && stellarExplorer && (
+                {(depositAsset === "XLM" || depositAsset === "USDC") && stellarExplorer && (
                   <a
                     href={stellarExplorer}
                     target="_blank"
@@ -709,8 +850,8 @@ export function WalletPage() {
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
-                <div className={`h-8 w-8 rounded-lg ${isXLM ? "bg-indigo-500/10" : "bg-red-500/10"} flex items-center justify-center`}>
-                  <ArrowUpRight className={`h-4 w-4 ${isXLM ? "text-indigo-500" : "text-red-500"}`} />
+                <div className={`h-8 w-8 rounded-lg ${isStellar ? "bg-indigo-500/10" : "bg-red-500/10"} flex items-center justify-center`}>
+                  <ArrowUpRight className={`h-4 w-4 ${isStellar ? "text-indigo-500" : "text-red-500"}`} />
                 </div>
                 <div>
                   <h3 className="text-sm font-bold text-gray-900 dark:text-white">Retirar {activeAction.asset}</h3>
@@ -722,11 +863,11 @@ export function WalletPage() {
               </button>
             </div>
 
-            {activeAction.asset !== "USDT" && activeAction.asset !== "XLM" ? (
+            {activeAction.asset !== "USDT" && activeAction.asset !== "XLM" && activeAction.asset !== "USDC" ? (
               <div className="py-8 text-center">
                 <Info className="h-5 w-5 text-amber-500 mx-auto mb-2" />
                 <p className="text-sm font-semibold text-gray-900 dark:text-white">Próximamente</p>
-                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
+                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong>, <strong>USDC/Stellar</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
               </div>
             ) : (
               <>
@@ -736,7 +877,7 @@ export function WalletPage() {
                       <div key={step} className="flex items-center gap-2 flex-1">
                         <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
                           withdrawStep >= step
-                            ? isXLM ? "bg-indigo-500 text-white" : "bg-red-500 text-white"
+                            ? isStellar ? "bg-indigo-500 text-white" : "bg-red-500 text-white"
                             : "bg-gray-100 dark:bg-white/5 text-gray-400"
                         }`}>{step}</div>
                         <span className={`text-[10px] font-semibold ${withdrawStep >= step ? "text-gray-900 dark:text-white" : "text-gray-400"}`}>
@@ -744,7 +885,7 @@ export function WalletPage() {
                         </span>
                         {step < 2 && <div className={`flex-1 h-0.5 rounded-full ${
                           withdrawStep > step
-                            ? isXLM ? "bg-indigo-500" : "bg-red-500"
+                            ? isStellar ? "bg-indigo-500" : "bg-red-500"
                             : "bg-gray-200 dark:bg-white/10"
                         }`} />}
                       </div>
@@ -755,40 +896,40 @@ export function WalletPage() {
                 {withdrawStep === 1 && (
                   <div className="space-y-4">
                     <div className={`flex items-center gap-3 p-3 rounded-xl border ${
-                      isXLM ? "border-indigo-500/30 bg-indigo-500/5" : "border-red-500/30 bg-red-500/5"
+                      isStellar ? "border-indigo-500/30 bg-indigo-500/5" : "border-red-500/30 bg-red-500/5"
                     }`}>
                       <span className="text-xl">{currentChainInfo?.icon || "🔴"}</span>
                       <div className="flex-1">
                         <p className="text-xs font-bold text-gray-900 dark:text-white">{currentChainInfo?.label}</p>
                         <p className="text-[10px] text-gray-400">Comisión: {currentChainInfo?.fee} · Tiempo: {currentChainInfo?.time}</p>
                       </div>
-                      <CheckCircle2 className={`h-4 w-4 ${isXLM ? "text-indigo-500" : "text-red-500"}`} />
+                      <CheckCircle2 className={`h-4 w-4 ${isStellar ? "text-indigo-500" : "text-red-500"}`} />
                     </div>
 
                     <div>
                       <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
-                        Dirección {isXLM ? "Stellar" : "TRC20"} de destino
+                        Dirección {isStellar ? "Stellar" : "TRC20"} de destino
                       </label>
                       <input
                         type="text"
                         value={withdrawAddress}
                         onChange={(e) => setWithdrawAddress(e.target.value)}
-                        placeholder={isXLM ? "Empieza con G..." : "Empieza con T..."}
+                        placeholder={isStellar ? "Empieza con G..." : "Empieza con T..."}
                         className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all"
                       />
-                      {withdrawAddress && isXLM && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) && (
+                      {withdrawAddress && isStellar && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) && (
                         <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3" /> Debe empezar con G y tener 56 caracteres
                         </p>
                       )}
-                      {withdrawAddress && !isXLM && !withdrawAddress.startsWith("T") && (
+                      {withdrawAddress && !isStellar && !withdrawAddress.startsWith("T") && (
                         <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
                           <AlertTriangle className="h-3 w-3" /> La dirección debe empezar con T
                         </p>
                       )}
                     </div>
 
-                    {isXLM && (
+                    {isStellar && (
                       <div>
                         <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
                           Memo (opcional, máx 28 caracteres)
@@ -807,8 +948,8 @@ export function WalletPage() {
                     <button
                       disabled={
                         !withdrawAddress ||
-                        (isXLM && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56)) ||
-                        (!isXLM && !withdrawAddress.startsWith("T"))
+                        (isStellar && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56)) ||
+                        (!isStellar && !withdrawAddress.startsWith("T"))
                       }
                       onClick={() => setWithdrawStep(2)}
                       className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold disabled:opacity-40"
@@ -818,10 +959,10 @@ export function WalletPage() {
                   </div>
                 )}
 
-                                {withdrawStep === 2 && (
+                {withdrawStep === 2 && (
                   <div className="space-y-4">
                     <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200">
-                      <span className="text-lg">{isXLM ? "⭐" : "🔴"}</span>
+                      <span className="text-lg">{isStellar ? "⭐" : "🔴"}</span>
                       <div className="flex-1 truncate">
                         <p className="text-[11px] font-bold text-gray-900 dark:text-white">{currentChainInfo?.label}</p>
                         <p className="text-[10px] text-gray-400 font-mono truncate">{withdrawAddress}</p>
@@ -834,10 +975,12 @@ export function WalletPage() {
                         <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monto a enviar</label>
                         <button
                           onClick={handleSetMaxAmount}
-                          className={`text-[10px] font-bold ${isXLM ? "text-indigo-500" : "text-red-500"}`}
+                          className={`text-[10px] font-bold ${isStellar ? "text-indigo-500" : "text-red-500"}`}
                         >
-                          MAX: {isXLM
+                          MAX: {activeAction.asset === "XLM"
                             ? Math.max(0, stellarBalance - 1.5).toFixed(4)
+                            : activeAction.asset === "USDC"
+                            ? usdcBalance.toFixed(2)
                             : (firestoreBalances[activeAction.asset] || 0)
                           } {activeAction.asset}
                         </button>
@@ -870,7 +1013,7 @@ export function WalletPage() {
                         disabled={isSubmitting || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
                         onClick={handleExecuteWithdrawal}
                         className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl ${
-                          isXLM ? "bg-indigo-500" : "bg-red-500"
+                          isStellar ? "bg-indigo-500" : "bg-red-500"
                         } text-white text-xs font-bold disabled:opacity-40`}
                       >
                         {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Shield className="h-3.5 w-3.5" /> Confirmar</>}
@@ -878,7 +1021,6 @@ export function WalletPage() {
                     </div>
                   </div>
                 )}
-
                 {withdrawStep === 3 && withdrawSuccess && (
                   <div className="py-6 text-center space-y-4">
                     <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
@@ -888,7 +1030,7 @@ export function WalletPage() {
                         <p className="text-[10px] text-gray-400">Hash de transacción</p>
                         <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">{withdrawTxId}</p>
                         <a
-                          href={isXLM
+                          href={isStellar
                             ? `https://stellar.expert/explorer/testnet/tx/${withdrawTxId}`
                             : `https://tronscan.org/#/transaction/${withdrawTxId}`
                           }
@@ -995,11 +1137,13 @@ export function WalletPage() {
           </p>
           <p className="text-[10px] text-gray-400 leading-relaxed">
             USDT vía Tron con detección automática cada 5 min.
-            XLM vía Stellar con confirmación en segundos.
+            XLM y USDC vía Stellar con confirmación en segundos.
             Transferencias internas entre usuarios de CupCoin son instantáneas.
           </p>
         </div>
       </div>
     </div>
   );
-}
+ }
+
+                
