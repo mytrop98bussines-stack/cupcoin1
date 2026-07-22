@@ -4,6 +4,7 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
@@ -13,6 +14,7 @@ import {
   TrendingUp, TrendingDown, Star, Plus,
   Search, Filter, X, Loader2,
   AlertTriangle, RefreshCw, ShieldCheck, Trash2,
+  BadgeCheck,
 } from "lucide-react";
 import type {
   OrderType, CryptoAsset, PaymentMethod, P2POrder,
@@ -30,6 +32,7 @@ export function P2PPage() {
   const [activeTab, setActiveTab]             = useState<OrderType>("buy");
   const [selectedAsset, setSelectedAsset]     = useState<CryptoAsset | "all">("all");
   const [selectedPayment, setSelectedPayment] = useState<PaymentMethod | "all">("all");
+  const [onlyVerified, setOnlyVerified]       = useState(false);
   const [searchQuery, setSearchQuery]         = useState("");
   const [showFilters, setShowFilters]         = useState(false);
   const [loadingOrders, setLoadingOrders]     = useState(true);
@@ -106,9 +109,13 @@ export function P2PPage() {
       if (selectedAsset   !== "all" && order.asset !== selectedAsset)                      return false;
       if (selectedPayment !== "all" && !order.paymentMethods.includes(selectedPayment))    return false;
       if (searchQuery && !order.userName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
+
+      // ✅ Filtro "Solo traders verificados"
+      if (onlyVerified && !(order as any).userVerified) return false;
+
       return true;
     });
-  }, [orders, activeTab, selectedAsset, selectedPayment, searchQuery]);
+  }, [orders, activeTab, selectedAsset, selectedPayment, searchQuery, onlyVerified]);
 
   // ─── Mis órdenes activas ──────────────────────────────────
   const myOrders = useMemo(
@@ -317,7 +324,39 @@ export function P2PPage() {
         ))}
       </div>
 
-      {/* ═══ BÚSQUEDA Y FILTROS ══════════════════════════════ */}
+      {/* ═══ TOGGLE VERIFIED ═════════════════════════════════ */}
+      <button
+        onClick={() => setOnlyVerified(!onlyVerified)}
+        className={`w-full flex items-center gap-2 p-3 rounded-xl border transition-all ${
+          onlyVerified
+            ? "bg-blue-500/10 border-blue-500/30"
+            : "bg-gray-50 dark:bg-white/[0.03] border-gray-200 dark:border-white/[0.06]"
+        }`}
+      >
+        <div className={`h-8 w-8 rounded-lg flex items-center justify-center flex-shrink-0 ${
+          onlyVerified ? "bg-blue-500" : "bg-gray-200 dark:bg-white/10"
+        }`}>
+          <BadgeCheck className={`h-4 w-4 ${onlyVerified ? "text-white" : "text-gray-400"}`} />
+        </div>
+        <div className="flex-1 text-left">
+          <p className={`text-xs font-bold ${
+            onlyVerified ? "text-blue-600 dark:text-blue-400" : "text-gray-700 dark:text-gray-300"
+          }`}>
+            Solo traders verificados
+          </p>
+          <p className="text-[10px] text-gray-400">
+            Traders con +20 trades y rating 4.5⭐
+          </p>
+        </div>
+        <div className={`relative h-5 w-9 rounded-full transition-colors flex items-center flex-shrink-0 ${
+          onlyVerified ? "bg-blue-500" : "bg-gray-300 dark:bg-white/20"
+        }`}>
+          <div className={`h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${
+            onlyVerified ? "translate-x-[18px]" : "translate-x-0.5"
+          }`} />
+        </div>
+      </button>
+            {/* ═══ BÚSQUEDA Y FILTROS ══════════════════════════════ */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -400,6 +439,7 @@ export function P2PPage() {
               setSelectedAsset("all");
               setSelectedPayment("all");
               setSearchQuery("");
+              setOnlyVerified(false);
               setShowFilters(false);
             }}
             className="text-xs text-red-500 font-bold flex items-center gap-1 hover:text-red-400 transition-colors"
@@ -424,7 +464,10 @@ export function P2PPage() {
               Sin órdenes disponibles
             </p>
             <p className="text-xs text-gray-400 mb-4">
-              Prueba cambiando los filtros o publica tu propia oferta.
+              {onlyVerified
+                ? "No hay traders verificados con esos filtros. Prueba desactivando el filtro."
+                : "Prueba cambiando los filtros o publica tu propia oferta."
+              }
             </p>
             <Button
               size="sm"
@@ -436,129 +479,145 @@ export function P2PPage() {
           </Card>
 
         ) : (
-          filteredOrders.map((order) => (
-            <Card key={order.id} padding="md" className="space-y-3">
+          filteredOrders.map((order) => {
+            const isVerified = (order as any).userVerified === true;
 
-              {/* Info del usuario */}
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-2.5">
-                  <Avatar name={order.userName} size="sm" />
-                  <div>
-                    <div className="flex items-center gap-1.5 flex-wrap">
-                      <span className="font-bold text-sm text-gray-900 dark:text-white">
-                        {order.userName}
-                      </span>
-                      {order.userId === user?.uid && (
-                        <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-brand-500/10 text-brand-500">
-                          Tuya
-                        </span>
+            return (
+              <Card key={order.id} padding="md" className={`space-y-3 ${
+                isVerified ? "border-blue-500/20" : ""
+              }`}>
+
+                {/* Info del usuario */}
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2.5">
+                    <div className="relative">
+                      <Avatar name={order.userName} size="sm" />
+                      {isVerified && (
+                        <div className="absolute -bottom-0.5 -right-0.5 h-3.5 w-3.5 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center border border-white dark:border-gray-900">
+                          <VerifiedBadge verified={true} size="sm" />
+                        </div>
                       )}
-                      <div className="flex items-center gap-0.5 text-amber-500">
-                        <Star className="h-3 w-3 fill-current" />
-                        <span className="text-[10px] font-bold">
-                          {order.userRating?.toFixed(1) || "5.0"}
-                        </span>
-                      </div>
                     </div>
-                    <span className="text-[10px] text-gray-400">
-                      {order.userTrades || 0} trades completados
-                    </span>
+                    <div>
+                      <div className="flex items-center gap-1.5 flex-wrap">
+                        <span className="font-bold text-sm text-gray-900 dark:text-white">
+                          {order.userName}
+                        </span>
+                        {isVerified && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/10 text-blue-500">
+                            Verificado
+                          </span>
+                        )}
+                        {order.userId === user?.uid && (
+                          <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-brand-500/10 text-brand-500">
+                            Tuya
+                          </span>
+                        )}
+                        <div className="flex items-center gap-0.5 text-amber-500">
+                          <Star className="h-3 w-3 fill-current" />
+                          <span className="text-[10px] font-bold">
+                            {order.userRating?.toFixed(1) || "5.0"}
+                          </span>
+                        </div>
+                      </div>
+                      <span className="text-[10px] text-gray-400">
+                        {order.userTrades || 0} trades completados
+                      </span>
+                    </div>
                   </div>
-                </div>
-                <Badge
-                  variant={order.type === "sell" ? "success" : "danger"}
-                  size="sm"
-                >
-                  {order.type === "sell" ? "Vende" : "Compra"}
-                </Badge>
-              </div>
-
-              {/* Precio y disponible */}
-              <div className="flex items-end justify-between">
-                <div>
-                  <p className="text-[10px] text-gray-400 mb-0.5">
-                    Precio por {order.asset}
-                  </p>
-                  <p className="text-xl font-black text-gray-900 dark:text-white leading-none">
-                    {order.pricePerUnit.toLocaleString("es-CU")}
-                    <span className="text-xs font-medium text-gray-400 ml-1">
-                      {order.currency}
-                    </span>
-                  </p>
-                </div>
-                <div className="text-right">
-                  <p className="text-[10px] text-gray-400">Rango</p>
-                  <p className="text-sm font-bold text-gray-900 dark:text-white">
-                    {order.minAmount} – {order.maxAmount}{" "}
-                    <span className="text-xs font-medium text-gray-400">
-                      {order.asset}
-                    </span>
-                  </p>
-                </div>
-              </div>
-              
-              {/* Métodos */}
-              <div className="flex items-center justify-between gap-2">
-                <div className="flex gap-1 flex-wrap">
-                  {order.paymentMethods.map((method) => (
-                    <span
-                      key={method}
-                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
-                        PAYMENT_METHOD_COLORS[method] ||
-                        "bg-gray-100 text-gray-500 border-gray-200"
-                      }`}
-                    >
-                      {PAYMENT_METHOD_LABELS[method] || method}
-                    </span>
-                  ))}
-                </div>
-                <p className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
-                  {order.availableAmount} {order.asset} disp.
-                </p>
-              </div>
-
-              {/* Botón acción */}
-              {order.userId === user?.uid ? (
-                // ✅ Orden propia: mostrar botón de eliminar
-                <div className="flex gap-2">
-                  <div className="flex-1 py-2 text-center text-xs text-gray-400 font-medium bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
-                    📌 Tu anuncio activo
-                  </div>
-                  <button
-                    onClick={() => handleDeleteOrder(order.id)}
-                    className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
-                    title="Eliminar anuncio"
+                  <Badge
+                    variant={order.type === "sell" ? "success" : "danger"}
+                    size="sm"
                   >
-                    <Trash2 className="h-4 w-4" />
-                  </button>
+                    {order.type === "sell" ? "Vende" : "Compra"}
+                  </Badge>
                 </div>
-              ) : (
-                // ✅ Orden ajena: botón para iniciar trade (abre modal)
-                <Button
-                  size="sm"
-                  fullWidth
-                  disabled={!!creatingTrade}
-                  onClick={() => handleTrade(order.id)}
-                  className={
-                    activeTab === "buy"
-                      ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/20"
-                      : "bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-500/20"
-                  }
-                >
-                  {creatingTrade === order.id ? (
-                    <span className="flex items-center justify-center gap-2">
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                      Iniciando trade...
-                    </span>
-                  ) : activeTab === "buy" ? (
-                    `Comprar ${order.asset}`
-                  ) : (
-                    `Vender ${order.asset}`
-                  )}
-                </Button>
-              )}
-            </Card>
-          ))
+
+                {/* Precio y disponible */}
+                <div className="flex items-end justify-between">
+                  <div>
+                    <p className="text-[10px] text-gray-400 mb-0.5">
+                      Precio por {order.asset}
+                    </p>
+                    <p className="text-xl font-black text-gray-900 dark:text-white leading-none">
+                      {order.pricePerUnit.toLocaleString("es-CU")}
+                      <span className="text-xs font-medium text-gray-400 ml-1">
+                        {order.currency}
+                      </span>
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="text-[10px] text-gray-400">Rango</p>
+                    <p className="text-sm font-bold text-gray-900 dark:text-white">
+                      {order.minAmount} – {order.maxAmount}{" "}
+                      <span className="text-xs font-medium text-gray-400">
+                        {order.asset}
+                      </span>
+                    </p>
+                  </div>
+                </div>
+
+                {/* Métodos */}
+                <div className="flex items-center justify-between gap-2">
+                  <div className="flex gap-1 flex-wrap">
+                    {order.paymentMethods.map((method) => (
+                      <span
+                        key={method}
+                        className={`px-2 py-0.5 rounded-md text-[10px] font-bold border ${
+                          PAYMENT_METHOD_COLORS[method] ||
+                          "bg-gray-100 text-gray-500 border-gray-200"
+                        }`}
+                      >
+                        {PAYMENT_METHOD_LABELS[method] || method}
+                      </span>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-gray-400 font-medium whitespace-nowrap">
+                    {order.availableAmount} {order.asset} disp.
+                  </p>
+                </div>
+
+                {/* Botón acción */}
+                {order.userId === user?.uid ? (
+                  <div className="flex gap-2">
+                    <div className="flex-1 py-2 text-center text-xs text-gray-400 font-medium bg-gray-50 dark:bg-white/5 rounded-xl border border-gray-100 dark:border-white/5">
+                      📌 Tu anuncio activo
+                    </div>
+                    <button
+                      onClick={() => handleDeleteOrder(order.id)}
+                      className="px-3 py-2 rounded-xl bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 text-red-500 hover:bg-red-100 dark:hover:bg-red-500/20 transition-colors"
+                      title="Eliminar anuncio"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
+                ) : (
+                  <Button
+                    size="sm"
+                    fullWidth
+                    disabled={!!creatingTrade}
+                    onClick={() => handleTrade(order.id)}
+                    className={
+                      activeTab === "buy"
+                        ? "bg-emerald-500 hover:bg-emerald-600 text-white shadow-sm shadow-emerald-500/20"
+                        : "bg-red-500 hover:bg-red-600 text-white shadow-sm shadow-red-500/20"
+                    }
+                  >
+                    {creatingTrade === order.id ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                        Iniciando trade...
+                      </span>
+                    ) : activeTab === "buy" ? (
+                      `Comprar ${order.asset}`
+                    ) : (
+                      `Vender ${order.asset}`
+                    )}
+                  </Button>
+                )}
+              </Card>
+            );
+          })
         )}
       </div>
 
@@ -599,9 +658,14 @@ export function P2PPage() {
                 </span>
               </div>
               <div className="flex justify-between text-sm">
-                <span className="text-gray-400">Vendedor</span>
-                <span className="font-semibold text-gray-900 dark:text-white">
+                <span className="text-gray-400">
+                  {tradeModal.order.type === "sell" ? "Vendedor" : "Comprador"}
+                </span>
+                <span className="font-semibold text-gray-900 dark:text-white flex items-center gap-1">
                   {tradeModal.order.userName}
+                  {(tradeModal.order as any).userVerified && (
+                    <VerifiedBadge verified={true} size="sm" />
+                  )}
                 </span>
               </div>
               <div className="flex justify-between text-sm">
@@ -714,4 +778,4 @@ export function P2PPage() {
       )}
     </div>
   );
-                }
+                  }
