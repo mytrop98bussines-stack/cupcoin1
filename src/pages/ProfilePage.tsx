@@ -1,80 +1,22 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
-import { ReportUserModal }   from "@/components/ReportUserModal";
-import { VerifiedBadge }     from "@/components/VerifiedBadge";
-import { ReviewsList }       from "@/components/ReviewsList";
+import { VerifiedBadge } from "@/components/VerifiedBadge";
 import {
-  Star, ArrowLeftRight, Shield, Calendar,
-  CheckCircle2, AlertTriangle, Flag, Clock,
-  Award, TrendingUp, MessageSquare,
+  User, Mail, Calendar, Shield, Star,
+  Edit3, Award, CheckCircle2,
 } from "lucide-react";
-import { PAYMENT_METHOD_LABELS } from "@/data/data";
 
-const BACKEND_URL = "https://cubax-backend.onrender.com/api";
+export function ProfilePage() {
+  const { user, navigate } = useAppStore();
 
-export function PublicProfilePage() {
-  const { selectedPublicUserId, navigate, user } = useAppStore();
+  if (!user) return null;
 
-  const [profile, setProfile]           = useState<any>(null);
-  const [activeOrders, setActiveOrders] = useState<any[]>([]);
-  const [loading, setLoading]           = useState(true);
-  const [showReport, setShowReport]     = useState(false);
-
-  useEffect(() => {
-    if (!selectedPublicUserId) {
-      navigate("p2p");
-      return;
-    }
-
-    const loadProfile = async () => {
-      try {
-        const res  = await fetch(
-          `${BACKEND_URL}/users/${selectedPublicUserId}/profile`
-        );
-        const data = await res.json();
-        if (data.success) {
-          setProfile(data.profile);
-          setActiveOrders(data.activeOrders || []);
-        }
-      } catch (err) {
-        console.error("❌ Error cargando perfil:", err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    void loadProfile();
-  }, [selectedPublicUserId]);
-
-  if (loading) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <div className="h-8 w-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-4" />
-        <p className="text-sm text-gray-400">Cargando perfil...</p>
-      </div>
-    );
-  }
-
-  if (!profile) {
-    return (
-      <div className="max-w-lg mx-auto px-4 py-16 text-center">
-        <AlertTriangle className="h-8 w-8 text-red-500 mx-auto mb-4" />
-        <p className="text-sm font-bold text-gray-900 dark:text-white mb-2">
-          Usuario no encontrado
-        </p>
-        <Button size="sm" onClick={() => navigate("p2p")}>
-          Volver al P2P
-        </Button>
-      </div>
-    );
-  }
-
-  const memberSince = profile.createdAt
-    ? new Date(profile.createdAt).toLocaleDateString("es-CU", {
+  const memberSince = user.createdAt
+    ? new Date(user.createdAt).toLocaleDateString("es-CU", {
         month: "long",
         year:  "numeric",
       })
@@ -87,26 +29,38 @@ export function PublicProfilePage() {
     rejected:             { label: "Rechazado",     variant: "danger"  as const },
   };
 
-  const kyc = kycConfig[profile.kycStatus as keyof typeof kycConfig]
+  const kyc = kycConfig[user.kycStatus as keyof typeof kycConfig]
     || kycConfig.unverified;
 
-  const stars = Math.round(profile.rating || 5);
+  const rating = (user as any).rating || 5;
+  const stars  = Math.round(rating);
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-      {/* ═══ PERFIL PRINCIPAL ════════════════════════════════ */}
+      {/* Header */}
+      <div className="flex items-center gap-3">
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
+          <User className="h-5 w-5 text-brand-500" />
+        </div>
+        <div>
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Perfil</h1>
+          <p className="text-xs text-gray-400">Información pública de tu cuenta</p>
+        </div>
+      </div>
+
+      {/* Perfil principal */}
       <Card padding="lg" className="relative overflow-hidden">
         <div className="absolute top-0 right-0 h-24 w-24 bg-brand-500/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex items-center gap-4">
           <div className="relative">
             <Avatar
-              name={profile.displayName}
-              src={profile.photoURL}
+              name={user.displayName}
+              src={user.photoURL}
               size="lg"
             />
-            {profile.verifiedTrader && (
+            {(user as any).verifiedTrader && (
               <div className="absolute -bottom-1 -right-1 h-6 w-6 rounded-full bg-white dark:bg-gray-900 flex items-center justify-center border-2 border-white dark:border-gray-900">
                 <VerifiedBadge verified={true} size="md" />
               </div>
@@ -116,15 +70,14 @@ export function PublicProfilePage() {
           <div className="flex-1 min-w-0">
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="font-bold text-lg text-gray-900 dark:text-white truncate">
-                {profile.displayName}
+                {user.displayName}
               </h2>
-              {profile.role === "admin" && (
+              {user.role === "admin" && (
                 <Badge variant="danger" size="sm">Admin</Badge>
               )}
             </div>
 
-            {/* Verified Trader label */}
-            {profile.verifiedTrader && (
+            {(user as any).verifiedTrader && (
               <div className="flex items-center gap-1 mt-1">
                 <Award className="h-3 w-3 text-blue-500" />
                 <span className="text-[11px] font-bold text-blue-500">
@@ -133,23 +86,20 @@ export function PublicProfilePage() {
               </div>
             )}
 
-            {/* Rating con estrellas */}
             <div className="flex items-center gap-1 mt-1">
               {[1, 2, 3, 4, 5].map((s) => (
                 <span
                   key={s}
-                  className={`text-sm ${
-                    s <= stars ? "opacity-100" : "opacity-20"
-                  }`}
+                  className={`text-sm ${s <= stars ? "opacity-100" : "opacity-20"}`}
                 >
                   ⭐
                 </span>
               ))}
               <span className="text-xs font-bold text-gray-900 dark:text-white ml-1">
-                {(profile.rating || 5).toFixed(1)}
+                {rating.toFixed(1)}
               </span>
               <span className="text-xs text-gray-400">
-                ({profile.totalReviews || 0} reseñas)
+                ({(user as any).totalReviews || 0} reseñas)
               </span>
             </div>
 
@@ -157,128 +107,93 @@ export function PublicProfilePage() {
               <Badge variant={kyc.variant} size="sm">
                 {kyc.label}
               </Badge>
-              {profile.suspended && (
-                <Badge variant="danger" size="sm">🚫 Suspendido</Badge>
-              )}
             </div>
           </div>
         </div>
 
-        {/* Estadísticas */}
-        <div className="grid grid-cols-4 gap-2 mt-4">
-          <div className="text-center p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl">
-            <p className="text-base font-black text-brand-500">
-              {profile.totalTrades || 0}
-            </p>
-            <p className="text-[9px] text-gray-400">Trades</p>
-          </div>
-          <div className="text-center p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl">
-            <p className="text-base font-black text-amber-500">
-              {(profile.rating || 5).toFixed(1)}
-            </p>
-            <p className="text-[9px] text-gray-400">Rating</p>
-          </div>
-          <div className="text-center p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl">
-            <p className="text-base font-black text-emerald-500">
-              {activeOrders.length}
-            </p>
-            <p className="text-[9px] text-gray-400">Órdenes</p>
-          </div>
-          <div className="text-center p-2.5 bg-gray-50 dark:bg-white/5 rounded-xl">
-            <p className={`text-base font-black ${
-              (profile.totalDisputes || 0) > 3
-                ? "text-red-500"
-                : "text-gray-400"
-            }`}>
-              {profile.totalDisputes || 0}
-            </p>
-            <p className="text-[9px] text-gray-400">Disputas</p>
-          </div>
-        </div>
-
-        {/* Miembro desde */}
-        <div className="flex items-center gap-2 mt-3 text-xs text-gray-400">
-          <Calendar className="h-3.5 w-3.5" />
-          <span>Miembro desde {memberSince}</span>
-        </div>
-
-        {/* Botón de reporte — solo si no es el propio perfil */}
-        {user?.uid !== profile.uid && (
-          <button
-            onClick={() => setShowReport(true)}
-            className="mt-3 w-full flex items-center justify-center gap-2 py-2 rounded-xl border border-red-200 dark:border-red-500/20 text-red-500 text-xs font-bold hover:bg-red-50 dark:hover:bg-red-500/5 transition-colors"
-          >
-            <Flag className="h-3.5 w-3.5" />
-            Reportar usuario
-          </button>
-        )}
+        <Button
+          size="sm"
+          fullWidth
+          variant="outline"
+          onClick={() => navigate("settings")}
+          icon={<Edit3 className="h-3.5 w-3.5" />}
+          className="mt-4"
+        >
+          Editar perfil
+        </Button>
       </Card>
 
-      {/* ═══ ÓRDENES ACTIVAS ═════════════════════════════════ */}
-      {activeOrders.length > 0 && (
-        <div>
-          <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
-            Órdenes activas ({activeOrders.length})
-          </h3>
-          <div className="space-y-2">
-            {activeOrders.map((order) => (
-              <Card key={order.id} padding="md" className="space-y-2">
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-2">
-                    <span className="text-lg">
-                      {order.asset === "USDT" ? "💵" :
-                       order.asset === "BTC"  ? "₿"  :
-                       order.asset === "ETH"  ? "Ξ"  : "🪙"}
-                    </span>
-                    <div>
-                      <p className="text-sm font-bold text-gray-900 dark:text-white">
-                        {order.type === "sell" ? "Vende" : "Compra"} {order.asset}
-                      </p>
-                      <p className="text-[10px] text-gray-400">
-                        {order.minAmount} – {order.maxAmount} {order.asset}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-sm font-black text-brand-500">
-                      {order.pricePerUnit.toLocaleString("es-CU")}
-                    </p>
-                    <p className="text-[10px] text-gray-400">{order.currency}</p>
-                  </div>
-                </div>
-                <div className="flex gap-1 flex-wrap">
-                  {order.paymentMethods.map((m: string) => (
-                    <span
-                      key={m}
-                      className="px-2 py-0.5 rounded-md text-[10px] font-semibold bg-brand-500/10 text-brand-500"
-                    >
-                      {PAYMENT_METHOD_LABELS[m] || m}
-                    </span>
-                  ))}
-                </div>
-              </Card>
-            ))}
+      {/* Estadísticas */}
+      <div className="grid grid-cols-2 gap-2">
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-7 w-7 rounded-lg bg-brand-500/10 flex items-center justify-center">
+              <Star className="h-3.5 w-3.5 text-brand-500" />
+            </div>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase">Trades</p>
           </div>
-        </div>
-      )}
+          <p className="text-xl font-black text-gray-900 dark:text-white">
+            {user.totalTrades || 0}
+          </p>
+        </Card>
 
-      {/* ═══ RESEÑAS ═════════════════════════════════════════ */}
-      <div>
-        <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1 flex items-center gap-2">
-          <MessageSquare className="h-3.5 w-3.5" />
-          Calificaciones
-        </h3>
-        <ReviewsList userId={profile.uid} />
+        <Card padding="md">
+          <div className="flex items-center gap-2 mb-1">
+            <div className="h-7 w-7 rounded-lg bg-amber-500/10 flex items-center justify-center">
+              <CheckCircle2 className="h-3.5 w-3.5 text-amber-500" />
+            </div>
+            <p className="text-[10px] text-gray-400 font-semibold uppercase">Rating</p>
+          </div>
+          <p className="text-xl font-black text-gray-900 dark:text-white">
+            {rating.toFixed(1)} ⭐
+          </p>
+        </Card>
       </div>
 
-      {/* Modal de reporte */}
-      {showReport && (
-        <ReportUserModal
-          reportedUserId={profile.uid}
-          reportedUserName={profile.displayName}
-          onClose={() => setShowReport(false)}
-        />
+      {/* Info personal */}
+      <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.05]">
+        {[
+          { icon: Mail,     label: "Correo",          value: user.email },
+          { icon: Calendar, label: "Miembro desde",   value: memberSince },
+          { icon: Shield,   label: "Estado KYC",      value: kyc.label },
+        ].map((item) => (
+          <div key={item.label} className="flex items-center gap-3 px-4 py-3.5">
+            <div className="h-8 w-8 rounded-lg bg-gray-50 dark:bg-white/5 flex items-center justify-center flex-shrink-0">
+              <item.icon className="h-4 w-4 text-gray-500" />
+            </div>
+            <div className="flex-1 min-w-0">
+              <p className="text-xs text-gray-400">{item.label}</p>
+              <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                {item.value}
+              </p>
+            </div>
+          </div>
+        ))}
+      </Card>
+
+      {/* KYC no verificado */}
+      {user.kycStatus !== "verified" && (
+        <Card padding="md" className="bg-amber-500/10 border-amber-500/20">
+          <div className="flex items-start gap-2">
+            <Shield className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+            <div className="flex-1">
+              <p className="text-xs font-bold text-amber-700 dark:text-amber-400 mb-1">
+                Verifica tu identidad
+              </p>
+              <p className="text-[11px] text-gray-500 dark:text-gray-400 mb-3">
+                Sube tu documento para operar en el P2P sin restricciones.
+              </p>
+              <Button
+                size="sm"
+                onClick={() => navigate("kyc")}
+                className="bg-amber-500 hover:bg-amber-600"
+              >
+                Verificar ahora
+              </Button>
+            </div>
+          </div>
+        </Card>
       )}
     </div>
   );
-            }
+}
