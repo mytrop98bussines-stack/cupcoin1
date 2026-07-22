@@ -192,19 +192,21 @@ export function AuthPage() {
         const data = await res.json();
 
         if (!data.success) {
-          if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
-            setErrors({ email: data.error });
-          } else if (
-            data.code === "INVALID_PASSWORD" ||
-            data.code === "INVALID_LOGIN_CREDENTIALS"
-          ) {
-            setErrors({ password: data.error });
-          } else if (data.code === "ACCOUNT_SUSPENDED") {
-            setGlobalError("🚫 " + data.error);
-          } else {
-            setGlobalError(data.error);
-          }
-          return;
+  if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
+    setErrors({ email: data.error });
+  } else if (
+    data.code === "INVALID_PASSWORD" ||
+    data.code === "INVALID_LOGIN_CREDENTIALS"
+  ) {
+    setErrors({ password: data.error });
+  } else if (data.code === "ACCOUNT_SUSPENDED") {
+    setGlobalError("🚫 " + data.error);
+  } else if (data.code === "RATE_LIMIT") {
+    setGlobalError(`⏳ ${data.error}`);
+  } else {
+    setGlobalError(data.error);
+  }
+  return;
         }
 
         if (data.requires2FA) {
@@ -249,17 +251,21 @@ export function AuthPage() {
       const data = await res.json();
 
       if (!data.success) {
-        setTwoFAError(data.error || "Código incorrecto.");
+  if (data.code === "RATE_LIMIT") {
+    setTwoFAError(`⏳ ${data.error}`);
+  } else {
+    setTwoFAError(data.error || "Código incorrecto.");
+  }
 
-        if (data.error?.includes("expirada") || data.error?.includes("inválida")) {
-          setTimeout(() => {
-            setTwoFARequired(false);
-            setTwoFACode("");
-            setTwoFAError(null);
-            setTwoFAChallengeToken("");
-          }, 2000);
-        }
-        return;
+  if (data.error?.includes("expirada") || data.error?.includes("inválida")) {
+    setTimeout(() => {
+      setTwoFARequired(false);
+      setTwoFACode("");
+      setTwoFAError(null);
+      setTwoFAChallengeToken("");
+    }, 2000);
+  }
+  return;
       }
 
       finishLogin(data);
@@ -291,9 +297,11 @@ export function AuthPage() {
       const data = await res.json();
 
       if (data.success) {
-        setResetSent(true);
-      } else {
-        setGlobalError(data.error);
+  setResetSent(true);
+} else if (data.code === "RATE_LIMIT") {
+  setGlobalError(`⏳ ${data.error}`);
+} else {
+  setGlobalError(data.error);
       }
     } catch {
       setGlobalError("Error de conexión.");
