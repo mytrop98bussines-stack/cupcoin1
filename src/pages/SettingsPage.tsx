@@ -9,6 +9,7 @@ import {
   ArrowLeftRight, Wallet, FileText, ExternalLink,
   Wrench, Copy, Check, User, AlertTriangle,
   Smartphone, CheckCircle2, Clock, X, Crown,
+  Users,
 } from "lucide-react";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
