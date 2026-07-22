@@ -6,13 +6,13 @@ import { Button }    from "@/components/ui/Button";
 import { Avatar }    from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
 import { ReportUserModal } from "@/components/ReportUserModal";
-import { RatingModal } from "@/components/RatingModal;
+import { RatingModal }     from "@/components/RatingModal";
+import { VerifiedBadge }   from "@/components/VerifiedBadge";
 import { PAYMENT_METHOD_LABELS } from "@/data/data";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
   Send, Copy, Phone, Lock, Unlock, XCircle,
   Loader2, ArrowLeft, Upload, Timer, Star,
-  X,
 } from "lucide-react";
 import type { Trade, TradeStatus } from "@/types";
 
@@ -82,35 +82,35 @@ export function TradePage() {
   const [evidenceUploaded, setEvidenceUploaded]   = useState(false);
   const [timeLeft, setTimeLeft]                   = useState<number | null>(null);
   const evidenceInputRef                          = useRef<HTMLInputElement>(null);
-  const [showRating, setShowRating]               = useState(false);
-  const [ratingValue, setRatingValue]             = useState(5);
-  const [ratingComment, setRatingComment]         = useState("");
-  const [submittingRating, setSubmittingRating]   = useState(false);
-  const [ratingDone, setRatingDone]               = useState(false);
-  // Estados
+
+  // ─── Estado de calificación ────────────────────────────────
   const [showRateModal, setShowRateModal] = useState(false);
   const [canRate, setCanRate]             = useState(false);
-  // ─── Estado para reporte ──────────────────────────────────
+
+  // ─── Estado de reporte ─────────────────────────────────────
   const [showReport, setShowReport] = useState(false);
 
+  // ─── Verificar si puede calificar ─────────────────────────
+  useEffect(() => {
+    if (!trade || !user?.uid) return;
+
+    const isCompleted = trade.status === "crypto_released";
+    if (!isCompleted) {
+      setCanRate(false);
+      return;
+    }
+
+    const token = localStorage.getItem("cubax_token");
+    fetch(`${BACKEND_URL}/api/trades/${trade.id}/can-rate`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((r) => r.json())
+      .then((data) => {
+        if (data.success) setCanRate(data.canRate);
+      });
+  }, [trade?.id, trade?.status, user?.uid]);
+
   // ─── Cargar trade via backend con polling ─────────────────
-  // Verificar si puede calificar
-useEffect(() => {
-  if (!activeTrade || !user?.uid) return;
-
-  const isCompleted = activeTrade.status === "crypto_released" || activeTrade.status === "completed";
-  if (!isCompleted) return;
-
-  const token = localStorage.getItem("cubax_token");
-  fetch(`${BACKEND_URL}/api/trades/${activeTrade.id}/can-rate`, {
-    headers: { Authorization: `Bearer ${token}` },
-  })
-    .then((r) => r.json())
-    .then((data) => {
-      if (data.success) setCanRate(data.canRate);
-    });
-}, [activeTrade, user?.uid]);
-  
   useEffect(() => {
     const tradeId = selectedTradeId || activeTrade?.id;
     if (!tradeId) {
@@ -362,39 +362,6 @@ useEffect(() => {
     }
   }, [trade, user, isBuyer, isSeller, isParticipant]);
 
-  // ─── Enviar rating ────────────────────────────────────────
-const handleSubmitRating = async () => {
-  if (!trade || !user) return;
-
-  setSubmittingRating(true);
-  try {
-    const token = localStorage.getItem("cubax_token");
-    const res   = await fetch(
-      `${BACKEND_URL}/api/trades/${trade.id}/rate`,
-      {
-        method:  "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          rating:  ratingValue,
-          comment: ratingComment.trim(),
-        }),
-      }
-    );
-    const data = await res.json();
-    if (!data.success) throw new Error(data.error);
-
-    setRatingDone(true);
-    setShowRating(false);
-  } catch (err: any) {
-    setError(err.message || "Error enviando valoración.");
-  } finally {
-    setSubmittingRating(false);
-  }
-};
-
   // ─── Loading ──────────────────────────────────────────────
   if (!trade) {
     return (
@@ -425,7 +392,6 @@ const handleSubmitRating = async () => {
   }
 
   const statusConfig = STATUS_CONFIG[trade.status];
-
   return (
     <div className="max-w-lg mx-auto pb-24 animate-fade-in">
 
@@ -464,7 +430,6 @@ const handleSubmitRating = async () => {
 
       <div className="px-4 space-y-3">
 
-        {/* Error banner */}
         {error && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -503,7 +468,6 @@ const handleSubmitRating = async () => {
           </div>
         </Card>
 
-        {/* Escrow info */}
         {trade.escrowFundedAt && trade.status !== "crypto_released" && (
           <Card padding="sm" className="border-emerald-500/20 bg-emerald-50 dark:bg-emerald-500/5">
             <div className="flex items-center gap-2">
@@ -521,7 +485,6 @@ const handleSubmitRating = async () => {
           </Card>
         )}
 
-        {/* Datos de pago */}
         {trade.paymentDetails &&
           ["escrow_funded", "payment_sent"].includes(trade.status) && (
           <Card padding="md">
@@ -566,37 +529,40 @@ const handleSubmitRating = async () => {
         )}
 
         {/* Contraparte */}
-<Card padding="sm">
-  <div className="flex items-center gap-3">
-    <Avatar
-      name={isBuyer ? trade.sellerName : trade.buyerName}
-      size="sm"
-    />
-    <div className="flex-1">
-      <p className="font-bold text-sm text-gray-900 dark:text-white">
-        {isBuyer ? trade.sellerName : trade.buyerName}
-      </p>
-      <p className="text-[10px] text-gray-400">
-        {isBuyer ? "Vendedor" : "Comprador"}
-      </p>
-    </div>
-    <Badge variant="success" size="sm">Online</Badge>
+        <Card padding="sm">
+          <div className="flex items-center gap-3">
+            <Avatar
+              name={isBuyer ? trade.sellerName : trade.buyerName}
+              size="sm"
+            />
+            <div className="flex-1">
+              <div className="flex items-center gap-1.5">
+                <p className="font-bold text-sm text-gray-900 dark:text-white">
+                  {isBuyer ? trade.sellerName : trade.buyerName}
+                </p>
+                {(trade as any).counterpartVerified && (
+                  <VerifiedBadge verified={true} size="sm" />
+                )}
+              </div>
+              <p className="text-[10px] text-gray-400">
+                {isBuyer ? "Vendedor" : "Comprador"}
+              </p>
+            </div>
+            <Badge variant="success" size="sm">Online</Badge>
 
-    {/* ✅ Botón de reporte */}
-    <button
-      onClick={() => setShowReport(true)}
-      className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
-      title="Reportar usuario"
-    >
-      <AlertTriangle className="h-4 w-4 text-gray-400 hover:text-red-500 transition-colors" />
-    </button>
-  </div>
-</Card>
+            <button
+              onClick={() => setShowReport(true)}
+              className="p-1.5 rounded-lg hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors"
+              title="Reportar usuario"
+            >
+              <AlertTriangle className="h-4 w-4 text-gray-400 hover:text-red-500 transition-colors" />
+            </button>
+          </div>
+        </Card>
 
-        {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
+        {/* BOTONES DE ACCIÓN */}
         <div className="space-y-2">
 
-          {/* Input oculto para evidencia */}
           <input
             type="file"
             accept="image/*"
@@ -605,7 +571,6 @@ const handleSubmitRating = async () => {
             className="hidden"
           />
 
-          {/* Vendedor fondea escrow */}
           {trade.status === "awaiting_escrow" && isSeller && (
             <Button
               size="lg" fullWidth loading={loading}
@@ -616,7 +581,6 @@ const handleSubmitRating = async () => {
             </Button>
           )}
 
-          {/* Comprador espera escrow */}
           {trade.status === "awaiting_escrow" && isBuyer && (
             <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl">
               <p className="text-xs font-semibold text-amber-600 dark:text-amber-400 text-center">
@@ -626,7 +590,6 @@ const handleSubmitRating = async () => {
             </div>
           )}
 
-          {/* Comprador marca pago */}
           {trade.status === "escrow_funded" && isBuyer && (
             <div className="space-y-2">
               <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
@@ -648,7 +611,6 @@ const handleSubmitRating = async () => {
             </div>
           )}
 
-          {/* Vendedor espera pago */}
           {trade.status === "escrow_funded" && isSeller && (
             <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
               <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
@@ -659,7 +621,6 @@ const handleSubmitRating = async () => {
             </div>
           )}
 
-          {/* Vendedor libera fondos */}
           {trade.status === "payment_sent" && isSeller && (
             <div className="space-y-2">
               <div className="p-2.5 bg-amber-500/10 border border-amber-500/20 rounded-xl">
@@ -679,7 +640,6 @@ const handleSubmitRating = async () => {
             </div>
           )}
 
-          {/* Comprador espera liberación */}
           {trade.status === "payment_sent" && isBuyer && (
             <div className="p-3 bg-indigo-500/10 border border-indigo-500/20 rounded-xl">
               <p className="text-xs font-semibold text-indigo-600 dark:text-indigo-400 text-center">
@@ -689,11 +649,10 @@ const handleSubmitRating = async () => {
             </div>
           )}
 
-          {/* ═══ DISPUTA ═══════════════════════════════════════ */}
+          {/* DISPUTA */}
           {trade.status === "disputed" && (
             <div className="space-y-3">
 
-              {/* Timer de disputa */}
               {timeLeft !== null && (
                 <div className={`p-3 rounded-xl border text-center ${
                   timeLeft > 10 * 60 * 1000
@@ -718,7 +677,6 @@ const handleSubmitRating = async () => {
                 </div>
               )}
 
-              {/* Panel del comprador en disputa */}
               {isBuyer && (
                 <div className="space-y-3">
                   <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-xl">
@@ -760,7 +718,6 @@ const handleSubmitRating = async () => {
                 </div>
               )}
 
-              {/* Panel del vendedor en disputa */}
               {isSeller && (
                 <div className="space-y-3">
                   <div className="p-3 bg-red-500/10 border border-red-500/20 rounded-xl">
@@ -803,61 +760,48 @@ const handleSubmitRating = async () => {
           )}
 
           {/* Trade completado */}
-{trade.status === "crypto_released" && (
-  <div className="space-y-2">
-    <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
-      <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
-      <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
-        ¡Trade completado con éxito!
-      </p>
-      <p className="text-xs text-gray-400 mt-1">
-        {trade.amount} {trade.asset} enviados al comprador
-      </p>
-    </div>
+          {trade.status === "crypto_released" && (
+            <div className="space-y-2">
+              <div className="p-4 bg-emerald-500/10 border border-emerald-500/20 rounded-xl text-center">
+                <CheckCircle2 className="h-8 w-8 text-emerald-500 mx-auto mb-2" />
+                <p className="text-sm font-bold text-emerald-600 dark:text-emerald-400">
+                  ¡Trade completado con éxito!
+                </p>
+                <p className="text-xs text-gray-400 mt-1">
+                  {trade.amount} {trade.asset} enviados al comprador
+                </p>
+              </div>
 
-    {/* ✅ Botón de valorar */}
-    {!ratingDone && (
-      <Button
-        size="lg"
-        fullWidth
-        onClick={() => setShowRating(true)}
-        className="bg-amber-500 hover:bg-amber-600 text-white"
-        icon={<Star className="h-4 w-4" />}
-      >
-        ⭐ Valorar a {isBuyer ? trade.sellerName : trade.buyerName}
-      </Button>
-    )}
+              {canRate && (
+                <Button
+                  size="lg"
+                  fullWidth
+                  onClick={() => setShowRateModal(true)}
+                  icon={<Star className="h-4 w-4" />}
+                  className="bg-amber-500 hover:bg-amber-600 text-white"
+                >
+                  ⭐ Calificar a {isBuyer ? trade.sellerName : trade.buyerName}
+                </Button>
+              )}
 
-    {ratingDone && (
-      <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
-        <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
-          ✅ Valoración enviada. ¡Gracias!
-        </p>
-      </div>
-    )}
-    // Botón (agregar donde quede bien en tu UI)
-{canRate && (
-  <Button
-    fullWidth
-    onClick={() => setShowRateModal(true)}
-    icon={<Star className="h-4 w-4" />}
-    className="bg-amber-500 hover:bg-amber-600"
-  >
-    Calificar experiencia
-  </Button>
-)}
+              {!canRate && (
+                <div className="p-3 bg-amber-500/10 border border-amber-500/20 rounded-xl text-center">
+                  <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                    ✅ Ya calificaste este trade. ¡Gracias!
+                  </p>
+                </div>
+              )}
 
-    <Button
-      size="lg" fullWidth variant="outline"
-      icon={<ArrowLeft className="h-4 w-4" />}
-      onClick={() => navigate("p2p")}
-    >
-      Volver al Mercado P2P
-    </Button>
-  </div>
-)}
+              <Button
+                size="lg" fullWidth variant="outline"
+                icon={<ArrowLeft className="h-4 w-4" />}
+                onClick={() => navigate("p2p")}
+              >
+                Volver al Mercado P2P
+              </Button>
+            </div>
+          )}
 
-          {/* Cancelar antes del escrow */}
           {trade.status === "awaiting_escrow" && (
             <Button
               size="sm" fullWidth variant="ghost"
@@ -868,7 +812,6 @@ const handleSubmitRating = async () => {
             </Button>
           )}
 
-          {/* Botón de disputa */}
           {!["crypto_released", "cancelled", "disputed", "awaiting_escrow"].includes(
             trade.status
           ) && (
@@ -884,118 +827,30 @@ const handleSubmitRating = async () => {
         </div>
       </div>
 
-      {/* ═══ MODAL DE RATING ═════════════════════════════════ */}
-{showRating && (
-  <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-6">
-    <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-2xl shadow-2xl p-5 space-y-4 animate-slide-up">
-
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <h3 className="font-bold text-gray-900 dark:text-white text-base">
-          ⭐ Valorar a {isBuyer ? trade.sellerName : trade.buyerName}
-        </h3>
-        <button
-          onClick={() => setShowRating(false)}
-          className="p-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/10"
-        >
-          <X className="h-4 w-4 text-gray-400" />
-        </button>
-      </div>
-
-      {/* Estrellas */}
-      <div className="text-center space-y-2">
-        <p className="text-xs text-gray-400">
-          ¿Cómo fue tu experiencia con esta persona?
-        </p>
-        <div className="flex items-center justify-center gap-2">
-          {[1, 2, 3, 4, 5].map((star) => (
-            <button
-              key={star}
-              onClick={() => setRatingValue(star)}
-              className={`text-3xl transition-transform hover:scale-110 ${
-                star <= ratingValue
-                  ? "opacity-100"
-                  : "opacity-30"
-              }`}
-            >
-              ⭐
-            </button>
-          ))}
-        </div>
-        <p className="text-sm font-bold text-gray-900 dark:text-white">
-          {ratingValue === 1 && "Muy malo"}
-          {ratingValue === 2 && "Malo"}
-          {ratingValue === 3 && "Regular"}
-          {ratingValue === 4 && "Bueno"}
-          {ratingValue === 5 && "¡Excelente!"}
-        </p>
-      </div>
-
-      {/* Comentario opcional */}
-      <div>
-        <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5 block">
-          Comentario (opcional)
-        </label>
-        <textarea
-          placeholder="Cuéntanos sobre tu experiencia..."
-          value={ratingComment}
-          onChange={(e) => setRatingComment(e.target.value)}
-          rows={3}
-          maxLength={200}
-          className="w-full rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 px-4 py-3 text-sm focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none resize-none"
+      {/* MODAL REPORTE */}
+      {showReport && trade && (
+        <ReportUserModal
+          reportedUserId={isBuyer ? trade.sellerId : trade.buyerId}
+          reportedUserName={isBuyer ? trade.sellerName : trade.buyerName}
+          onClose={() => setShowReport(false)}
         />
-        <p className="text-[10px] text-gray-400 text-right mt-1">
-          {ratingComment.length}/200
-        </p>
-      </div>
+      )}
 
-      {/* Botones */}
-      <div className="flex gap-2">
-        <button
-          onClick={() => setShowRating(false)}
-          className="flex-1 py-3 rounded-xl border border-gray-200 dark:border-white/10 text-sm font-bold text-gray-500"
-        >
-          Omitir
-        </button>
-        <Button
-          size="lg"
-          loading={submittingRating}
-          onClick={handleSubmitRating}
-          className="flex-1 bg-amber-500 hover:bg-amber-600 text-white"
-        >
-          Enviar valoración
-        </Button>
-      </div>
-    </div>
-  </div>
-)}
-      {/* ═══ MODAL DE REPORTE ════════════════════════════════ */}
-{showReport && trade && (
-  <ReportUserModal
-    reportedUserId={isBuyer ? trade.sellerId : trade.buyerId}
-    reportedUserName={isBuyer ? trade.sellerName : trade.buyerName}
-    onClose={() => setShowReport(false)}
-  />
-)}
-      // Modal al final
-{showRateModal && activeTrade && (
-  <RatingModal
-    tradeId={activeTrade.id}
-    targetName={
-      activeTrade.buyerId === user?.uid
-        ? activeTrade.sellerName
-        : activeTrade.buyerName
-    }
-    targetRole={activeTrade.buyerId === user?.uid ? "seller" : "buyer"}
-    onClose={() => setShowRateModal(false)}
-    onSubmitted={() => setCanRate(false)}
-  />
-)}
-    
+      {/* MODAL RATING (nuevo) */}
+      {showRateModal && trade && (
+        <RatingModal
+          tradeId={trade.id}
+          targetName={isBuyer ? trade.sellerName : trade.buyerName}
+          targetRole={isBuyer ? "seller" : "buyer"}
+          onClose={() => setShowRateModal(false)}
+          onSubmitted={() => setCanRate(false)}
+        />
+      )}
+
       {/* Chat */}
       <div className="px-4 mt-4">
         <TradeChat tradeId={trade.id} />
       </div>
     </div>
   );
-}
+                      }
