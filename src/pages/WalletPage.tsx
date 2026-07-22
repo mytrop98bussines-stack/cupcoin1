@@ -599,7 +599,24 @@ export function WalletPage() {
             </button>
           </div>
         </div>
-      )}
+      )} 
+
+      {/* ═══ BOTÓN SWAP (solo si tiene Stellar) ═══════════ */}
+{stellarPublic && usdcTrustline && (
+  <button
+    onClick={() => useAppStore.getState().navigate("swap")}
+    className="w-full flex items-center gap-3 p-4 rounded-2xl bg-gradient-to-r from-indigo-500 to-blue-600 text-white hover:shadow-lg transition-all"
+  >
+    <div className="h-10 w-10 rounded-xl bg-white/20 flex items-center justify-center flex-shrink-0">
+      <ArrowDownUp className="h-5 w-5 text-white" />
+    </div>
+    <div className="flex-1 text-left">
+      <p className="text-sm font-bold">Swap XLM ↔ USDC</p>
+      <p className="text-[11px] text-white/70">Intercambia al instante con la mejor tasa</p>
+    </div>
+  </button>
+)}
+      
             {/* ═══ HISTORIAL DE MOVIMIENTOS ════════════════════════ */}
       <div>
         <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3 px-1">
