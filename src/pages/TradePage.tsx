@@ -6,6 +6,7 @@ import { Button }    from "@/components/ui/Button";
 import { Avatar }    from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
 import { ReportUserModal } from "@/components/ReportUserModal";
+import { RatingModal } from "@/components/RatingModal;
 import { PAYMENT_METHOD_LABELS } from "@/data/data";
 import {
   Shield, Clock, CheckCircle2, AlertTriangle,
@@ -86,10 +87,30 @@ export function TradePage() {
   const [ratingComment, setRatingComment]         = useState("");
   const [submittingRating, setSubmittingRating]   = useState(false);
   const [ratingDone, setRatingDone]               = useState(false);
+  // Estados
+  const [showRateModal, setShowRateModal] = useState(false);
+  const [canRate, setCanRate]             = useState(false);
   // ─── Estado para reporte ──────────────────────────────────
   const [showReport, setShowReport] = useState(false);
 
   // ─── Cargar trade via backend con polling ─────────────────
+  // Verificar si puede calificar
+useEffect(() => {
+  if (!activeTrade || !user?.uid) return;
+
+  const isCompleted = activeTrade.status === "crypto_released" || activeTrade.status === "completed";
+  if (!isCompleted) return;
+
+  const token = localStorage.getItem("cubax_token");
+  fetch(`${BACKEND_URL}/api/trades/${activeTrade.id}/can-rate`, {
+    headers: { Authorization: `Bearer ${token}` },
+  })
+    .then((r) => r.json())
+    .then((data) => {
+      if (data.success) setCanRate(data.canRate);
+    });
+}, [activeTrade, user?.uid]);
+  
   useEffect(() => {
     const tradeId = selectedTradeId || activeTrade?.id;
     if (!tradeId) {
@@ -814,6 +835,17 @@ const handleSubmitRating = async () => {
         </p>
       </div>
     )}
+    // Botón (agregar donde quede bien en tu UI)
+{canRate && (
+  <Button
+    fullWidth
+    onClick={() => setShowRateModal(true)}
+    icon={<Star className="h-4 w-4" />}
+    className="bg-amber-500 hover:bg-amber-600"
+  >
+    Calificar experiencia
+  </Button>
+)}
 
     <Button
       size="lg" fullWidth variant="outline"
@@ -945,7 +977,21 @@ const handleSubmitRating = async () => {
     onClose={() => setShowReport(false)}
   />
 )}
-
+      // Modal al final
+{showRateModal && activeTrade && (
+  <RatingModal
+    tradeId={activeTrade.id}
+    targetName={
+      activeTrade.buyerId === user?.uid
+        ? activeTrade.sellerName
+        : activeTrade.buyerName
+    }
+    targetRole={activeTrade.buyerId === user?.uid ? "seller" : "buyer"}
+    onClose={() => setShowRateModal(false)}
+    onSubmitted={() => setCanRate(false)}
+  />
+)}
+    
       {/* Chat */}
       <div className="px-4 mt-4">
         <TradeChat tradeId={trade.id} />
