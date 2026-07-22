@@ -25,6 +25,7 @@ import { SettingsPage }       from "@/pages/SettingsPage";
 import { NotificationsPage }  from "@/pages/NotificationsPage";
 import { MembershipPage }     from "@/pages/MembershipPage";
 import { PublicProfilePage }  from "@/pages/PublicProfilePage";
+import { SwapPage }           from "@/pages/SwapPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -57,6 +58,7 @@ const VIEW_TITLES: Record<string, string> = {
   "product-detail":        "Detalle del producto",
   "create-product":        "Publicar producto",
   wallet:                  "Mi Wallet",
+  swap:                    "Swap Stellar",
   stellar:                 "Stellar Wallet",
   settings:                "Ajustes",
   notifications:           "Notificaciones",
@@ -80,13 +82,13 @@ const SHOW_BACK_VIEWS = [
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
-  "public-profile", "stellar",
+  "public-profile", "stellar", "swap",
 ];
 
 const AUTHENTICATED_VIEWS = [
   "dashboard", "p2p", "marketplace", "create-order",
   "trade", "kyc", "product-detail", "create-product",
-  "wallet", "stellar", "settings", "notifications",
+  "wallet", "stellar", "swap", "settings", "notifications",
   "admin-kyc", "admin-disputes", "profile", "security",
   "help", "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
@@ -262,6 +264,7 @@ function AppContent() {
         {currentView === "create-product"  && <CreateProductPage />}
         {currentView === "wallet"          && <WalletPage />}
         {currentView === "stellar"         && <StellarWalletPage />}
+        {currentView === "swap"            && <SwapPage />}
         {currentView === "settings"        && <SettingsPage />}
         {currentView === "notifications"   && <NotificationsPage />}
         {currentView === "membership"      && <MembershipPage />}
@@ -428,4 +431,4 @@ export default function App() {
   }
 
   return <AppContent />;
-    }
+        }
