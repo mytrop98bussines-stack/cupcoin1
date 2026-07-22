@@ -39,6 +39,7 @@ import { MyOrdersPage }             from "@/pages/MyOrdersPage";
 
 // ─── Admin ────────────────────────────────────────────────
 import { AdminKYCPage }      from "@/pages/AdminKYCPage";
+import { AdminUsersPage }    from "@/pages/AdminUsersPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
 import type { User as AppUser } from "@/types";
@@ -63,6 +64,7 @@ const VIEW_TITLES: Record<string, string> = {
   settings:                "Ajustes",
   notifications:           "Notificaciones",
   "admin-kyc":             "Panel KYC Admin",
+  "admin-users":           "Gestión Usuarios",
   "admin-disputes":        "Panel Disputas Admin",
   profile:                 "Mi Perfil",
   security:                "Seguridad",
@@ -78,7 +80,7 @@ const VIEW_TITLES: Record<string, string> = {
 
 const SHOW_BACK_VIEWS = [
   "create-order", "trade", "kyc", "product-detail",
-  "create-product", "notifications", "admin-kyc",
+  "create-product", "notifications", "admin-kyc", "admin-users",
   "admin-disputes", "profile", "security", "help",
   "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
@@ -89,7 +91,7 @@ const AUTHENTICATED_VIEWS = [
   "dashboard", "p2p", "marketplace", "create-order",
   "trade", "kyc", "product-detail", "create-product",
   "wallet", "stellar", "swap", "settings", "notifications",
-  "admin-kyc", "admin-disputes", "profile", "security",
+  "admin-kyc", "admin-users", "admin-disputes", "profile", "security",
   "help", "terms", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
   "public-profile",
@@ -278,6 +280,7 @@ function AppContent() {
         {currentView === "my-orders"       && <MyOrdersPage />}
         {currentView === "public-profile"  && <PublicProfilePage />}
         {currentView === "admin-kyc"       && user?.role === "admin" && <AdminKYCPage />}
+        {currentView === "admin-users"     && user?.role === "admin" && <AdminUsersPage />}
         {currentView === "admin-disputes"  && user?.role === "admin" && <AdminDisputesPage />}
       </main>
 
