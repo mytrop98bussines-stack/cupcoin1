@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card }         from "@/components/ui/Card";
 import { CRYPTO_ICONS } from "@/data/data";
@@ -8,12 +8,10 @@ import {
   Eye, EyeOff, RefreshCw, ChevronDown, ChevronUp,
   AlertTriangle, X, Sparkles, ArrowRight,
   Info, CheckCircle2, Star, ArrowDownUp,
-  Filter, Search, Download, ChevronLeft, ChevronRight,
+  Clock,
 } from "lucide-react";
 
 type ActionType = "deposit" | "withdraw" | null;
-type FilterType = "all" | "deposit" | "withdraw" | "trade";
-type FilterAsset = "all" | "USDT" | "BTC" | "ETH" | "USDC" | "XLM";
 
 interface BalanceItem {
   asset:     string;
@@ -56,12 +54,11 @@ const ASSET_COLORS: Record<
 };
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
-const ITEMS_PER_PAGE = 10;
 
 export function WalletPage() {
   const {
     user, prices, fetchPrices,
-    depositAddresses, setModalOpen,
+    depositAddresses, setModalOpen, navigate,
   } = useAppStore();
 
   const [hideBalances, setHideBalances]         = useState(false);
@@ -83,30 +80,18 @@ export function WalletPage() {
   const [withdrawError, setWithdrawError]       = useState<string | null>(null);
   const [depositAddress, setDepositAddress]     = useState<string | null>(null);
 
-  // ─── Estado Stellar ────────────────────────────────────────
   const [stellarPublic, setStellarPublic]       = useState<string | null>(null);
   const [stellarBalance, setStellarBalance]     = useState<number>(0);
   const [stellarLoading, setStellarLoading]     = useState(true);
   const [creatingStellar, setCreatingStellar]   = useState(false);
   const [stellarExplorer, setStellarExplorer]   = useState<string>("");
 
-  // ─── Estado USDC Stellar ─────────────────────────────────
   const [usdcBalance, setUsdcBalance]           = useState<number>(0);
   const [usdcTrustline, setUsdcTrustline]       = useState(false);
   const [activatingUsdc, setActivatingUsdc]     = useState(false);
 
-  // ─── Estado historial mejorado ────────────────────────────
-  const [movements, setMovements]         = useState<any[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(true);
-  const [currentPage, setCurrentPage]     = useState(1);
-  const [filterType, setFilterType]       = useState<FilterType>("all");
-  const [filterAsset, setFilterAsset]     = useState<FilterAsset>("all");
-  const [searchQuery, setSearchQuery]     = useState("");
-  const [showFilters, setShowFilters]     = useState(false);
-
   const firestoreBalances = (user as any)?.balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
 
-  // ─── Cargar wallet Stellar al inicio ──────────────────────
   useEffect(() => {
     if (!user?.uid) return;
     void loadStellarWallet();
@@ -116,7 +101,6 @@ export function WalletPage() {
     setStellarLoading(true);
     try {
       const token = localStorage.getItem("cubax_token");
-
       const res = await fetch(`${BACKEND_URL}/api/stellar/balance`, {
         headers: { Authorization: `Bearer ${token}` },
       });
@@ -159,10 +143,7 @@ export function WalletPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-
-      if (data.success) {
-        await loadStellarWallet();
-      }
+      if (data.success) await loadStellarWallet();
     } catch (err) {
       console.error("❌ Error creando Stellar:", err);
     } finally {
@@ -179,10 +160,7 @@ export function WalletPage() {
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
-
-      if (data.success) {
-        await loadStellarWallet();
-      }
+      if (data.success) await loadStellarWallet();
     } catch (err) {
       console.error("❌ Error activando USDC:", err);
     } finally {
@@ -190,7 +168,6 @@ export function WalletPage() {
     }
   };
 
-  // ─── Balances list ────────────────────────────────────────
   const xlmPrice  = prices.find((p) => p.symbol.toUpperCase() === "XLM")?.priceUSD  || 0.12;
   const usdcPrice = prices.find((p) => p.symbol.toUpperCase() === "USDC")?.priceUSD || 1;
 
@@ -208,12 +185,9 @@ export function WalletPage() {
 
   const stellarAsset: BalanceItem | null = stellarPublic
     ? {
-        asset:     "XLM",
-        amount:    stellarBalance,
-        usdValue:  stellarBalance * xlmPrice,
+        asset: "XLM", amount: stellarBalance, usdValue: stellarBalance * xlmPrice,
         change24h: prices.find((p) => p.symbol.toUpperCase() === "XLM")?.change24h || 0,
-        price:     xlmPrice,
-        network:   "Stellar",
+        price: xlmPrice, network: "Stellar",
       }
     : null;
 
@@ -248,7 +222,6 @@ export function WalletPage() {
     setRefreshing(true);
     await fetchPrices();
     await loadStellarWallet();
-    await loadHistory();
     setTimeout(() => setRefreshing(false), 1000);
   }, [fetchPrices]);
 
@@ -258,101 +231,6 @@ export function WalletPage() {
     return CRYPTO_ICONS[upper] || CRYPTO_ICONS[asset.toLowerCase()] || "/crypto/usd.svg";
   };
 
-  // ─── Cargar historial ─────────────────────────────────────
-  const loadHistory = async () => {
-    if (!user?.uid) return;
-    try {
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/api/wallet/history`, {
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) setMovements(data.movements);
-    } catch (err) {
-      console.error("❌ Error cargando historial:", err);
-    } finally {
-      setLoadingHistory(false);
-    }
-  };
-
-  useEffect(() => {
-    if (!user?.uid) return;
-    void loadHistory();
-  }, [user?.uid]);
-    // ─── Filtrar movimientos ─────────────────────────────────
-  const filteredMovements = useMemo(() => {
-    return movements.filter((mov) => {
-      // Filtro por tipo
-      if (filterType !== "all") {
-        const isDeposit  = mov.amount > 0 && mov.label?.toLowerCase().includes("depósito");
-        const isWithdraw = mov.amount < 0 && mov.label?.toLowerCase().includes("retiro");
-        const isTrade    = mov.label?.toLowerCase().includes("trade") || mov.label?.toLowerCase().includes("p2p");
-
-        if (filterType === "deposit"  && !isDeposit)  return false;
-        if (filterType === "withdraw" && !isWithdraw) return false;
-        if (filterType === "trade"    && !isTrade)    return false;
-      }
-
-      // Filtro por moneda
-      if (filterAsset !== "all" && mov.asset !== filterAsset) return false;
-
-      // Búsqueda por hash o label
-      if (searchQuery) {
-        const q = searchQuery.toLowerCase();
-        const hashMatch  = mov.txHash?.toLowerCase().includes(q);
-        const labelMatch = mov.label?.toLowerCase().includes(q);
-        if (!hashMatch && !labelMatch) return false;
-      }
-
-      return true;
-    });
-  }, [movements, filterType, filterAsset, searchQuery]);
-
-  // ─── Paginación ──────────────────────────────────────────
-  const totalPages   = Math.ceil(filteredMovements.length / ITEMS_PER_PAGE);
-  const startIdx     = (currentPage - 1) * ITEMS_PER_PAGE;
-  const paginatedMov = filteredMovements.slice(startIdx, startIdx + ITEMS_PER_PAGE);
-
-  // Resetear página cuando cambian filtros
-  useEffect(() => {
-    setCurrentPage(1);
-  }, [filterType, filterAsset, searchQuery]);
-
-  // ─── Exportar CSV ────────────────────────────────────────
-  const handleExportCSV = () => {
-    if (filteredMovements.length === 0) {
-      alert("No hay movimientos para exportar");
-      return;
-    }
-
-    const headers = ["Fecha", "Descripción", "Tipo", "Monto", "Moneda", "Estado", "TxHash"];
-    const rows    = filteredMovements.map((mov) => [
-      new Date(mov.createdAt).toLocaleString("es-CU"),
-      mov.label || "—",
-      mov.amount > 0 ? "Entrada" : "Salida",
-      Math.abs(mov.amount),
-      mov.asset || "—",
-      mov.status || "—",
-      mov.txHash || "—",
-    ]);
-
-    const csv = [
-      headers.join(","),
-      ...rows.map((row) =>
-        row.map((cell) => `"${String(cell).replace(/"/g, '""')}"`).join(",")
-      ),
-    ].join("\n");
-
-    const blob = new Blob([`\ufeff${csv}`], { type: "text/csv;charset=utf-8;" });
-    const url  = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href     = url;
-    link.download = `cupcoin_wallet_${Date.now()}.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
-  };
-
-  // ─── Handlers de depósito/retiro (sin cambios) ───────────
   const handleOpenDeposit = async (asset: string) => {
     const assetUpper = asset.toUpperCase();
     setDepositAsset(assetUpper);
@@ -380,11 +258,9 @@ export function WalletPage() {
         body:    JSON.stringify({ uid: user.uid }),
       });
       const data = await res.json();
-      if (data.success && data.coin_address) {
-        setDepositAddress(data.coin_address);
-      }
+      if (data.success && data.coin_address) setDepositAddress(data.coin_address);
     } catch (err: any) {
-      console.error("Error de red:", err.message);
+      console.error("Error:", err.message);
     } finally {
       setIsLoadingAddress(false);
     }
@@ -424,96 +300,65 @@ export function WalletPage() {
 
     if (activeAction.asset === "USDC") {
       if (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) {
-        setWithdrawError("Dirección Stellar inválida");
-        return;
+        setWithdrawError("Dirección Stellar inválida"); return;
       }
       const monto = parseFloat(withdrawAmount);
       if (monto <= 0 || monto > usdcBalance) {
-        setWithdrawError("Balance USDC insuficiente");
-        return;
+        setWithdrawError("Balance USDC insuficiente"); return;
       }
-      setIsSubmitting(true);
-      setWithdrawError(null);
+      setIsSubmitting(true); setWithdrawError(null);
       try {
         const token = localStorage.getItem("cubax_token");
         const res   = await fetch(`${BACKEND_URL}/api/stellar/usdc/send`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ toAddress: withdrawAddress, amount: monto, memo: withdrawMemo || undefined }),
         });
         const data = await res.json();
         if (data.success) {
-          setWithdrawSuccess(true);
-          setWithdrawTxId(data.txHash);
-          setWithdrawStep(3);
+          setWithdrawSuccess(true); setWithdrawTxId(data.txHash); setWithdrawStep(3);
           await loadStellarWallet();
-        } else {
-          setWithdrawError(data.error || "Error procesando retiro");
-        }
-      } catch {
-        setWithdrawError("Error de conexión");
-      } finally {
-        setIsSubmitting(false);
-      }
+        } else setWithdrawError(data.error || "Error procesando retiro");
+      } catch { setWithdrawError("Error de conexión"); }
+      finally { setIsSubmitting(false); }
       return;
     }
 
     if (activeAction.asset === "XLM") {
       if (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) {
-        setWithdrawError("Dirección Stellar inválida");
-        return;
+        setWithdrawError("Dirección Stellar inválida"); return;
       }
       const monto = parseFloat(withdrawAmount);
       if (monto <= 0 || monto > (stellarBalance - 1.5)) {
-        setWithdrawError("Balance insuficiente (deja 1.5 XLM de reserva)");
-        return;
+        setWithdrawError("Balance insuficiente (deja 1.5 XLM de reserva)"); return;
       }
-      setIsSubmitting(true);
-      setWithdrawError(null);
+      setIsSubmitting(true); setWithdrawError(null);
       try {
         const token = localStorage.getItem("cubax_token");
         const res   = await fetch(`${BACKEND_URL}/api/stellar/send`, {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization: `Bearer ${token}`,
-          },
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
           body: JSON.stringify({ toAddress: withdrawAddress, amount: monto, memo: withdrawMemo || undefined }),
         });
         const data = await res.json();
         if (data.success) {
-          setWithdrawSuccess(true);
-          setWithdrawTxId(data.txHash);
-          setWithdrawStep(3);
+          setWithdrawSuccess(true); setWithdrawTxId(data.txHash); setWithdrawStep(3);
           await loadStellarWallet();
-        } else {
-          setWithdrawError(data.error || "Error procesando retiro");
-        }
-      } catch {
-        setWithdrawError("Error de conexión");
-      } finally {
-        setIsSubmitting(false);
-      }
+        } else setWithdrawError(data.error || "Error procesando el retiro");
+      } catch { setWithdrawError("Error de conexión"); }
+      finally { setIsSubmitting(false); }
       return;
     }
 
     if (activeAction.asset !== "USDT") return;
     if (!withdrawAddress.startsWith("T")) {
-      setWithdrawError("La dirección debe ser TRC20 y empezar con T");
-      return;
+      setWithdrawError("La dirección debe ser TRC20 y empezar con T"); return;
     }
     const disponible = firestoreBalances[activeAction.asset] || 0;
     const monto      = parseFloat(withdrawAmount);
     if (monto <= 0 || monto > disponible) return;
-    if (monto < 1) {
-      setWithdrawError("El monto mínimo de retiro es 1 USDT");
-      return;
-    }
-    setIsSubmitting(true);
-    setWithdrawError(null);
+    if (monto < 1) { setWithdrawError("El monto mínimo de retiro es 1 USDT"); return; }
+    setIsSubmitting(true); setWithdrawError(null);
     try {
       const res = await fetch(`${BACKEND_URL}/api/tron/withdraw`, {
         method:  "POST",
@@ -522,28 +367,17 @@ export function WalletPage() {
       });
       const data = await res.json();
       if (data.success) {
-        setWithdrawSuccess(true);
-        setWithdrawTxId(data.txHash || "");
-        setWithdrawStep(3);
-      } else {
-        setWithdrawError(data.error || "Error procesando el retiro");
-      }
-    } catch (err) {
-      setWithdrawError("Error de conexión con el servidor");
-    } finally {
-      setIsSubmitting(false);
-    }
+        setWithdrawSuccess(true); setWithdrawTxId(data.txHash || ""); setWithdrawStep(3);
+      } else setWithdrawError(data.error || "Error procesando el retiro");
+    } catch (err) { setWithdrawError("Error de conexión con el servidor"); }
+    finally { setIsSubmitting(false); }
   };
 
   const handleCloseAction = () => {
     setActiveAction({ type: null, asset: null });
-    setWithdrawStep(1);
-    setWithdrawSuccess(false);
-    setWithdrawAddress("");
-    setWithdrawAmount("");
-    setWithdrawMemo("");
-    setWithdrawError(null);
-    setDepositAddress(null);
+    setWithdrawStep(1); setWithdrawSuccess(false);
+    setWithdrawAddress(""); setWithdrawAmount(""); setWithdrawMemo("");
+    setWithdrawError(null); setDepositAddress(null);
   };
 
   const currentChainInfo = activeAction.asset ? CHAIN_OPTIONS[activeAction.asset]?.[0] : null;
@@ -563,7 +397,7 @@ export function WalletPage() {
             <p className="text-[10px] text-gray-400 font-medium">Multi-red · CupCoin</p>
           </div>
         </div>
-        <button onClick={handleRefresh} className="p-2 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
+        <button onClick={handleRefresh} className="p-2 rounded-xl bg-gray-100 dark:bg-white/5">
           <RefreshCw className={`h-4 w-4 text-gray-500 dark:text-gray-400 ${refreshing ? "animate-spin" : ""}`} />
         </button>
       </div>
@@ -577,7 +411,7 @@ export function WalletPage() {
               <Sparkles className="h-3.5 w-3.5 text-amber-400" />
               <span className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">Balance Total</span>
             </div>
-            <button onClick={() => setHideBalances(!hideBalances)} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-white transition-colors">
+            <button onClick={() => setHideBalances(!hideBalances)} className="flex items-center gap-1 text-[11px] text-gray-400 hover:text-white">
               {hideBalances ? <><Eye className="h-3.5 w-3.5" /> Mostrar</> : <><EyeOff className="h-3.5 w-3.5" /> Ocultar</>}
             </button>
           </div>
@@ -588,17 +422,42 @@ export function WalletPage() {
             <p className="text-sm text-gray-400 mt-1.5 font-medium">≈ {hideBalances ? "••••" : `${totalBTC.toFixed(6)} BTC`}</p>
           </div>
           <div className="flex gap-2.5">
-            <button onClick={() => handleOpenDeposit("USDT")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-lg shadow-brand-500/25 active:scale-[0.98]">
+            <button onClick={() => handleOpenDeposit("USDT")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold shadow-lg shadow-brand-500/25">
               <ArrowDownLeft className="h-4 w-4" /> Depositar
             </button>
-            <button onClick={() => handleOpenWithdraw("USDT")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all backdrop-blur-sm active:scale-[0.98]">
+            <button onClick={() => handleOpenWithdraw("USDT")} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold backdrop-blur-sm">
               <ArrowUpRight className="h-4 w-4" /> Retirar
             </button>
           </div>
         </div>
       </div>
 
-      {/* BANNERS STELLAR / USDC */}
+      {/* ✅ ACCIONES RÁPIDAS — Swap + Historial */}
+      <div className="grid grid-cols-2 gap-2">
+        {stellarPublic && usdcTrustline && (
+          <button
+            onClick={() => navigate("swap")}
+            className="flex flex-col items-center gap-1 p-3 rounded-xl bg-gradient-to-br from-indigo-500 to-blue-600 text-white shadow-md hover:shadow-lg transition-all"
+          >
+            <ArrowDownUp className="h-5 w-5" />
+            <span className="text-xs font-bold">Swap</span>
+            <span className="text-[9px] text-white/70">XLM ↔ USDC</span>
+          </button>
+        )}
+
+        <button
+          onClick={() => navigate("wallet-history")}
+          className={`flex flex-col items-center gap-1 p-3 rounded-xl bg-gradient-to-br from-gray-700 to-gray-900 text-white shadow-md hover:shadow-lg transition-all ${
+            !(stellarPublic && usdcTrustline) ? "col-span-2" : ""
+          }`}
+        >
+          <Clock className="h-5 w-5" />
+          <span className="text-xs font-bold">Historial</span>
+          <span className="text-[9px] text-white/70">Ver movimientos</span>
+        </button>
+      </div>
+
+      {/* BANNERS */}
       {!stellarLoading && !stellarPublic && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 text-white">
           <div className="relative z-10 flex items-center gap-3">
@@ -609,7 +468,7 @@ export function WalletPage() {
               <p className="text-sm font-bold">Activa tu wallet Stellar</p>
               <p className="text-[11px] text-white/70">Envía XLM y USDC con comisión de $0.00001</p>
             </div>
-            <button onClick={handleCreateStellar} disabled={creatingStellar} className="px-3 py-2 rounded-xl bg-white text-indigo-600 text-xs font-bold hover:bg-gray-50 transition-all disabled:opacity-60">
+            <button onClick={handleCreateStellar} disabled={creatingStellar} className="px-3 py-2 rounded-xl bg-white text-indigo-600 text-xs font-bold disabled:opacity-60">
               {creatingStellar ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Activar"}
             </button>
           </div>
@@ -626,223 +485,12 @@ export function WalletPage() {
               <p className="text-sm font-bold">Activa USDC en Stellar</p>
               <p className="text-[11px] text-white/70">Envía y recibe USDC con comisión ínfima</p>
             </div>
-            <button onClick={handleActivateUSDC} disabled={activatingUsdc} className="px-3 py-2 rounded-xl bg-white text-blue-600 text-xs font-bold hover:bg-gray-50 transition-all disabled:opacity-60">
+            <button onClick={handleActivateUSDC} disabled={activatingUsdc} className="px-3 py-2 rounded-xl bg-white text-blue-600 text-xs font-bold disabled:opacity-60">
               {activatingUsdc ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : "Activar"}
             </button>
           </div>
         </div>
       )}
-
-      {/* ═══ HISTORIAL MEJORADO ══════════════════════════════ */}
-      <div>
-        <div className="flex items-center justify-between mb-3 px-1">
-          <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-            Historial de movimientos
-          </h3>
-          <div className="flex items-center gap-1">
-            <button
-              onClick={() => setShowFilters(!showFilters)}
-              className={`p-1.5 rounded-lg transition-colors ${
-                showFilters || filterType !== "all" || filterAsset !== "all"
-                  ? "bg-brand-500/10 text-brand-500"
-                  : "text-gray-400 hover:bg-gray-100 dark:hover:bg-white/5"
-              }`}
-              title="Filtros"
-            >
-              <Filter className="h-3.5 w-3.5" />
-            </button>
-            <button
-              onClick={handleExportCSV}
-              disabled={filteredMovements.length === 0}
-              className="p-1.5 rounded-lg text-gray-400 hover:text-brand-500 hover:bg-brand-500/10 transition-colors disabled:opacity-40"
-              title="Exportar CSV"
-            >
-              <Download className="h-3.5 w-3.5" />
-            </button>
-          </div>
-        </div>
-
-        {/* Filtros expandibles */}
-        {showFilters && (
-          <Card padding="md" className="mb-2 space-y-3">
-            {/* Búsqueda */}
-            <div className="relative">
-              <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-gray-400" />
-              <input
-                type="text"
-                placeholder="Buscar por hash o descripción..."
-                value={searchQuery}
-                onChange={(e) => setSearchQuery(e.target.value)}
-                className="w-full pl-9 pr-3 py-2 text-xs rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:outline-none focus:border-brand-500"
-              />
-              {searchQuery && (
-                <button
-                  onClick={() => setSearchQuery("")}
-                  className="absolute right-3 top-1/2 -translate-y-1/2"
-                >
-                  <X className="h-3 w-3 text-gray-400" />
-                </button>
-              )}
-            </div>
-
-            {/* Filtro por tipo */}
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Tipo</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {(["all", "deposit", "withdraw", "trade"] as FilterType[]).map((t) => (
-                  <button
-                    key={t}
-                    onClick={() => setFilterType(t)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                      filterType === t
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400"
-                    }`}
-                  >
-                    {t === "all"      ? "Todos"    :
-                     t === "deposit"  ? "Depósitos" :
-                     t === "withdraw" ? "Retiros"  : "Trades"}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Filtro por moneda */}
-            <div>
-              <p className="text-[10px] font-bold text-gray-400 uppercase mb-1.5">Moneda</p>
-              <div className="flex gap-1.5 flex-wrap">
-                {(["all", "USDT", "USDC", "BTC", "ETH", "XLM"] as FilterAsset[]).map((a) => (
-                  <button
-                    key={a}
-                    onClick={() => setFilterAsset(a)}
-                    className={`px-2.5 py-1 rounded-lg text-[10px] font-bold transition-colors ${
-                      filterAsset === a
-                        ? "bg-brand-500 text-white"
-                        : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400"
-                    }`}
-                  >
-                    {a === "all" ? "Todas" : a}
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Limpiar filtros */}
-            {(filterType !== "all" || filterAsset !== "all" || searchQuery) && (
-              <button
-                onClick={() => {
-                  setFilterType("all");
-                  setFilterAsset("all");
-                  setSearchQuery("");
-                }}
-                className="text-[10px] text-red-500 font-bold flex items-center gap-1"
-              >
-                <X className="h-3 w-3" /> Limpiar filtros
-              </button>
-            )}
-          </Card>
-        )}
-
-        {/* Lista de movimientos */}
-        {loadingHistory ? (
-          <div className="text-center py-8">
-            <div className="h-5 w-5 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-            <p className="text-xs text-gray-400">Cargando historial...</p>
-          </div>
-        ) : filteredMovements.length === 0 ? (
-          <Card padding="lg" className="text-center">
-            <p className="text-2xl mb-2">📭</p>
-            <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
-              {movements.length === 0 ? "Sin movimientos" : "Sin resultados"}
-            </p>
-            <p className="text-xs text-gray-400">
-              {movements.length === 0
-                ? "Aquí aparecerán tus depósitos, retiros y trades."
-                : "Prueba cambiando los filtros o la búsqueda."}
-            </p>
-          </Card>
-        ) : (
-          <>
-            <Card padding="none" className="divide-y divide-gray-100 dark:divide-white/[0.06] overflow-hidden">
-              {paginatedMov.map((mov) => {
-                const isPositive = mov.amount > 0;
-                return (
-                  <div key={mov.id} className="flex items-center gap-3 px-4 py-3.5">
-                    <div className={`h-9 w-9 rounded-xl flex items-center justify-center flex-shrink-0 text-lg ${
-                      isPositive ? "bg-emerald-500/10" : "bg-red-500/10"
-                    }`}>
-                      {mov.icon}
-                    </div>
-
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
-                        {mov.label}
-                      </p>
-                      <div className="flex items-center gap-2">
-                        <p className="text-[10px] text-gray-400">
-                          {new Date(mov.createdAt).toLocaleDateString("es-CU", {
-                            day: "numeric", month: "short", year: "numeric",
-                          })}
-                        </p>
-                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
-                          mov.status === "completed" ? "bg-emerald-500/10 text-emerald-500" :
-                          mov.status === "pending"   ? "bg-amber-500/10 text-amber-500"   :
-                                                       "bg-red-500/10 text-red-500"
-                        }`}>
-                          {mov.status === "completed" ? "✓ Completado" :
-                           mov.status === "pending"   ? "⏳ Pendiente" : "❌ Fallido"}
-                        </span>
-                      </div>
-                      {mov.txHash && (
-                        <p className="text-[9px] text-gray-400 font-mono truncate mt-0.5">
-                          Tx: {mov.txHash.slice(0, 20)}...
-                        </p>
-                      )}
-                    </div>
-
-                    <div className="text-right flex-shrink-0">
-                      <p className={`text-sm font-black ${isPositive ? "text-emerald-500" : "text-red-500"}`}>
-                        {isPositive ? "+" : ""}{mov.amount} {mov.asset}
-                      </p>
-                    </div>
-                  </div>
-                );
-              })}
-            </Card>
-
-            {/* Paginación */}
-            {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-3 px-1">
-                <button
-                  onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
-                  disabled={currentPage === 1}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 text-xs font-bold disabled:opacity-40"
-                >
-                  <ChevronLeft className="h-3.5 w-3.5" />
-                  Anterior
-                </button>
-
-                <span className="text-xs text-gray-400 font-medium">
-                  Página {currentPage} de {totalPages}
-                </span>
-
-                <button
-                  onClick={() => setCurrentPage((p) => Math.min(totalPages, p + 1))}
-                  disabled={currentPage === totalPages}
-                  className="flex items-center gap-1 px-3 py-1.5 rounded-lg bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400 text-xs font-bold disabled:opacity-40"
-                >
-                  Siguiente
-                  <ChevronRight className="h-3.5 w-3.5" />
-                </button>
-              </div>
-            )}
-
-            <p className="text-center text-[10px] text-gray-400 mt-2">
-              Mostrando {paginatedMov.length} de {filteredMovements.length} movimientos
-            </p>
-          </>
-        )}
-      </div>
 
       {/* MINI RESUMEN */}
       <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
@@ -924,10 +572,10 @@ export function WalletPage() {
 
                 {isExpanded && (
                   <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
-                    <button onClick={() => handleOpenDeposit(balance.asset)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold transition-all ${colors.bg} ${colors.text} hover:opacity-80`}>
+                    <button onClick={() => handleOpenDeposit(balance.asset)} className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold ${colors.bg} ${colors.text}`}>
                       <ArrowDownLeft className="h-3.5 w-3.5 block" /> Depositar
                     </button>
-                    <button onClick={() => handleOpenWithdraw(balance.asset)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-white/10 transition-all">
+                    <button onClick={() => handleOpenWithdraw(balance.asset)} className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300">
                       <ArrowUpRight className="h-3.5 w-3.5 block" /> Retirar
                     </button>
                   </div>
@@ -948,13 +596,349 @@ export function WalletPage() {
           <p className="text-[10px] text-gray-400 leading-relaxed">
             USDT vía Tron con detección automática cada 5 min.
             XLM y USDC vía Stellar con confirmación en segundos.
-            Transferencias internas entre usuarios de CupCoin son instantáneas.
           </p>
         </div>
       </div>
 
-      {/* MODAL DEPÓSITO Y RETIRO — Los que ya tenías */}
-      {/* Nota: mantén los modales de deposit/withdraw que ya tenías, no los pego para no repetir */}
+            {/* ═══ MODAL DEPÓSITO ══════════════════════════════ */}
+      {activeAction.type === "deposit" && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`h-8 w-8 rounded-lg ${ASSET_COLORS[depositAsset]?.bg || "bg-brand-500/10"} flex items-center justify-center`}>
+                  <ArrowDownLeft className={`h-4 w-4 ${ASSET_COLORS[depositAsset]?.text || "text-brand-500"}`} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">Depositar Cripto</h3>
+                  <p className="text-[10px] text-gray-400">Recibe fondos en tu wallet CupCoin</p>
+                </div>
+              </div>
+              <button onClick={handleCloseAction} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">Selecciona el Activo</label>
+              <div className="grid grid-cols-5 gap-2">
+                {["USDT", "USDC", "BTC", "ETH", "XLM"].map((asset) => {
+                  const colors   = ASSET_COLORS[asset] || ASSET_COLORS.USDT;
+                  const selected = depositAsset === asset;
+                  const disabled = (asset === "XLM" && !stellarPublic) ||
+                                   (asset === "USDC" && (!stellarPublic || !usdcTrustline));
+
+                  return (
+                    <button
+                      key={asset}
+                      disabled={disabled}
+                      onClick={() => handleOpenDeposit(asset)}
+                      className={`flex flex-col items-center gap-2 py-2.5 rounded-xl text-[10px] font-bold transition-all ${
+                        selected
+                          ? `${colors.bg} ${colors.text} ring-2 ring-current`
+                          : "bg-gray-50 dark:bg-white/5 text-gray-500 dark:text-gray-400"
+                      } ${disabled ? "opacity-40" : ""}`}
+                    >
+                      <img
+                        src={getAssetIcon(asset)}
+                        alt={asset}
+                        className="h-6 w-6 object-contain"
+                        onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
+                      />
+                      {asset}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {depositAsset === "USDT" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-red-500/10 border border-red-500/20">
+                <span className="text-sm">🔴</span>
+                <div>
+                  <p className="text-xs font-bold text-red-600 dark:text-red-400">Red: Tron (TRC-20)</p>
+                  <p className="text-[10px] text-gray-400">Envía únicamente USDT TRC20 a esta dirección</p>
+                </div>
+              </div>
+            )}
+
+            {depositAsset === "USDC" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-blue-500/10 border border-blue-500/20">
+                <span className="text-sm">⭐</span>
+                <div>
+                  <p className="text-xs font-bold text-blue-600 dark:text-blue-400">Red: Stellar</p>
+                  <p className="text-[10px] text-gray-400">Envía USDC vía Stellar (barato y rápido)</p>
+                </div>
+              </div>
+            )}
+
+            {depositAsset === "XLM" && (
+              <div className="flex items-center gap-2 px-3 py-2 rounded-xl bg-indigo-500/10 border border-indigo-500/20">
+                <span className="text-sm">⭐</span>
+                <div>
+                  <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400">Red: Stellar</p>
+                  <p className="text-[10px] text-gray-400">Recibe XLM en segundos con comisión mínima</p>
+                </div>
+              </div>
+            )}
+
+            {depositAsset !== "USDT" && depositAsset !== "XLM" && depositAsset !== "USDC" ? (
+              <div className="py-8 text-center">
+                <div className="h-12 w-12 rounded-full bg-amber-500/10 flex items-center justify-center mx-auto mb-3">
+                  <Info className="h-5 w-5 text-amber-500" />
+                </div>
+                <p className="text-sm font-semibold text-gray-900 dark:text-white mb-1">Próximamente</p>
+                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong>, <strong>USDC/Stellar</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
+              </div>
+            ) : isLoadingAddress ? (
+              <div className="py-10 flex flex-col items-center justify-center space-y-3">
+                <Loader2 className="h-6 w-6 animate-spin text-brand-500" />
+                <p className="text-xs text-gray-400 font-medium animate-pulse">Generando dirección segura...</p>
+              </div>
+            ) : depositAddress ? (
+              <div className="space-y-4">
+                <div className="flex justify-center">
+                  <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
+                    <img src={`https://api.qrserver.com/v1/create-qr-code/?size=160x160&data=${encodeURIComponent(depositAddress)}&format=svg`} alt="QR" className="w-40 h-40" />
+                  </div>
+                </div>
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
+                  <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 truncate select-all">{depositAddress}</span>
+                  <button onClick={() => handleCopyAddress(depositAddress)} className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all ${copied ? "bg-emerald-500 text-white" : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300"}`}>
+                    {copied ? <><Check className="h-3 w-3" /> Copiada</> : <><Copy className="h-3 w-3" /> Copiar</>}
+                  </button>
+                </div>
+                {(depositAsset === "XLM" || depositAsset === "USDC") && stellarExplorer && (
+                  <a
+                    href={stellarExplorer}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="block text-center text-[11px] text-indigo-500 font-bold hover:text-indigo-600"
+                  >
+                    Ver en Stellar Expert →
+                  </a>
+                )}
+              </div>
+            ) : (
+              <div className="py-8 text-center">
+                <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
+                <p className="text-xs text-gray-400 mb-3">No se pudo obtener dirección</p>
+                <button onClick={() => handleOpenDeposit(depositAsset)} className="text-xs font-bold text-brand-500">Reintentar →</button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL RETIRO ════════════════════════════════ */}
+      {activeAction.type === "withdraw" && activeAction.asset && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`h-8 w-8 rounded-lg ${isStellar ? "bg-indigo-500/10" : "bg-red-500/10"} flex items-center justify-center`}>
+                  <ArrowUpRight className={`h-4 w-4 ${isStellar ? "text-indigo-500" : "text-red-500"}`} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">Retirar {activeAction.asset}</h3>
+                  <p className="text-[10px] text-gray-400">Enviar a wallet externa</p>
+                </div>
+              </div>
+              <button onClick={handleCloseAction} className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5 transition-colors">
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            {activeAction.asset !== "USDT" && activeAction.asset !== "XLM" && activeAction.asset !== "USDC" ? (
+              <div className="py-8 text-center">
+                <Info className="h-5 w-5 text-amber-500 mx-auto mb-2" />
+                <p className="text-sm font-semibold text-gray-900 dark:text-white">Próximamente</p>
+                <p className="text-xs text-gray-400">Por ahora solo <strong>USDT/TRC20</strong>, <strong>USDC/Stellar</strong> y <strong>XLM/Stellar</strong> están disponibles.</p>
+              </div>
+            ) : (
+              <>
+                {!withdrawSuccess && (
+                  <div className="flex items-center gap-2">
+                    {[1, 2].map((step) => (
+                      <div key={step} className="flex items-center gap-2 flex-1">
+                        <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold transition-all ${
+                          withdrawStep >= step
+                            ? isStellar ? "bg-indigo-500 text-white" : "bg-red-500 text-white"
+                            : "bg-gray-100 dark:bg-white/5 text-gray-400"
+                        }`}>{step}</div>
+                        <span className={`text-[10px] font-semibold ${withdrawStep >= step ? "text-gray-900 dark:text-white" : "text-gray-400"}`}>
+                          {step === 1 ? "Dirección" : "Monto"}
+                        </span>
+                        {step < 2 && <div className={`flex-1 h-0.5 rounded-full ${
+                          withdrawStep > step
+                            ? isStellar ? "bg-indigo-500" : "bg-red-500"
+                            : "bg-gray-200 dark:bg-white/10"
+                        }`} />}
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {withdrawStep === 1 && (
+                  <div className="space-y-4">
+                    <div className={`flex items-center gap-3 p-3 rounded-xl border ${
+                      isStellar ? "border-indigo-500/30 bg-indigo-500/5" : "border-red-500/30 bg-red-500/5"
+                    }`}>
+                      <span className="text-xl">{currentChainInfo?.icon || "🔴"}</span>
+                      <div className="flex-1">
+                        <p className="text-xs font-bold text-gray-900 dark:text-white">{currentChainInfo?.label}</p>
+                        <p className="text-[10px] text-gray-400">Comisión: {currentChainInfo?.fee} · Tiempo: {currentChainInfo?.time}</p>
+                      </div>
+                      <CheckCircle2 className={`h-4 w-4 ${isStellar ? "text-indigo-500" : "text-red-500"}`} />
+                    </div>
+
+                    <div>
+                      <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                        Dirección {isStellar ? "Stellar" : "TRC20"} de destino
+                      </label>
+                      <input
+                        type="text"
+                        value={withdrawAddress}
+                        onChange={(e) => setWithdrawAddress(e.target.value)}
+                        placeholder={isStellar ? "Empieza con G..." : "Empieza con T..."}
+                        className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-red-500/30 transition-all"
+                      />
+                      {withdrawAddress && isStellar && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) && (
+                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> Debe empezar con G y tener 56 caracteres
+                        </p>
+                      )}
+                      {withdrawAddress && !isStellar && !withdrawAddress.startsWith("T") && (
+                        <p className="text-[10px] text-red-500 mt-1 flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" /> La dirección debe empezar con T
+                        </p>
+                      )}
+                    </div>
+
+                    {isStellar && (
+                      <div>
+                        <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                          Memo (opcional, máx 28 caracteres)
+                        </label>
+                        <input
+                          type="text"
+                          value={withdrawMemo}
+                          onChange={(e) => setWithdrawMemo(e.target.value)}
+                          maxLength={28}
+                          placeholder="Referencia o nota"
+                          className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-indigo-500/30"
+                        />
+                      </div>
+                    )}
+
+                    <button
+                      disabled={
+                        !withdrawAddress ||
+                        (isStellar && (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56)) ||
+                        (!isStellar && !withdrawAddress.startsWith("T"))
+                      }
+                      onClick={() => setWithdrawStep(2)}
+                      className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold disabled:opacity-40"
+                    >
+                      Continuar <ArrowRight className="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                )}
+
+                {withdrawStep === 2 && (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200">
+                      <span className="text-lg">{isStellar ? "⭐" : "🔴"}</span>
+                      <div className="flex-1 truncate">
+                        <p className="text-[11px] font-bold text-gray-900 dark:text-white">{currentChainInfo?.label}</p>
+                        <p className="text-[10px] text-gray-400 font-mono truncate">{withdrawAddress}</p>
+                      </div>
+                      <button onClick={() => setWithdrawStep(1)} className="text-[10px] text-brand-500 font-bold">Editar</button>
+                    </div>
+
+                    <div>
+                      <div className="flex justify-between items-center mb-1.5">
+                        <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">Monto a enviar</label>
+                        <button
+                          onClick={handleSetMaxAmount}
+                          className={`text-[10px] font-bold ${isStellar ? "text-indigo-500" : "text-red-500"}`}
+                        >
+                          MAX: {activeAction.asset === "XLM"
+                            ? Math.max(0, stellarBalance - 1.5).toFixed(4)
+                            : activeAction.asset === "USDC"
+                            ? usdcBalance.toFixed(2)
+                            : (firestoreBalances[activeAction.asset] || 0)
+                          } {activeAction.asset}
+                        </button>
+                      </div>
+                      <div className="relative">
+                        <input
+                          type="number"
+                          value={withdrawAmount}
+                          onChange={(e) => setWithdrawAmount(e.target.value)}
+                          placeholder="0.00"
+                          className="w-full text-2xl font-bold bg-gray-50 dark:bg-white/5 border border-gray-200 rounded-xl px-4 py-4 pr-20 text-gray-900 dark:text-white focus:outline-none"
+                        />
+                        <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">
+                          {activeAction.asset}
+                        </span>
+                      </div>
+                    </div>
+
+                    {withdrawError && (
+                      <div className="p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 text-xs text-red-700 dark:text-red-400">
+                        {withdrawError}
+                      </div>
+                    )}
+
+                    <div className="flex gap-2">
+                      <button onClick={() => setWithdrawStep(1)} className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-xs font-bold">
+                        Atrás
+                      </button>
+                      <button
+                        disabled={isSubmitting || !withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                        onClick={handleExecuteWithdrawal}
+                        className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl ${
+                          isStellar ? "bg-indigo-500" : "bg-red-500"
+                        } text-white text-xs font-bold disabled:opacity-40`}
+                      >
+                        {isSubmitting ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <><Shield className="h-3.5 w-3.5" /> Confirmar</>}
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {withdrawStep === 3 && withdrawSuccess && (
+                  <div className="py-6 text-center space-y-4">
+                    <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+                    <h3 className="text-lg font-bold text-gray-900 dark:text-white">¡Retiro Enviado!</h3>
+                    {withdrawTxId && (
+                      <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-3 border text-center">
+                        <p className="text-[10px] text-gray-400">Hash de transacción</p>
+                        <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">{withdrawTxId}</p>
+                        <a
+                          href={isStellar
+                            ? `https://stellar.expert/explorer/testnet/tx/${withdrawTxId}`
+                            : `https://tronscan.org/#/transaction/${withdrawTxId}`
+                          }
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-[10px] font-bold text-brand-500 block mt-1"
+                        >
+                          Ver en explorador →
+                        </a>
+                      </div>
+                    )}
+                    <button onClick={handleCloseAction} className="w-full py-3 rounded-xl bg-gray-900 text-white text-xs font-bold">
+                      Volver a Wallet
+                    </button>
+                  </div>
+                )}
+              </>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
