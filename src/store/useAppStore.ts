@@ -115,6 +115,8 @@ interface AppState {
   fetchNotifications:       (userId: string) => Promise<void>;
   subscribeToNotifications: (userId: string) => () => void;
   markNotificationRead:     (id: string) => Promise<void>;
+  notifications:            Notification[];
+  setNotifications:         (n: Notification[]) => void;
 
   // ─── Idioma ──────────────────────────────────────────────
   setLanguage: (lang: "es" | "en") => void;          // ← nuevo
