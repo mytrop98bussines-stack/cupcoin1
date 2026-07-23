@@ -100,43 +100,41 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
   }, [trade.id]);
 
   // ─── Resolver disputa via backend ─────────────────────────
-  const resolveDispute = async (
-    result: "resolved_buyer" | "resolved_seller"
-  ) => {
-    if (!adminNote.trim()) {
-      alert("Debes escribir una justificación para la auditoría.");
-      return;
-    }
+const resolveDispute = async (
+  winner: "buyer" | "seller"
+) => {
+  if (!adminNote.trim()) {
+    alert("Debes escribir una justificación para la auditoría.");
+    return;
+  }
 
-    setLoading(true);
-    try {
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/admin/disputes/resolve`, {
-        method:  "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          disputeId: dispute.id,
-          tradeId:   trade.id,
-          result,
-          adminNote,
-          adminId:   user?.uid || "admin",
-        }),
-      });
-      const data = await res.json();
+  setLoading(true);
+  try {
+    const token = localStorage.getItem("cubax_token");
+    const res   = await fetch(`${BACKEND_URL}/admin/disputes/resolve`, {
+      method:  "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization:  `Bearer ${token}`,
+      },
+      body: JSON.stringify({
+        tradeId:   trade.id,
+        winner,
+        adminNote: adminNote.trim(),
+      }),
+    });
+    const data = await res.json();
 
-      if (!data.success) throw new Error(data.error);
+    if (!data.success) throw new Error(data.error);
 
-      onClose();
-    } catch (e: any) {
-      console.error("❌ Error al resolver:", e);
-      alert("Error al procesar la resolución: " + e.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    onClose();
+  } catch (e: any) {
+    console.error("❌ Error al resolver:", e);
+    alert("Error al procesar la resolución: " + e.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
@@ -357,22 +355,22 @@ export function AdminDisputeReview({ dispute, trade, onClose }: Props) {
         </div>
 
         {/* Botones de decisión */}
-        <div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex gap-3">
-          <Button
-            className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
-            loading={loading}
-            onClick={() => resolveDispute("resolved_buyer")}
-          >
-            ✅ Fallar a favor del Comprador
-          </Button>
-          <Button
-            className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
-            loading={loading}
-            onClick={() => resolveDispute("resolved_seller")}
-          >
-            ✅ Fallar a favor del Vendedor
-          </Button>
-        </div>
+<div className="px-6 py-4 border-t border-gray-100 dark:border-white/10 flex gap-3">
+  <Button
+    className="flex-1 bg-emerald-500 hover:bg-emerald-600 text-white"
+    loading={loading}
+    onClick={() => resolveDispute("buyer")}
+  >
+    ✅ Fallar a favor del Comprador
+  </Button>
+  <Button
+    className="flex-1 bg-blue-500 hover:bg-blue-600 text-white"
+    loading={loading}
+    onClick={() => resolveDispute("seller")}
+  >
+    ✅ Fallar a favor del Vendedor
+  </Button>
+</div>
       </div>
     </div>
   );
