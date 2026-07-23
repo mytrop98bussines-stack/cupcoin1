@@ -7,6 +7,7 @@ import { Avatar }    from "@/components/ui/Avatar";
 import { TradeChat } from "@/components/TradeChat";
 import { ReportUserModal } from "@/components/ReportUserModal";
 import { RatingModal }     from "@/components/RatingModal";
+import { DisputeModal }    from "@/components/DisputeModal";
 import { VerifiedBadge }   from "@/components/VerifiedBadge";
 import { PAYMENT_METHOD_LABELS } from "@/data/data";
 import {
@@ -91,6 +92,9 @@ export function TradePage() {
   // ─── Estado de reporte ─────────────────────────────────────
   const [showReport, setShowReport] = useState(false);
 
+  // ─── Estado de disputa (nuevo modal) ───────────────────────
+  const [showDispute, setShowDispute] = useState(false);
+
   // ─── Verificar si puede calificar ─────────────────────────
   useEffect(() => {
     if (!trade || !user?.uid) return;
@@ -111,33 +115,33 @@ export function TradePage() {
       });
   }, [trade?.id, trade?.status, user?.uid]);
 
-  // ─── Cargar trade via backend con polling ─────────────────
   // ─── Timer de pago (cuando escrow_funded) ─────────────────
-useEffect(() => {
-  if (!trade || trade.status !== "escrow_funded") {
-    setPaymentTimeLeft(null);
-    return;
-  }
+  useEffect(() => {
+    if (!trade || trade.status !== "escrow_funded") {
+      setPaymentTimeLeft(null);
+      return;
+    }
 
-  const loadTimer = async () => {
-    try {
-      const res  = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/payment-timer`);
-      const data = await res.json();
-      if (data.success && data.active) {
-        setPaymentTimeLeft(data.remaining);
-      }
-    } catch {}
-  };
+    const loadTimer = async () => {
+      try {
+        const res  = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/payment-timer`);
+        const data = await res.json();
+        if (data.success && data.active) {
+          setPaymentTimeLeft(data.remaining);
+        }
+      } catch {}
+    };
 
-  void loadTimer();
+    void loadTimer();
 
-  const interval = window.setInterval(() => {
-    setPaymentTimeLeft((prev) => (prev !== null && prev > 0 ? prev - 1000 : 0));
-  }, 1000);
+    const interval = window.setInterval(() => {
+      setPaymentTimeLeft((prev) => (prev !== null && prev > 0 ? prev - 1000 : 0));
+    }, 1000);
 
-  return () => window.clearInterval(interval);
-}, [trade?.id, trade?.status]);
-  
+    return () => window.clearInterval(interval);
+  }, [trade?.id, trade?.status]);
+
+  // ─── Cargar trade via backend con polling ─────────────────
   useEffect(() => {
     const tradeId = selectedTradeId || activeTrade?.id;
     if (!tradeId) {
@@ -340,25 +344,6 @@ useEffect(() => {
           break;
         }
 
-        case "dispute": {
-          if (!isParticipant) throw new Error("No autorizado.");
-          if (["crypto_released", "cancelled", "disputed"].includes(trade.status)) {
-            throw new Error("No se puede disputar en este estado.");
-          }
-
-          const res  = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/dispute`, {
-            method:  "POST",
-            headers: {
-              "Content-Type": "application/json",
-              Authorization:  `Bearer ${token}`,
-            },
-            body: JSON.stringify({ uid: user.uid }),
-          });
-          const data = await res.json();
-          if (!data.success) throw new Error(data.error);
-          break;
-        }
-
         case "cancel": {
           if (trade.status !== "awaiting_escrow") {
             throw new Error("Solo se puede cancelar antes de fondear el escrow.");
@@ -419,7 +404,7 @@ useEffect(() => {
   }
 
   const statusConfig = STATUS_CONFIG[trade.status];
-  return (
+    return (
     <div className="max-w-lg mx-auto pb-24 animate-fade-in">
 
       {/* Header de estado */}
@@ -616,78 +601,75 @@ useEffect(() => {
               </p>
             </div>
           )}
-          
-          {/* ═══ ESCROW FUNDED — TIMER + ACCIONES ═════════════════ */}
-{trade.status === "escrow_funded" && (
-  <>
-    {/* Timer visible para ambos */}
-    {paymentTimeLeft !== null && (
-      <div className={`p-3 rounded-xl border text-center ${
-        paymentTimeLeft > 5 * 60 * 1000
-          ? "bg-emerald-500/10 border-emerald-500/20"
-          : paymentTimeLeft > 2 * 60 * 1000
-          ? "bg-amber-500/10 border-amber-500/20"
-          : "bg-red-500/10 border-red-500/20"
-      }`}>
-        <div className="flex items-center justify-center gap-2 mb-1">
-          <Timer className={`h-4 w-4 ${
-            paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
-            paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
-          }`} />
-          <span className={`text-lg font-black ${
-            paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
-            paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
-          }`}>
-            {formatTimeLeft(paymentTimeLeft)}
-          </span>
-        </div>
-        <p className="text-[11px] text-gray-500 dark:text-gray-400">
-          {isBuyer
-            ? paymentTimeLeft > 0
-              ? "⏳ Tiempo restante para completar el pago"
-              : "❌ Tiempo agotado — cancelando trade..."
-            : paymentTimeLeft > 0
-              ? `⏳ El comprador tiene ${Math.ceil(paymentTimeLeft / 60000)} min para pagar`
-              : "❌ Tiempo agotado — cancelando trade..."
-          }
-        </p>
-      </div>
-    )}
 
-    {/* Instrucciones y botón para el COMPRADOR */}
-    {isBuyer && (
-      <div className="space-y-2">
-        <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-          <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
-            💳 Envía{" "}
-            <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
-            por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
-            toca el botón de abajo.
-          </p>
-        </div>
-        <Button
-          size="lg" fullWidth loading={loading}
-          onClick={() => handleAction("mark_paid")}
-          icon={<Send className="h-4 w-4" />}
-          className="bg-indigo-500 hover:bg-indigo-600 text-white"
-        >
-          Ya envié el pago en CUP
-        </Button>
-      </div>
-    )}
+          {/* ═══ ESCROW FUNDED — TIMER + ACCIONES ═════════════ */}
+          {trade.status === "escrow_funded" && (
+            <>
+              {paymentTimeLeft !== null && (
+                <div className={`p-3 rounded-xl border text-center ${
+                  paymentTimeLeft > 5 * 60 * 1000
+                    ? "bg-emerald-500/10 border-emerald-500/20"
+                    : paymentTimeLeft > 2 * 60 * 1000
+                    ? "bg-amber-500/10 border-amber-500/20"
+                    : "bg-red-500/10 border-red-500/20"
+                }`}>
+                  <div className="flex items-center justify-center gap-2 mb-1">
+                    <Timer className={`h-4 w-4 ${
+                      paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
+                      paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+                    }`} />
+                    <span className={`text-lg font-black ${
+                      paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
+                      paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+                    }`}>
+                      {formatTimeLeft(paymentTimeLeft)}
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                    {isBuyer
+                      ? paymentTimeLeft > 0
+                        ? "⏳ Tiempo restante para completar el pago"
+                        : "❌ Tiempo agotado — cancelando trade..."
+                      : paymentTimeLeft > 0
+                        ? `⏳ El comprador tiene ${Math.ceil(paymentTimeLeft / 60000)} min para pagar`
+                        : "❌ Tiempo agotado — cancelando trade..."
+                    }
+                  </p>
+                </div>
+              )}
 
-    {/* Mensaje para el VENDEDOR */}
-    {isSeller && (
-      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
-          ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
-          <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
-          por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
-        </p>
-      </div>
-    )}
-  </>
-)}
+              {isBuyer && (
+                <div className="space-y-2">
+                  <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                    <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
+                      💳 Envía{" "}
+                      <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
+                      por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
+                      toca el botón de abajo.
+                    </p>
+                  </div>
+                  <Button
+                    size="lg" fullWidth loading={loading}
+                    onClick={() => handleAction("mark_paid")}
+                    icon={<Send className="h-4 w-4" />}
+                    className="bg-indigo-500 hover:bg-indigo-600 text-white"
+                  >
+                    Ya envié el pago en CUP
+                  </Button>
+                </div>
+              )}
+
+              {isSeller && (
+                <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+                  <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
+                    ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
+                    <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
+                    por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
+                  </p>
+                </div>
+              )}
+            </>
+          )}
 
           {trade.status === "payment_sent" && isSeller && (
             <div className="space-y-2">
@@ -880,12 +862,13 @@ useEffect(() => {
             </Button>
           )}
 
+          {/* ✅ Botón "Iniciar Disputa" ahora abre el modal */}
           {!["crypto_released", "cancelled", "disputed", "awaiting_escrow"].includes(
             trade.status
           ) && (
             <Button
               size="sm" fullWidth variant="ghost"
-              onClick={() => handleAction("dispute")}
+              onClick={() => setShowDispute(true)}
               icon={<AlertTriangle className="h-3.5 w-3.5" />}
               className="text-red-500 hover:bg-red-50 dark:hover:bg-red-500/5"
             >
@@ -904,7 +887,7 @@ useEffect(() => {
         />
       )}
 
-      {/* MODAL RATING (nuevo) */}
+      {/* MODAL RATING */}
       {showRateModal && trade && (
         <RatingModal
           tradeId={trade.id}
@@ -915,10 +898,19 @@ useEffect(() => {
         />
       )}
 
+      {/* ✅ MODAL DISPUTA */}
+      {showDispute && trade && (
+        <DisputeModal
+          tradeId={trade.id}
+          isBuyer={isBuyer}
+          onClose={() => setShowDispute(false)}
+        />
+      )}
+
       {/* Chat */}
       <div className="px-4 mt-4">
         <TradeChat tradeId={trade.id} />
       </div>
     </div>
   );
-                      }
+      }
