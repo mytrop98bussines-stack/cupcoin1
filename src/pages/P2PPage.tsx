@@ -180,6 +180,11 @@ export function P2PPage() {
       });
       const data = await res.json();
 
+      if (data.code === "P2P_BANNED") {
+  setTradeError(`🚫 ${data.error}`);
+  return;
+      }
+      
       if (!data.success) throw new Error(data.error);
 
       setActiveTrade(data.trade);
