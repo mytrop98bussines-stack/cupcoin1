@@ -26,6 +26,7 @@ import { NotificationsPage }  from "@/pages/NotificationsPage";
 import { MembershipPage }     from "@/pages/MembershipPage";
 import { PublicProfilePage }  from "@/pages/PublicProfilePage";
 import { SwapPage }           from "@/pages/SwapPage";
+import { HistoryPage }        from "@/pages/HistoryPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -63,6 +64,7 @@ const VIEW_TITLES: Record<string, string> = {
   stellar:                 "Stellar Wallet",
   settings:                "Ajustes",
   notifications:           "Notificaciones",
+  "wallet-history":        "Historial de Wallet",
   "admin-kyc":             "Panel KYC Admin",
   "admin-users":           "Gestión Usuarios",
   "admin-disputes":        "Panel Disputas Admin",
@@ -82,7 +84,7 @@ const SHOW_BACK_VIEWS = [
   "create-order", "trade", "kyc", "product-detail",
   "create-product", "notifications", "admin-kyc", "admin-users",
   "admin-disputes", "profile", "security", "help",
-  "terms", "language", "notification-settings",
+  "terms", "wallet-history", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
   "public-profile", "stellar", "swap",
 ];
@@ -92,7 +94,7 @@ const AUTHENTICATED_VIEWS = [
   "trade", "kyc", "product-detail", "create-product",
   "wallet", "stellar", "swap", "settings", "notifications",
   "admin-kyc", "admin-users", "admin-disputes", "profile", "security",
-  "help", "terms", "language", "notification-settings",
+  "help", "terms", "wallet-history", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
   "public-profile",
 ];
@@ -277,6 +279,7 @@ function AppContent() {
         {currentView === "language"        && <LanguagePage />}
         {currentView === "notification-settings" && <NotificationSettingsPage />}
         {currentView === "trade-history"   && <TradeHistoryPage />}
+        {currentView === "wallet-history"  && <HistoryPage />}
         {currentView === "my-orders"       && <MyOrdersPage />}
         {currentView === "public-profile"  && <PublicProfilePage />}
         {currentView === "admin-kyc"       && user?.role === "admin" && <AdminKYCPage />}
