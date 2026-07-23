@@ -1,3 +1,4 @@
+import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Avatar } from "@/components/ui/Avatar";
 import { Logo }   from "@/components/Logo";
@@ -10,6 +11,8 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { cn } from "@/utils/cn";
+
+const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
 interface HeaderProps {
   title?: string;
@@ -29,12 +32,77 @@ export function Header({ title, showBack = false }: HeaderProps) {
     currentView,
   } = useAppStore();
 
-  const unreadCount = notifications.filter((n) => !n.read).length;
+  const [realtimeCount, setRealtimeCount] = useState(0);
+  const [hasNewNotif, setHasNewNotif]     = useState(false);
+  const previousCountRef                   = useRef(0);
+  const audioRef                           = useRef<HTMLAudioElement | null>(null);
+
+  // ─── Fetch contador cada 15 segundos ─────────────────────
+  useEffect(() => {
+    if (!user?.uid) return;
+
+    const loadCount = async () => {
+      try {
+        const token = localStorage.getItem("cubax_token");
+        const res   = await fetch(
+          `${BACKEND_URL}/notifications/${user.uid}/unread-count`,
+          { headers: { Authorization: `Bearer ${token}` } }
+        );
+        const data = await res.json();
+
+        if (data.success) {
+          const newCount = data.count || 0;
+
+          // Si aumentó el número, activar animación y sonido
+          if (newCount > previousCountRef.current && previousCountRef.current > 0) {
+            setHasNewNotif(true);
+
+            // Vibración en móvil
+            if ("vibrate" in navigator) {
+              navigator.vibrate([100, 50, 100]);
+            }
+
+            // Sonido opcional
+            try {
+              if (audioRef.current) {
+                audioRef.current.play().catch(() => {});
+              }
+            } catch {}
+
+            // Quitar animación después de 3s
+            setTimeout(() => setHasNewNotif(false), 3000);
+          }
+
+          previousCountRef.current = newCount;
+          setRealtimeCount(newCount);
+        }
+      } catch (err) {
+        console.warn("⚠️ Error contador notificaciones:", err);
+      }
+    };
+
+    void loadCount();
+    const interval = window.setInterval(loadCount, 15000);
+
+    return () => window.clearInterval(interval);
+  }, [user?.uid]);
+
+  // Fallback: contar del store local si el backend no responde
+  const localUnread   = notifications.filter((n) => !n.read).length;
+  const unreadCount   = realtimeCount > 0 ? realtimeCount : localUnread;
 
   const showLogo = !showBack && ["dashboard", "p2p", "marketplace"].includes(currentView);
 
   return (
     <header className="sticky top-0 z-50 glass bg-white/80 dark:bg-navy-950/80 border-b border-gray-100 dark:border-white/[0.06]">
+
+      {/* Audio invisible para sonido */}
+      <audio
+        ref={audioRef}
+        preload="auto"
+        src="data:audio/wav;base64,UklGRhwMAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YfgLAAA="
+      />
+
       <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
         <div className="flex items-center gap-3">
           {showBack ? (
@@ -82,15 +150,45 @@ export function Header({ title, showBack = false }: HeaderProps) {
             )}
           </button>
 
+          {/* Botón de notificaciones con badge mejorado */}
           <button
-            onClick={() => navigate("notifications")}
-            className="relative p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+            onClick={() => {
+              navigate("notifications");
+              setHasNewNotif(false);
+            }}
+            className={cn(
+              "relative p-2 rounded-lg transition-all",
+              hasNewNotif
+                ? "bg-red-500/10 animate-pulse"
+                : "hover:bg-gray-100 dark:hover:bg-white/5"
+            )}
           >
-            <Bell className="h-4.5 w-4.5 text-gray-500 dark:text-gray-400" />
+            <Bell
+              className={cn(
+                "h-4.5 w-4.5 transition-colors",
+                hasNewNotif
+                  ? "text-red-500"
+                  : unreadCount > 0
+                  ? "text-brand-500"
+                  : "text-gray-500 dark:text-gray-400"
+              )}
+            />
+
             {unreadCount > 0 && (
-              <span className="absolute top-1 right-1 h-4 w-4 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center">
-                {unreadCount}
-              </span>
+              <>
+                {/* Punto de pulso animado */}
+                {hasNewNotif && (
+                  <span className="absolute top-0.5 right-0.5 h-3 w-3 rounded-full bg-red-500 animate-ping" />
+                )}
+
+                {/* Badge con número */}
+                <span className={cn(
+                  "absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm",
+                  hasNewNotif && "ring-2 ring-red-300 dark:ring-red-500/50"
+                )}>
+                  {unreadCount > 99 ? "99+" : unreadCount}
+                </span>
+              </>
             )}
           </button>
 
@@ -141,4 +239,4 @@ export function Header({ title, showBack = false }: HeaderProps) {
       </div>
     </header>
   );
-}
+        }
