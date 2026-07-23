@@ -81,6 +81,7 @@ export function TradePage() {
   const [uploadingEvidence, setUploadingEvidence] = useState(false);
   const [evidenceUploaded, setEvidenceUploaded]   = useState(false);
   const [timeLeft, setTimeLeft]                   = useState<number | null>(null);
+  const [paymentTimeLeft, setPaymentTimeLeft]     = useState<number | null>(null);
   const evidenceInputRef                          = useRef<HTMLInputElement>(null);
 
   // ─── Estado de calificación ────────────────────────────────
@@ -111,6 +112,32 @@ export function TradePage() {
   }, [trade?.id, trade?.status, user?.uid]);
 
   // ─── Cargar trade via backend con polling ─────────────────
+  // ─── Timer de pago (cuando escrow_funded) ─────────────────
+useEffect(() => {
+  if (!trade || trade.status !== "escrow_funded") {
+    setPaymentTimeLeft(null);
+    return;
+  }
+
+  const loadTimer = async () => {
+    try {
+      const res  = await fetch(`${BACKEND_URL}/api/trades/${trade.id}/payment-timer`);
+      const data = await res.json();
+      if (data.success && data.active) {
+        setPaymentTimeLeft(data.remaining);
+      }
+    } catch {}
+  };
+
+  void loadTimer();
+
+  const interval = window.setInterval(() => {
+    setPaymentTimeLeft((prev) => (prev !== null && prev > 0 ? prev - 1000 : 0));
+  }, 1000);
+
+  return () => window.clearInterval(interval);
+}, [trade?.id, trade?.status]);
+  
   useEffect(() => {
     const tradeId = selectedTradeId || activeTrade?.id;
     if (!tradeId) {
@@ -589,6 +616,39 @@ export function TradePage() {
               </p>
             </div>
           )}
+          
+          {trade.status === "escrow_funded" && paymentTimeLeft !== null && (
+  <div className={`p-3 rounded-xl border text-center ${
+    paymentTimeLeft > 5 * 60 * 1000
+      ? "bg-emerald-500/10 border-emerald-500/20"
+      : paymentTimeLeft > 2 * 60 * 1000
+      ? "bg-amber-500/10 border-amber-500/20"
+      : "bg-red-500/10 border-red-500/20"
+  }`}>
+    <div className="flex items-center justify-center gap-2 mb-1">
+      <Timer className={`h-4 w-4 ${
+        paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
+        paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+      }`} />
+      <span className={`text-lg font-black ${
+        paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
+        paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+      }`}>
+        {formatTimeLeft(paymentTimeLeft)}
+      </span>
+    </div>
+    <p className="text-[11px] text-gray-500 dark:text-gray-400">
+      {isBuyer
+        ? paymentTimeLeft > 0
+          ? "Tiempo restante para completar el pago"
+          : "Tiempo agotado — trade en proceso de cancelación"
+        : paymentTimeLeft > 0
+          ? `El comprador tiene ${Math.ceil(paymentTimeLeft / 60000)} min para pagar`
+          : "Tiempo agotado"
+      }
+    </p>
+  </div>
+)}
 
           {trade.status === "escrow_funded" && isBuyer && (
             <div className="space-y-2">
