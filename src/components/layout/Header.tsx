@@ -100,7 +100,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
       <audio
         ref={audioRef}
         preload="auto"
-        src="data:audio/wav;base64,UklGRhwMAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YfgLAAA="
+        src=" sounds/notification.wav"
       />
 
       <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
