@@ -513,4 +513,60 @@ export function AdminDisputesPage() {
       )}
 
       {disputes.length === 0 ? (
-        <Card padding="lg" className="text-center
+        <Card padding="lg" className="text-center">
+          <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto mb-3" />
+          <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
+            ¡Todo tranquilo!
+          </p>
+          <p className="text-xs text-gray-400">
+            No hay disputas activas en este momento.
+          </p>
+        </Card>
+      ) : (
+        <div className="space-y-2">
+          {disputes.map((dispute) => (
+            <Card
+              key={dispute.id}
+              padding="md"
+              className="cursor-pointer hover:border-red-500/30 transition-colors"
+              onClick={() => setSelectedTradeId(dispute.tradeId)}
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <div className="flex items-center gap-2 mb-1">
+                    <AlertTriangle className="h-3.5 w-3.5 text-red-500 flex-shrink-0" />
+                    <span className="text-xs font-bold text-red-500">
+                      Trade #{dispute.tradeId.slice(-6)}
+                    </span>
+                  </div>
+                  <p className="text-sm font-semibold text-gray-900 dark:text-white truncate">
+                    {dispute.reason || "Sin motivo especificado"}
+                  </p>
+                  <div className="flex items-center gap-3 mt-1 text-[10px] text-gray-400">
+                    <span className="flex items-center gap-0.5">
+                      <User className="h-3 w-3" />
+                      {dispute.raisedBy || dispute.initiatedBy || "N/A"}
+                    </span>
+                    <span className="flex items-center gap-0.5">
+                      <Clock className="h-3 w-3" />
+                      {dispute.createdAt
+                        ? new Date(dispute.createdAt).toLocaleString("es-CU", {
+                            day:    "numeric",
+                            month:  "short",
+                            hour:   "2-digit",
+                            minute: "2-digit",
+                          })
+                        : "—"
+                      }
+                    </span>
+                  </div>
+                </div>
+                <Badge variant="danger" size="sm">Activa</Badge>
+              </div>
+            </Card>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
