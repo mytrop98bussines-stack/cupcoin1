@@ -617,69 +617,77 @@ useEffect(() => {
             </div>
           )}
           
-          {trade.status === "escrow_funded" && paymentTimeLeft !== null && (
-  <div className={`p-3 rounded-xl border text-center ${
-    paymentTimeLeft > 5 * 60 * 1000
-      ? "bg-emerald-500/10 border-emerald-500/20"
-      : paymentTimeLeft > 2 * 60 * 1000
-      ? "bg-amber-500/10 border-amber-500/20"
-      : "bg-red-500/10 border-red-500/20"
-  }`}>
-    <div className="flex items-center justify-center gap-2 mb-1">
-      <Timer className={`h-4 w-4 ${
-        paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
-        paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
-      }`} />
-      <span className={`text-lg font-black ${
-        paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
-        paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+          {/* ═══ ESCROW FUNDED — TIMER + ACCIONES ═════════════════ */}
+{trade.status === "escrow_funded" && (
+  <>
+    {/* Timer visible para ambos */}
+    {paymentTimeLeft !== null && (
+      <div className={`p-3 rounded-xl border text-center ${
+        paymentTimeLeft > 5 * 60 * 1000
+          ? "bg-emerald-500/10 border-emerald-500/20"
+          : paymentTimeLeft > 2 * 60 * 1000
+          ? "bg-amber-500/10 border-amber-500/20"
+          : "bg-red-500/10 border-red-500/20"
       }`}>
-        {formatTimeLeft(paymentTimeLeft)}
-      </span>
-    </div>
-    <p className="text-[11px] text-gray-500 dark:text-gray-400">
-      {isBuyer
-        ? paymentTimeLeft > 0
-          ? "Tiempo restante para completar el pago"
-          : "Tiempo agotado — trade en proceso de cancelación"
-        : paymentTimeLeft > 0
-          ? `El comprador tiene ${Math.ceil(paymentTimeLeft / 60000)} min para pagar`
-          : "Tiempo agotado"
-      }
-    </p>
-  </div>
+        <div className="flex items-center justify-center gap-2 mb-1">
+          <Timer className={`h-4 w-4 ${
+            paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
+            paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+          }`} />
+          <span className={`text-lg font-black ${
+            paymentTimeLeft > 5 * 60 * 1000 ? "text-emerald-500" :
+            paymentTimeLeft > 2 * 60 * 1000 ? "text-amber-500"   : "text-red-500"
+          }`}>
+            {formatTimeLeft(paymentTimeLeft)}
+          </span>
+        </div>
+        <p className="text-[11px] text-gray-500 dark:text-gray-400">
+          {isBuyer
+            ? paymentTimeLeft > 0
+              ? "⏳ Tiempo restante para completar el pago"
+              : "❌ Tiempo agotado — cancelando trade..."
+            : paymentTimeLeft > 0
+              ? `⏳ El comprador tiene ${Math.ceil(paymentTimeLeft / 60000)} min para pagar`
+              : "❌ Tiempo agotado — cancelando trade..."
+          }
+        </p>
+      </div>
+    )}
+
+    {/* Instrucciones y botón para el COMPRADOR */}
+    {isBuyer && (
+      <div className="space-y-2">
+        <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+          <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
+            💳 Envía{" "}
+            <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
+            por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
+            toca el botón de abajo.
+          </p>
+        </div>
+        <Button
+          size="lg" fullWidth loading={loading}
+          onClick={() => handleAction("mark_paid")}
+          icon={<Send className="h-4 w-4" />}
+          className="bg-indigo-500 hover:bg-indigo-600 text-white"
+        >
+          Ya envié el pago en CUP
+        </Button>
+      </div>
+    )}
+
+    {/* Mensaje para el VENDEDOR */}
+    {isSeller && (
+      <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
+        <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
+          ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
+          <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
+          por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
+        </p>
+      </div>
+    )}
+  </>
 )}
-
-          {trade.status === "escrow_funded" && isBuyer && (
-            <div className="space-y-2">
-              <div className="p-2.5 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-                <p className="text-[11px] font-semibold text-blue-600 dark:text-blue-400 text-center">
-                  💳 Envía{" "}
-                  <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
-                  por {PAYMENT_METHOD_LABELS[trade.paymentMethod]} y luego
-                  toca el botón de abajo.
-                </p>
-              </div>
-              <Button
-                size="lg" fullWidth loading={loading}
-                onClick={() => handleAction("mark_paid")}
-                icon={<Send className="h-4 w-4" />}
-                className="bg-indigo-500 hover:bg-indigo-600 text-white"
-              >
-                Ya envié el pago en CUP
-              </Button>
-            </div>
-          )}
-
-          {trade.status === "escrow_funded" && isSeller && (
-            <div className="p-3 bg-blue-500/10 border border-blue-500/20 rounded-xl">
-              <p className="text-xs font-semibold text-blue-600 dark:text-blue-400 text-center">
-                ⏳ Escrow fondeado. Esperando que el comprador envíe{" "}
-                <strong>{trade.totalFiat.toLocaleString("es-CU")} CUP</strong>{" "}
-                por {PAYMENT_METHOD_LABELS[trade.paymentMethod]}.
-              </p>
-            </div>
-          )}
 
           {trade.status === "payment_sent" && isSeller && (
             <div className="space-y-2">
