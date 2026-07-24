@@ -28,6 +28,7 @@ import { PublicProfilePage }  from "@/pages/PublicProfilePage";
 import { SwapPage }           from "@/pages/SwapPage";
 import { HistoryPage }        from "@/pages/HistoryPage";
 import { SalesManagementPage } from "@/pages/SalesManagementPage";
+import { AdminPromosPage }.   from "@/pages/AdminPromosPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -70,6 +71,7 @@ const VIEW_TITLES: Record<string, string> = {
   "admin-kyc":             "Panel KYC Admin",
   "admin-users":           "Gestión Usuarios",
   "admin-disputes":        "Panel Disputas Admin",
+  "admin-promos":          "Promociones",
   profile:                 "Mi Perfil",
   security:                "Seguridad",
   help:                    "Centro de ayuda",
@@ -85,7 +87,7 @@ const VIEW_TITLES: Record<string, string> = {
 const SHOW_BACK_VIEWS = [
   "create-order", "trade", "kyc", "product-detail",
   "create-product", "sales-management", "notifications", "admin-kyc", "admin-users",
-  "admin-disputes", "profile", "security", "help",
+  "admin-disputes", "admin-promos", "profile", "security", "help",
   "terms", "wallet-history", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
   "public-profile", "stellar", "swap",
@@ -95,7 +97,7 @@ const AUTHENTICATED_VIEWS = [
   "dashboard", "p2p", "marketplace", "create-order",
   "trade", "kyc", "product-detail", "sales-management", "create-product",
   "wallet", "stellar", "swap", "settings", "notifications",
-  "admin-kyc", "admin-users", "admin-disputes", "profile", "security",
+  "admin-kyc", "admin-users", "admin-promos", "admin-disputes", "profile", "security",
   "help", "terms", "wallet-history", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
   "public-profile",
@@ -288,6 +290,7 @@ function AppContent() {
         {currentView === "admin-kyc"       && user?.role === "admin" && <AdminKYCPage />}
         {currentView === "admin-users"     && user?.role === "admin" && <AdminUsersPage />}
         {currentView === "admin-disputes"  && user?.role === "admin" && <AdminDisputesPage />}
+        {currentView === "admin-promos"    && user?.role === "admin" && <AdminPromosPage />}
       </main>
 
       {showBottomNav && !modalOpen && <BottomNav />}
