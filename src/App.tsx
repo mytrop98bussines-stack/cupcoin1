@@ -27,6 +27,7 @@ import { MembershipPage }     from "@/pages/MembershipPage";
 import { PublicProfilePage }  from "@/pages/PublicProfilePage";
 import { SwapPage }           from "@/pages/SwapPage";
 import { HistoryPage }        from "@/pages/HistoryPage";
+import { SalesManagementPage } from "@/pages/SalesManagementPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -58,6 +59,7 @@ const VIEW_TITLES: Record<string, string> = {
   trade:                   "Trade en curso",
   kyc:                     "Verificación KYC",
   "product-detail":        "Detalle del producto",
+  "sales-management":      "Gestión de Ventas",
   "create-product":        "Publicar producto",
   wallet:                  "Mi Wallet",
   swap:                    "Swap Stellar",
@@ -82,7 +84,7 @@ const VIEW_TITLES: Record<string, string> = {
 
 const SHOW_BACK_VIEWS = [
   "create-order", "trade", "kyc", "product-detail",
-  "create-product", "notifications", "admin-kyc", "admin-users",
+  "create-product", "sales-management", "notifications", "admin-kyc", "admin-users",
   "admin-disputes", "profile", "security", "help",
   "terms", "wallet-history", "language", "notification-settings",
   "trade-history", "my-orders", "membership",
@@ -91,7 +93,7 @@ const SHOW_BACK_VIEWS = [
 
 const AUTHENTICATED_VIEWS = [
   "dashboard", "p2p", "marketplace", "create-order",
-  "trade", "kyc", "product-detail", "create-product",
+  "trade", "kyc", "product-detail", "sales-management", "create-product",
   "wallet", "stellar", "swap", "settings", "notifications",
   "admin-kyc", "admin-users", "admin-disputes", "profile", "security",
   "help", "terms", "wallet-history", "language", "notification-settings",
@@ -279,6 +281,7 @@ function AppContent() {
         {currentView === "language"        && <LanguagePage />}
         {currentView === "notification-settings" && <NotificationSettingsPage />}
         {currentView === "trade-history"   && <TradeHistoryPage />}
+        {currentView === "sales-management" && <SalesManagementPage />}
         {currentView === "wallet-history"  && <HistoryPage />}
         {currentView === "my-orders"       && <MyOrdersPage />}
         {currentView === "public-profile"  && <PublicProfilePage />}
