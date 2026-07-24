@@ -125,10 +125,6 @@ interface AppState {
   setSelectedTradeId:      (id: string | null) => void;
   setSelectedProductId:    (id: string | null) => void;
   setSelectedPublicUserId: (id: string | null) => void; // ← nuevo
-  selectedSalesProductId:       string | null;
-  selectedSalesProductId:                null,
-  setSelectedSalesProductId: (id) => set({ selectedSalesProductId: id }),
-  setSelectedSalesProductId: (id: string | null) => void;
   setLoading:              (loading: boolean) => void;
   setMobileMenuOpen:       (open: boolean) => void;
   setModalOpen:            (open: boolean) => void;
