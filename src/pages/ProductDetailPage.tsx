@@ -174,36 +174,46 @@ export function ProductDetailPage() {
 
   // ─── Enviar mensaje ───────────────────────────────────────
   const handleSendMessage = async () => {
-    if (!newMessage.trim() || !chatRoomId || !user || sendingMsg) return;
+const handleSendMessage = async () => {
+  if (!newMessage.trim() || !chatRoomId || !user || sendingMsg) return;
 
-    setSendingMsg(true);
-    const msgText = newMessage.trim();
-    setNewMessage("");
+  setSendingMsg(true);
+  const msgText = newMessage.trim();
+  setNewMessage("");
 
-    try {
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(
-        `${BACKEND_URL}/api/chats/${encodeURIComponent(chatRoomId)}/messages`,
-        {
-          method:  "POST",
-          headers: {
-            "Content-Type": "application/json",
-            Authorization:  `Bearer ${token}`,
-          },
-          body: JSON.stringify({ text: msgText }),
-        }
-      );
-      const data = await res.json();
-      if (data.success) {
-        setChatMessages((prev) => [...prev, data.message]);
+  try {
+    const token = localStorage.getItem("cubax_token");
+    const res   = await fetch(
+      `${BACKEND_URL}/api/chats/${encodeURIComponent(chatRoomId)}/messages`,
+      {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({
+          text:         msgText,
+          productId:    product?.id,
+          sellerId:     product?.sellerId,
+          productTitle: product?.title,
+        }),
       }
-    } catch (err: any) {
-      console.error("❌ Error enviando mensaje:", err);
+    );
+    const data = await res.json();
+    if (data.success) {
+      setChatMessages((prev) => [...prev, data.message]);
+    } else {
+      console.error("❌ Error backend:", data.error);
       setNewMessage(msgText);
-    } finally {
-      setSendingMsg(false);
+      alert("Error enviando mensaje: " + data.error);
     }
-  };
+  } catch (err: any) {
+    console.error("❌ Error enviando mensaje:", err);
+    setNewMessage(msgText);
+  } finally {
+    setSendingMsg(false);
+  }
+};
 
   // ─── Abrir chat desde notificación ───────────────────────
   useEffect(() => {
