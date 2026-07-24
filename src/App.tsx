@@ -255,6 +255,9 @@ function AppContent() {
         showBack={SHOW_BACK_VIEWS.includes(currentView)}
       />
 
+      {/* ✅ Promo Banner promocional fijo debajo del Header cuando el usuario está logueado */}
+      {user && <PromoBanner />}
+
       <main
         className="flex-1 min-h-0 overflow-y-auto pb-16"
         style={{
@@ -445,3 +448,4 @@ export default function App() {
 
   return <AppContent />;
         }
+    
