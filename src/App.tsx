@@ -29,6 +29,7 @@ import { SwapPage }           from "@/pages/SwapPage";
 import { HistoryPage }        from "@/pages/HistoryPage";
 import { SalesManagementPage } from "@/pages/SalesManagementPage";
 import { AdminPromosPage }  from "@/pages/AdminPromosPage";
+import { PromoBanner } from "@/components/PromoBanner";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
