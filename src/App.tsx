@@ -297,11 +297,12 @@ function AppContent() {
         {currentView === "admin-promos"    && user?.role === "admin" && <AdminPromosPage />}
       </main>
 
-      {showBottomNav && !modalOpen && <BottomNav />}
+       {showBottomNav && !modalOpen && <BottomNav />}
+      {/* ✅ Promo Banner */}
+      {user && <PromoBanner />}
     </div>
   );
 }
-
 // =========================================================
 // APP ROOT
 // =========================================================
