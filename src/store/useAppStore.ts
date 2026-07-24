@@ -25,27 +25,28 @@ const authHeaders = () => ({
 });
 
 interface AppState {
-  theme:             ThemeMode;
-  currentView:       AppView;
-  previousView:      AppView | null;
-  user:              User | null;
-  isAuthenticated:   boolean;
-  balances:          CryptoBalance[];
-  prices:            CryptoPrice[];
-  orders:            P2POrder[];
-  activeTrade:       Trade | null;
-  tradeMessages:     ChatMessage[];
-  products:          Product[];
-  notifications:     Notification[];
-  depositAddresses:  Record<string, string>;
-  selectedTradeId:   string | null;
-  selectedProductId: string | null;
-  selectedPublicUserId: string | null;   // ← nuevo
-  isLoading:         boolean;
-  mobileMenuOpen:    boolean;
-  loadingPrices:     boolean;
-  modalOpen:         boolean;
-  language:          "es" | "en";        // ← nuevo
+  theme:                    ThemeMode;
+  currentView:              AppView;
+  previousView:             AppView | null;
+  user:                     User | null;
+  isAuthenticated:          boolean;
+  balances:                 CryptoBalance[];
+  prices:                   CryptoPrice[];
+  orders:                   P2POrder[];
+  activeTrade:              Trade | null;
+  tradeMessages:            ChatMessage[];
+  products:                 Product[];
+  notifications:            Notification[];
+  depositAddresses:         Record<string, string>;
+  selectedTradeId:          string | null;
+  selectedProductId:        string | null;
+  selectedPublicUserId:     string | null;
+  selectedSalesProductId:   string | null;  // ← NUEVO
+  isLoading:                boolean;
+  mobileMenuOpen:           boolean;
+  loadingPrices:            boolean;
+  modalOpen:                boolean;
+  language:                 "es" | "en";
 
   // ─── Tema ────────────────────────────────────────────────
   setTheme:    (theme: ThemeMode) => void;
@@ -54,7 +55,7 @@ interface AppState {
   // ─── Navegación ──────────────────────────────────────────
   navigate:          (view: AppView) => void;
   goBack:            () => void;
-  navigateToProfile: (userId: string) => void; // ← nuevo
+  navigateToProfile: (userId: string) => void;
 
   // ─── Usuario ─────────────────────────────────────────────
   setUser: (user: User | null) => void;
@@ -115,19 +116,18 @@ interface AppState {
   fetchNotifications:       (userId: string) => Promise<void>;
   subscribeToNotifications: (userId: string) => () => void;
   markNotificationRead:     (id: string) => Promise<void>;
-  notifications:            Notification[];
-  setNotifications:         (n: Notification[]) => void;
 
   // ─── Idioma ──────────────────────────────────────────────
-  setLanguage: (lang: "es" | "en") => void;          // ← nuevo
+  setLanguage: (lang: "es" | "en") => void;
 
   // ─── UI ──────────────────────────────────────────────────
-  setSelectedTradeId:      (id: string | null) => void;
-  setSelectedProductId:    (id: string | null) => void;
-  setSelectedPublicUserId: (id: string | null) => void; // ← nuevo
-  setLoading:              (loading: boolean) => void;
-  setMobileMenuOpen:       (open: boolean) => void;
-  setModalOpen:            (open: boolean) => void;
+  setSelectedTradeId:        (id: string | null) => void;
+  setSelectedProductId:      (id: string | null) => void;
+  setSelectedPublicUserId:   (id: string | null) => void;
+  setSelectedSalesProductId: (id: string | null) => void;  // ← NUEVO
+  setLoading:                (loading: boolean) => void;
+  setMobileMenuOpen:         (open: boolean) => void;
+  setModalOpen:              (open: boolean) => void;
 }
 
 // ─── Tema inicial ─────────────────────────────────────────
@@ -153,12 +153,10 @@ const getInitialView = (): AppView => {
       params.has("challengeToken") ||
       params.has("error");
 
-    // ✅ Si venimos de Google OAuth, forzar AuthPage
     if (hasOAuthCallback) {
       return "login";
     }
 
-    // ✅ Si ya hay sesión guardada, abrir dashboard
     const token = localStorage.getItem("cubax_token");
     if (token) {
       return "dashboard";
@@ -172,7 +170,7 @@ const getInitialView = (): AppView => {
       "wallet", "settings", "notifications", "membership", "profile",
       "security", "help", "terms", "language", "notification-settings",
       "trade-history", "my-orders", "admin-kyc", "admin-disputes",
-      "public-profile",
+      "public-profile", "sales-management",  // ← NUEVO
     ];
 
     if (stored && validViews.includes(stored)) return stored;
@@ -182,16 +180,17 @@ const getInitialView = (): AppView => {
 };
 
 export const useAppStore = create<AppState>((set, get) => ({
-  theme:                getInitialTheme(),
-  currentView:          getInitialView(),
-  previousView:         null,
-  user:                 null,
-  isAuthenticated:      false,
-  balances:             [],
-  depositAddresses:     {},
-  modalOpen:            false,
-  selectedPublicUserId: null,   // ← nuevo
-  language:             (localStorage.getItem("cubax_language") as "es" | "en") || "es", // ← nuevo
+  theme:                  getInitialTheme(),
+  currentView:            getInitialView(),
+  previousView:           null,
+  user:                   null,
+  isAuthenticated:        false,
+  balances:               [],
+  depositAddresses:       {},
+  modalOpen:              false,
+  selectedPublicUserId:   null,
+  selectedSalesProductId: null,  // ← NUEVO
+  language:               (localStorage.getItem("cubax_language") as "es" | "en") || "es",
 
   prices: [
     { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
@@ -245,7 +244,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
-  // ✅ Navegar al perfil público de un usuario
   navigateToProfile: (userId: string) => {
     set({ selectedPublicUserId: userId });
     get().navigate("public-profile" as AppView);
