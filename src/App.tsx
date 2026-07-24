@@ -28,7 +28,7 @@ import { PublicProfilePage }  from "@/pages/PublicProfilePage";
 import { SwapPage }           from "@/pages/SwapPage";
 import { HistoryPage }        from "@/pages/HistoryPage";
 import { SalesManagementPage } from "@/pages/SalesManagementPage";
-import { AdminPromosPage }.   from "@/pages/AdminPromosPage";
+import { AdminPromosPage }  from "@/pages/AdminPromosPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
