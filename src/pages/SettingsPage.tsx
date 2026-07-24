@@ -9,7 +9,7 @@ import {
   ArrowLeftRight, Wallet, FileText, ExternalLink,
   Wrench, Copy, Check, User, AlertTriangle,
   Smartphone, ShoppingBag, CheckCircle2, Clock, X, Crown,
-  Users,
+  Users, Megaphone,
 } from "lucide-react";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
@@ -418,6 +418,21 @@ export function SettingsPage() {
           </Card>
         </div>
       )}
+
+      {user?.role === "admin" && (
+  <button
+    onClick={() => navigate("admin-promos")}
+    className="w-full flex items-center gap-3 p-4 rounded-xl bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/20"
+  >
+    <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+      <Megaphone className="h-5 w-5 text-purple-500" />
+    </div>
+    <div className="flex-1 text-left">
+      <p className="text-sm font-bold">Promociones</p>
+      <p className="text-[11px] text-gray-400">Gestionar anuncios de la app</p>
+    </div>
+  </button>
+)}
       
       {user?.role === "admin" && (
   <button
