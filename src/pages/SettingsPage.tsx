@@ -8,7 +8,7 @@ import {
   HelpCircle, LogOut, ChevronRight, Star,
   ArrowLeftRight, Wallet, FileText, ExternalLink,
   Wrench, Copy, Check, User, AlertTriangle,
-  Smartphone, CheckCircle2, Clock, X, Crown,
+  Smartphone, ShoppingBag, CheckCircle2, Clock, X, Crown,
   Users,
 } from "lucide-react";
 
