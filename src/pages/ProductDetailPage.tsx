@@ -750,6 +750,21 @@ const handleSendMessage = async () => {
         )}
 
         {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
+        {isOwner && (
+  <Button
+    size="lg"
+    fullWidth
+    onClick={() => {
+      useAppStore.getState().setSelectedSalesProductId(product.id);
+      navigate("sales-management");
+    }}
+    icon={<ShoppingBag className="h-4 w-4" />}
+    className="bg-brand-500 hover:bg-brand-600 text-white"
+  >
+    Gestión de ventas
+  </Button>
+)}
+        
         {isOwner ? (
           <div className="space-y-2">
             <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20">
