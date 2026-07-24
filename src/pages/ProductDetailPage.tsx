@@ -75,7 +75,7 @@ export function ProductDetailPage() {
   useEffect(() => {
     if (!showChat || !product || !user || isOwner) return;
 
-    const roomId = `product_${product.id}_${user.uid}`;
+    const roomId = `product_${product.id}_${user.uid.replace(/:/g, "_")}`;
     setChatRoomId(roomId);
     setSelectedChatRoom(roomId);
 
