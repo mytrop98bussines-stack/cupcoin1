@@ -434,6 +434,27 @@ export function SettingsPage() {
   </button>
 )}
 
+      <button
+  onClick={() => {
+    useAppStore.getState().setSelectedSalesProductId(null);
+    navigate("sales-management");
+  }}
+  className="w-full flex items-center gap-3 p-4 rounded-xl bg-brand-500/5 hover:bg-brand-500/10 border border-brand-500/20"
+>
+  <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
+    <ShoppingBag className="h-5 w-5 text-brand-500" />
+  </div>
+  <div className="flex-1 text-left">
+    <p className="text-sm font-bold text-gray-900 dark:text-white">
+      Mis Ventas
+    </p>
+    <p className="text-[11px] text-gray-400">
+      Gestiona todos tus pedidos
+    </p>
+  </div>
+  <ChevronRight className="h-4 w-4 text-gray-400" />
+</button>
+
       {/* ═══ SECCIONES DEL MENÚ ══════════════════════════════ */}
       {menuSections.map((section) => {
         if (section.title === "Actividad" && user.uid === "invitado") return null;
