@@ -173,7 +173,6 @@ export function ProductDetailPage() {
   }, [selectedChatRoom, isOwner, showChat]);
 
   // ─── Enviar mensaje ───────────────────────────────────────
-  const handleSendMessage = async () => {
 const handleSendMessage = async () => {
   if (!newMessage.trim() || !chatRoomId || !user || sendingMsg) return;
 
