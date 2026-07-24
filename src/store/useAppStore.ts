@@ -740,6 +740,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   // =========================================================
   setSelectedTradeId:      (id)      => set({ selectedTradeId:      id }),
   setSelectedProductId:    (id)      => set({ selectedProductId:    id }),
+  setSelectedSalesProductId: (id)    => set({ selectedSalesProductId: id }),
   setSelectedPublicUserId: (id)      => set({ selectedPublicUserId: id }),
   setLoading:              (loading) => set({ isLoading:            loading }),
   setMobileMenuOpen:       (open)    => set({ mobileMenuOpen:       open }),
