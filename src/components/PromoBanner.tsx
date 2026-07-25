@@ -30,18 +30,26 @@ export function PromoBanner() {
 
   const loadPromos = async () => {
     try {
-      // Verificar si ya vio todas
-      const dismissedAt = localStorage.getItem("promos_dismissed_at");
-      if (dismissedAt) {
+      const res  = await fetch(`${BACKEND_URL}/promos`);
+      const data = await res.json();
+
+      if (!data.success || data.promos.length === 0) {
         setLoading(false);
         return;
       }
 
-      const res  = await fetch(`${BACKEND_URL}/promos`);
-      const data = await res.json();
+      // ✅ Verificar cuáles promos ya se vieron
+      const seenIds = JSON.parse(
+        localStorage.getItem("promos_seen") || "[]"
+      ) as string[];
 
-      if (data.success && data.promos.length > 0) {
-        setPromos(data.promos);
+      // Filtrar solo las que NO se han visto
+      const newPromos = data.promos.filter(
+        (p: Promo) => !seenIds.includes(p.id)
+      );
+
+      if (newPromos.length > 0) {
+        setPromos(newPromos);
         setShow(true);
       }
     } catch (err) {
@@ -52,7 +60,16 @@ export function PromoBanner() {
   };
 
   const handleDismiss = () => {
-    localStorage.setItem("promos_dismissed_at", Date.now().toString());
+    // ✅ Guardar los IDs de las promos vistas
+    const seenIds = JSON.parse(
+      localStorage.getItem("promos_seen") || "[]"
+    ) as string[];
+
+    const newSeenIds = [
+      ...new Set([...seenIds, ...promos.map((p) => p.id)]),
+    ];
+
+    localStorage.setItem("promos_seen", JSON.stringify(newSeenIds));
     setShow(false);
   };
 
@@ -142,7 +159,6 @@ export function PromoBanner() {
             </div>
           )}
 
-          {/* Gradiente inferior para legibilidad */}
           <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
         </div>
 
@@ -220,4 +236,4 @@ export function PromoBanner() {
       </div>
     </div>
   );
-          }
+}
