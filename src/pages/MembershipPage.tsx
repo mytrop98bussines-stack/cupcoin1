@@ -243,7 +243,7 @@ export function MembershipPage() {
         </div>
         <div>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">
-            Membresía CubaX
+            Membresía CUPCOIN
           </h1>
           <p className="text-xs text-gray-400">
             Accede al P2P y Marketplace
@@ -556,7 +556,7 @@ export function MembershipPage() {
                 </p>
                 <p className="text-[11px] text-gray-600 dark:text-gray-400">
                   1. Envía <strong>{config.priceCUP} CUP</strong> al número{" "}
-                  <strong>55550000</strong> por{" "}
+                  <strong>56530249</strong> por{" "}
                   {payMethod === "transfermovil" ? "Transfermóvil" : "Enzona"}.
                 </p>
                 <p className="text-[11px] text-gray-600 dark:text-gray-400">
