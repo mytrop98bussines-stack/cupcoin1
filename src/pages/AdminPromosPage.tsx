@@ -124,26 +124,25 @@ export function AdminPromosPage() {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm("¿Eliminar esta promo?")) return;
+  if (!confirm("¿Eliminar esta promo?")) return;
 
-    try {
-      const token = localStorage.getItem("cubax_token");
-      const res   = await fetch(`${BACKEND_URL}/admin/promos/${id}`, {
-        method:  "DELETE",
-        headers: { Authorization: `Bearer ${token}` },
-      });
-      const data = await res.json();
-      if (data.success) await loadPromos();
-    } catch {}
-  };
+  try {
+    const token = localStorage.getItem("cubax_token");
+    const res   = await fetch(`${BACKEND_URL}/admin/promos/${id}/delete`, {
+      method:  "POST",
+      headers: { Authorization: `Bearer ${token}` },
+    });
+    const data = await res.json();
 
-  if (user?.role !== "admin") {
-    return (
-      <div className="p-8 text-center">
-        <p className="text-gray-500">No tienes permisos.</p>
-      </div>
-    );
+    if (data.success) {
+      await loadPromos();
+    } else {
+      alert("Error: " + data.error);
+    }
+  } catch (err) {
+    alert("Error de conexión");
   }
+};
 
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
