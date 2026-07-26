@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from "react";
-import { X, ChevronRight, ChevronLeft, ArrowRight } from "lucide-react";
+import { X, ArrowRight, ChevronRight } from "lucide-react";
 import { useAppStore } from "@/store/useAppStore";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
@@ -21,6 +21,7 @@ export function PromoBanner() {
   const [currentIdx, setCurrentIdx] = useState(0);
   const [show, setShow]             = useState(false);
   const [loading, setLoading]       = useState(true);
+  const [isAnimating, setIsAnimating] = useState(false);
   const touchStartX                 = useRef(0);
   const touchEndX                   = useRef(0);
 
@@ -38,12 +39,10 @@ export function PromoBanner() {
         return;
       }
 
-      // ✅ Verificar cuáles promos ya se vieron
       const seenIds = JSON.parse(
         localStorage.getItem("promos_seen") || "[]"
       ) as string[];
 
-      // Filtrar solo las que NO se han visto
       const newPromos = data.promos.filter(
         (p: Promo) => !seenIds.includes(p.id)
       );
@@ -60,7 +59,6 @@ export function PromoBanner() {
   };
 
   const handleDismiss = () => {
-    // ✅ Guardar los IDs de las promos vistas
     const seenIds = JSON.parse(
       localStorage.getItem("promos_seen") || "[]"
     ) as string[];
@@ -75,15 +73,13 @@ export function PromoBanner() {
 
   const handleNext = () => {
     if (currentIdx < promos.length - 1) {
-      setCurrentIdx(currentIdx + 1);
+      setIsAnimating(true);
+      setTimeout(() => {
+        setCurrentIdx(currentIdx + 1);
+        setIsAnimating(false);
+      }, 150);
     } else {
       handleDismiss();
-    }
-  };
-
-  const handlePrev = () => {
-    if (currentIdx > 0) {
-      setCurrentIdx(currentIdx - 1);
     }
   };
 
@@ -95,10 +91,11 @@ export function PromoBanner() {
         navigate(promo.buttonLink as any);
         handleDismiss();
       }
+    } else {
+      handleNext();
     }
   };
 
-  // ─── Swipe touch ─────────────────────────────────────────
   const handleTouchStart = (e: React.TouchEvent) => {
     touchStartX.current = e.touches[0].clientX;
   };
@@ -111,126 +108,169 @@ export function PromoBanner() {
     const diff = touchStartX.current - touchEndX.current;
     if (Math.abs(diff) < 50) return;
 
-    if (diff > 0) handleNext();
-    else          handlePrev();
+    if (diff > 0 && currentIdx < promos.length - 1) {
+      handleNext();
+    } else if (diff < 0 && currentIdx > 0) {
+      setIsAnimating(true);
+      setTimeout(() => {
+        setCurrentIdx(currentIdx - 1);
+        setIsAnimating(false);
+      }, 150);
+    }
   };
 
   if (loading || !show || promos.length === 0) return null;
 
   const currentPromo = promos[currentIdx];
+  const isLast       = currentIdx === promos.length - 1;
+  const progress     = ((currentIdx + 1) / promos.length) * 100;
 
   return (
-    <div className="fixed inset-0 z-[200] bg-black/80 backdrop-blur-md flex items-center justify-center p-4 animate-fade-in">
+    <div className="fixed inset-0 z-[200] bg-gradient-to-br from-black/95 via-black/90 to-black/95 backdrop-blur-xl flex items-end sm:items-center justify-center animate-fade-in">
 
-      {/* Botón cerrar (X) */}
-      <button
-        onClick={handleDismiss}
-        className="absolute top-4 right-4 h-10 w-10 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors z-10"
-      >
-        <X className="h-5 w-5" />
-      </button>
+      {/* Header con progreso */}
+      <div className="absolute top-0 left-0 right-0 z-10 p-4 pt-safe">
+        <div className="max-w-md mx-auto">
 
-      {/* Botón "Saltar" */}
-      <button
-        onClick={handleDismiss}
-        className="absolute top-4 left-4 px-3 py-1.5 rounded-full bg-white/10 hover:bg-white/20 text-white text-xs font-bold transition-colors z-10"
-      >
-        Saltar
-      </button>
+          {/* Barra de progreso (segmentos) */}
+          <div className="flex gap-1 mb-4">
+            {promos.map((_, i) => (
+              <div
+                key={i}
+                className="flex-1 h-1 rounded-full bg-white/20 overflow-hidden"
+              >
+                <div
+                  className={`h-full bg-white transition-all duration-500 ${
+                    i < currentIdx
+                      ? "w-full"
+                      : i === currentIdx
+                      ? "w-full animate-pulse"
+                      : "w-0"
+                  }`}
+                />
+              </div>
+            ))}
+          </div>
 
-      {/* Contenedor del carrusel */}
+          {/* Botón Saltar */}
+          <div className="flex items-center justify-between">
+            <button
+              onClick={handleDismiss}
+              className="px-4 py-2 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white text-xs font-bold transition-all"
+            >
+              Saltar
+            </button>
+
+            <span className="text-white/60 text-xs font-bold">
+              {currentIdx + 1} / {promos.length}
+            </span>
+
+            <button
+              onClick={handleDismiss}
+              className="h-9 w-9 rounded-full bg-white/10 hover:bg-white/20 backdrop-blur-md text-white flex items-center justify-center transition-all"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Contenedor del slide */}
       <div
-        className="w-full max-w-md bg-white dark:bg-gray-900 rounded-3xl overflow-hidden shadow-2xl animate-slide-up"
+        className="w-full max-w-md h-full sm:h-auto sm:max-h-[85vh] flex flex-col animate-slide-up"
         onTouchStart={handleTouchStart}
         onTouchMove={handleTouchMove}
         onTouchEnd={handleTouchEnd}
       >
-        {/* Imagen */}
-        <div className="relative aspect-video bg-gradient-to-br from-brand-500 to-brand-700 overflow-hidden">
-          {currentPromo.imageUrl ? (
-            <img
-              src={currentPromo.imageUrl}
-              alt={currentPromo.title}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className="w-full h-full flex items-center justify-center">
-              <span className="text-8xl">{currentPromo.emoji}</span>
-            </div>
-          )}
 
-          <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent" />
-        </div>
+        {/* Contenido principal con imagen full */}
+        <div className={`flex-1 flex flex-col justify-end sm:justify-center transition-opacity duration-150 ${
+          isAnimating ? "opacity-0" : "opacity-100"
+        }`}>
 
-        {/* Contenido */}
-        <div className="p-6 space-y-4">
+          {/* Imagen o emoji grande */}
+          <div className="relative flex-1 sm:flex-none flex items-center justify-center px-8 pt-24 pb-8 sm:py-12">
 
-          {/* Emoji + Título */}
-          <div className="text-center space-y-2">
-            {currentPromo.imageUrl && (
-              <span className="text-4xl">{currentPromo.emoji}</span>
+            {currentPromo.imageUrl ? (
+              <div className="relative w-full aspect-square max-w-[280px] max-h-[280px] mx-auto">
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-500/30 to-purple-500/30 rounded-full blur-3xl animate-pulse" />
+                <img
+                  src={currentPromo.imageUrl}
+                  alt={currentPromo.title}
+                  className="relative w-full h-full object-contain drop-shadow-2xl"
+                />
+              </div>
+            ) : (
+              <div className="relative">
+                <div className="absolute inset-0 bg-gradient-to-br from-brand-500/40 to-purple-500/40 rounded-full blur-3xl animate-pulse" />
+                <div className="relative w-56 h-56 rounded-full bg-gradient-to-br from-white/10 to-white/5 backdrop-blur-md border border-white/20 flex items-center justify-center shadow-2xl">
+                  <span className="text-8xl">{currentPromo.emoji}</span>
+                </div>
+              </div>
             )}
-            <h2 className="text-xl font-black text-gray-900 dark:text-white">
-              {currentPromo.title}
-            </h2>
           </div>
 
-          {/* Descripción */}
-          <p className="text-sm text-gray-600 dark:text-gray-400 text-center leading-relaxed">
-            {currentPromo.description}
-          </p>
+          {/* Card blanca con contenido */}
+          <div className="bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl px-6 pt-8 pb-8 shadow-2xl safe-bottom">
 
-          {/* Botón CTA */}
-          {currentPromo.buttonText && currentPromo.buttonLink && (
-            <button
-              onClick={() => handleButtonClick(currentPromo)}
-              className="w-full flex items-center justify-center gap-2 py-3 rounded-2xl bg-brand-500 hover:bg-brand-600 text-white text-sm font-bold shadow-lg shadow-brand-500/20 transition-all active:scale-[0.98]"
-            >
-              {currentPromo.buttonText}
-              <ArrowRight className="h-4 w-4" />
-            </button>
-          )}
+            {/* Emoji pequeño si hay imagen */}
+            {currentPromo.imageUrl && (
+              <div className="flex justify-center mb-3">
+                <span className="text-3xl">{currentPromo.emoji}</span>
+              </div>
+            )}
 
-          {/* Indicadores (puntos) */}
-          {promos.length > 1 && (
-            <div className="flex items-center justify-center gap-2 pt-2">
-              {promos.map((_, i) => (
-                <button
-                  key={i}
-                  onClick={() => setCurrentIdx(i)}
-                  className={`h-1.5 rounded-full transition-all ${
-                    i === currentIdx
-                      ? "w-6 bg-brand-500"
-                      : "w-1.5 bg-gray-300 dark:bg-gray-700"
-                  }`}
-                />
-              ))}
-            </div>
-          )}
+            {/* Título */}
+            <h2 className="text-2xl sm:text-3xl font-black text-gray-900 dark:text-white text-center mb-3 leading-tight tracking-tight">
+              {currentPromo.title}
+            </h2>
 
-          {/* Navegación */}
-          <div className="flex items-center justify-between pt-2">
-            <button
-              onClick={handlePrev}
-              disabled={currentIdx === 0}
-              className="p-2 rounded-full hover:bg-gray-100 dark:hover:bg-white/5 disabled:opacity-30 transition-colors"
-            >
-              <ChevronLeft className="h-5 w-5 text-gray-600 dark:text-gray-400" />
-            </button>
-
-            <p className="text-[11px] text-gray-400 font-medium">
-              {currentIdx + 1} de {promos.length}
+            {/* Descripción */}
+            <p className="text-sm text-gray-500 dark:text-gray-400 text-center leading-relaxed mb-6 max-w-xs mx-auto">
+              {currentPromo.description}
             </p>
 
-            <button
-              onClick={handleNext}
-              className="p-2 rounded-full bg-brand-500 hover:bg-brand-600 text-white transition-colors"
-            >
-              {currentIdx === promos.length - 1
-                ? <X className="h-4 w-4" />
-                : <ChevronRight className="h-5 w-5" />
-              }
-            </button>
+            {/* Botón CTA principal */}
+            {currentPromo.buttonText && currentPromo.buttonLink ? (
+              <button
+                onClick={() => handleButtonClick(currentPromo)}
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-bold shadow-xl shadow-brand-500/30 transition-all active:scale-[0.98]"
+              >
+                {currentPromo.buttonText}
+                <ArrowRight className="h-4 w-4" />
+              </button>
+            ) : (
+              <button
+                onClick={handleNext}
+                className="w-full flex items-center justify-center gap-2 py-4 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 hover:from-brand-600 hover:to-brand-700 text-white text-sm font-bold shadow-xl shadow-brand-500/30 transition-all active:scale-[0.98]"
+              >
+                {isLast ? "Entendido" : "Siguiente"}
+                {!isLast && <ChevronRight className="h-4 w-4" />}
+              </button>
+            )}
+
+            {/* Indicadores (puntos elegantes) */}
+            {promos.length > 1 && (
+              <div className="flex items-center justify-center gap-2 mt-6">
+                {promos.map((_, i) => (
+                  <button
+                    key={i}
+                    onClick={() => {
+                      setIsAnimating(true);
+                      setTimeout(() => {
+                        setCurrentIdx(i);
+                        setIsAnimating(false);
+                      }, 150);
+                    }}
+                    className={`h-2 rounded-full transition-all duration-300 ${
+                      i === currentIdx
+                        ? "w-8 bg-brand-500"
+                        : "w-2 bg-gray-300 dark:bg-gray-700"
+                    }`}
+                  />
+                ))}
+              </div>
+            )}
           </div>
         </div>
       </div>
