@@ -298,6 +298,7 @@ export function WalletPage() {
   const handleExecuteWithdrawal = async () => {
     if (!activeAction.asset || !withdrawAddress || !withdrawAmount || !user?.uid) return;
 
+    // ─── USDC Stellar ─────────────────────────────────────
     if (activeAction.asset === "USDC") {
       if (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) {
         setWithdrawError("Dirección Stellar inválida"); return;
@@ -315,6 +316,13 @@ export function WalletPage() {
           body: JSON.stringify({ toAddress: withdrawAddress, amount: monto, memo: withdrawMemo || undefined }),
         });
         const data = await res.json();
+
+        // 🆕 Manejo email no verificado
+        if (data.code === "EMAIL_NOT_VERIFIED") {
+          setWithdrawError(`📧 ${data.error} Ve al Dashboard para verificarlo.`);
+          return;
+        }
+
         if (data.success) {
           setWithdrawSuccess(true); setWithdrawTxId(data.txHash); setWithdrawStep(3);
           await loadStellarWallet();
@@ -324,6 +332,7 @@ export function WalletPage() {
       return;
     }
 
+    // ─── XLM Stellar ──────────────────────────────────────
     if (activeAction.asset === "XLM") {
       if (!withdrawAddress.startsWith("G") || withdrawAddress.length !== 56) {
         setWithdrawError("Dirección Stellar inválida"); return;
@@ -341,6 +350,13 @@ export function WalletPage() {
           body: JSON.stringify({ toAddress: withdrawAddress, amount: monto, memo: withdrawMemo || undefined }),
         });
         const data = await res.json();
+
+        // 🆕 Manejo email no verificado
+        if (data.code === "EMAIL_NOT_VERIFIED") {
+          setWithdrawError(`📧 ${data.error} Ve al Dashboard para verificarlo.`);
+          return;
+        }
+
         if (data.success) {
           setWithdrawSuccess(true); setWithdrawTxId(data.txHash); setWithdrawStep(3);
           await loadStellarWallet();
@@ -350,6 +366,7 @@ export function WalletPage() {
       return;
     }
 
+    // ─── USDT TRC20 ───────────────────────────────────────
     if (activeAction.asset !== "USDT") return;
     if (!withdrawAddress.startsWith("T")) {
       setWithdrawError("La dirección debe ser TRC20 y empezar con T"); return;
@@ -366,6 +383,13 @@ export function WalletPage() {
         body:    JSON.stringify({ uid: user.uid, toAddress: withdrawAddress, amount: monto }),
       });
       const data = await res.json();
+
+      // 🆕 Manejo email no verificado
+      if (data.code === "EMAIL_NOT_VERIFIED") {
+        setWithdrawError(`📧 ${data.error} Ve al Dashboard para verificarlo.`);
+        return;
+      }
+
       if (data.success) {
         setWithdrawSuccess(true); setWithdrawTxId(data.txHash || ""); setWithdrawStep(3);
       } else setWithdrawError(data.error || "Error procesando el retiro");
@@ -383,7 +407,7 @@ export function WalletPage() {
   const currentChainInfo = activeAction.asset ? CHAIN_OPTIONS[activeAction.asset]?.[0] : null;
   const isStellar        = activeAction.asset === "XLM" || activeAction.asset === "USDC";
 
-  return (
+    return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-28 space-y-4 animate-fade-in">
 
       {/* HEADER */}
@@ -457,7 +481,7 @@ export function WalletPage() {
         </button>
       </div>
 
-      {/* BANNERS */}
+      {/* BANNERS STELLAR */}
       {!stellarLoading && !stellarPublic && (
         <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 p-4 text-white">
           <div className="relative z-10 flex items-center gap-3">
@@ -492,33 +516,7 @@ export function WalletPage() {
         </div>
       )}
 
-      {/* MINI RESUMEN */}
-      <div className="flex gap-2 overflow-x-auto pb-1 -mx-1 px-1 scrollbar-hide">
-        {balancesList.map((b) => {
-          const colors = ASSET_COLORS[b.asset] || ASSET_COLORS.USDT;
-          const isUp   = b.change24h >= 0;
-          return (
-            <div
-              key={b.asset}
-              className={`flex-shrink-0 w-[130px] rounded-xl p-3 bg-gradient-to-br ${colors.gradient} border ${colors.border} cursor-pointer hover:scale-[1.02] transition-all`}
-              onClick={() => setExpandedAsset(expandedAsset === b.asset ? null : b.asset)}
-            >
-              <div className="flex items-center gap-2 mb-2">
-                <img src={getAssetIcon(b.asset)} alt={b.asset} className="h-5 w-5 object-contain" onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }} />
-                <span className="text-xs font-bold text-gray-900 dark:text-white">{b.asset}</span>
-                {b.network === "Stellar" && <Star className="h-2.5 w-2.5 text-indigo-500 fill-current" />}
-              </div>
-              <p className="text-sm font-bold text-gray-900 dark:text-white leading-tight">
-                {hideBalances ? "••••" : `$${b.usdValue.toLocaleString("en-US", { maximumFractionDigits: 2 })}`}
-              </p>
-              <div className={`flex items-center gap-0.5 mt-1 text-[10px] font-semibold ${isUp ? "text-emerald-500" : "text-red-500"}`}>
-                {isUp ? <TrendingUp className="h-2.5 w-2.5" /> : <TrendingDown className="h-2.5 w-2.5" />}
-                {Math.abs(b.change24h).toFixed(2)}%
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      {/* ═══ ❌ ELIMINADO: MINI RESUMEN horizontal (era redundante con Mis Activos) ═══ */}
 
       {/* LISTA DE ACTIVOS */}
       <div>
@@ -600,7 +598,7 @@ export function WalletPage() {
         </div>
       </div>
 
-            {/* ═══ MODAL DEPÓSITO ══════════════════════════════ */}
+      {/* ═══ MODAL DEPÓSITO ══════════════════════════════ */}
       {activeAction.type === "deposit" && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
@@ -730,7 +728,7 @@ export function WalletPage() {
         </div>
       )}
 
-      {/* ═══ MODAL RETIRO ════════════════════════════════ */}
+            {/* ═══ MODAL RETIRO ════════════════════════════════ */}
       {activeAction.type === "withdraw" && activeAction.asset && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[85vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
@@ -941,4 +939,4 @@ export function WalletPage() {
       )}
     </div>
   );
-}
+ }
