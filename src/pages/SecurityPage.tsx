@@ -1,4 +1,4 @@
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Card }   from "@/components/ui/Card";
 import { Button } from "@/components/ui/Button";
@@ -7,7 +7,15 @@ import {
   Lock, Eye, EyeOff, Shield, CheckCircle2,
   AlertTriangle, Clock, X, Loader2,
   QrCode, KeyRound, Copy, Check,
+  Fingerprint, Trash2,
 } from "lucide-react";
+import {
+  isBiometricSupported,
+  getBiometricType,
+  getBiometricStatus,
+  registerBiometric,
+  removeBiometric,
+} from "@/lib/biometric";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
@@ -43,7 +51,52 @@ export function SecurityPage() {
   const [disableCode, setDisableCode]     = useState("");
   const [keyCopied, setKeyCopied]         = useState(false);
 
+  // ─── 🆕 Estados Biometría ─────────────────────────────────
+  const [bioSupported, setBioSupported] = useState(false);
+  const [bioType, setBioType]           = useState("biometría");
+  const [bioDevices, setBioDevices]     = useState<any[]>([]);
+  const [bioLoading, setBioLoading]     = useState(false);
+
   const twoFAEnabled = (user as any)?.twoFAEnabled || false;
+
+  // ─── 🆕 useEffect: chequear soporte biométrico ────────────
+  useEffect(() => {
+    const check = async () => {
+      const sup = isBiometricSupported();
+      setBioSupported(sup);
+      if (sup) {
+        const type = await getBiometricType();
+        setBioType(type);
+        const status = await getBiometricStatus();
+        if (status.success) setBioDevices(status.devices || []);
+      }
+    };
+    void check();
+  }, []);
+
+  // ─── 🆕 Handler: activar biometría ────────────────────────
+  const handleActivateBio = async () => {
+    setBioLoading(true);
+    const result = await registerBiometric();
+    if (result.success) {
+      localStorage.setItem("biometric_enabled", "1");
+      const status = await getBiometricStatus();
+      if (status.success) setBioDevices(status.devices || []);
+      alert(`✅ ${bioType} activado`);
+    } else {
+      alert("Error: " + result.error);
+    }
+    setBioLoading(false);
+  };
+
+  // ─── 🆕 Handler: quitar dispositivo biométrico ────────────
+  const handleRemoveBio = async (deviceId?: string) => {
+    if (!confirm("¿Eliminar este dispositivo?")) return;
+    await removeBiometric(deviceId);
+    if (!deviceId) localStorage.removeItem("biometric_enabled");
+    const status = await getBiometricStatus();
+    if (status.success) setBioDevices(status.devices || []);
+  };
 
   // ─── Fuerza de contraseña ─────────────────────────────────
   const passwordStrength = (() => {
@@ -176,7 +229,6 @@ export function SecurityPage() {
         return;
       }
 
-      // Actualizar estado del usuario en el store
       useAppStore.setState((state) => ({
         user: state.user
           ? { ...state.user, twoFAEnabled: true }
@@ -219,7 +271,6 @@ export function SecurityPage() {
         return;
       }
 
-      // Actualizar estado del usuario en el store
       useAppStore.setState((state) => ({
         user: state.user
           ? { ...state.user, twoFAEnabled: false }
@@ -252,13 +303,11 @@ export function SecurityPage() {
   const createdAt = user.createdAt
     ? new Date(user.createdAt).toLocaleString("es-CU")
     : "—";
-
   // ─── PANTALLA: QR de activación ───────────────────────────
   if (twoFAStep === "setup_qr") {
     return (
       <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button
             onClick={resetTwoFAState}
@@ -276,7 +325,6 @@ export function SecurityPage() {
           </div>
         </div>
 
-        {/* Error */}
         {twoFAError && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -287,7 +335,6 @@ export function SecurityPage() {
           </div>
         )}
 
-        {/* Instrucciones */}
         <Card padding="md" className="space-y-3">
           <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
             Instrucciones
@@ -307,7 +354,6 @@ export function SecurityPage() {
           ))}
         </Card>
 
-        {/* QR */}
         <Card padding="md">
           <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
             Código QR
@@ -315,11 +361,7 @@ export function SecurityPage() {
           <div className="flex justify-center">
             {qrDataUrl ? (
               <div className="p-3 bg-white rounded-2xl shadow-sm border border-gray-100">
-                <img
-                  src={qrDataUrl}
-                  alt="QR 2FA"
-                  className="h-48 w-48"
-                />
+                <img src={qrDataUrl} alt="QR 2FA" className="h-48 w-48" />
               </div>
             ) : (
               <div className="h-48 w-48 rounded-2xl bg-gray-100 dark:bg-white/5 flex items-center justify-center">
@@ -329,7 +371,6 @@ export function SecurityPage() {
           </div>
         </Card>
 
-        {/* Clave manual */}
         <Card padding="md">
           <div className="flex items-center gap-2 mb-2">
             <KeyRound className="h-4 w-4 text-brand-500" />
@@ -356,7 +397,6 @@ export function SecurityPage() {
           </div>
         </Card>
 
-        {/* Botón continuar */}
         <Button
           size="lg"
           fullWidth
@@ -379,7 +419,6 @@ export function SecurityPage() {
     return (
       <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button
             onClick={() => setTwoFAStep("setup_qr")}
@@ -397,7 +436,6 @@ export function SecurityPage() {
           </div>
         </div>
 
-        {/* Error */}
         {twoFAError && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -409,8 +447,6 @@ export function SecurityPage() {
         )}
 
         <Card padding="md" className="space-y-4">
-
-          {/* Ícono */}
           <div className="text-center py-2">
             <div className="h-16 w-16 rounded-2xl bg-brand-500/10 flex items-center justify-center mx-auto mb-3">
               <Shield className="h-8 w-8 text-brand-500" />
@@ -423,7 +459,6 @@ export function SecurityPage() {
             </p>
           </div>
 
-          {/* Input código */}
           <div>
             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
               Código de verificación
@@ -454,10 +489,8 @@ export function SecurityPage() {
           >
             Activar 2FA
           </Button>
-
         </Card>
 
-        {/* Volver al QR */}
         <button
           onClick={() => setTwoFAStep("setup_qr")}
           className="w-full text-xs text-brand-500 font-semibold text-center py-2"
@@ -474,7 +507,6 @@ export function SecurityPage() {
     return (
       <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-        {/* Header */}
         <div className="flex items-center gap-3">
           <button
             onClick={resetTwoFAState}
@@ -492,7 +524,6 @@ export function SecurityPage() {
           </div>
         </div>
 
-        {/* Error */}
         {twoFAError && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -503,7 +534,6 @@ export function SecurityPage() {
           </div>
         )}
 
-        {/* Advertencia */}
         <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20">
           <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
           <p className="text-xs text-amber-700 dark:text-amber-400">
@@ -513,7 +543,6 @@ export function SecurityPage() {
         </div>
 
         <Card padding="md" className="space-y-4">
-
           <div className="text-center py-2">
             <div className="h-16 w-16 rounded-2xl bg-red-500/10 flex items-center justify-center mx-auto mb-3">
               <Shield className="h-8 w-8 text-red-500" />
@@ -526,7 +555,6 @@ export function SecurityPage() {
             </p>
           </div>
 
-          {/* Input código */}
           <div>
             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
               Código de verificación
@@ -558,7 +586,6 @@ export function SecurityPage() {
           >
             Desactivar 2FA
           </Button>
-
         </Card>
 
         <button
@@ -591,7 +618,6 @@ export function SecurityPage() {
         </div>
       </div>
 
-      {/* Error banner */}
       {error && (
         <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
           <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -602,7 +628,6 @@ export function SecurityPage() {
         </div>
       )}
 
-      {/* Éxito contraseña */}
       {success && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
           <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
@@ -615,11 +640,89 @@ export function SecurityPage() {
         </div>
       )}
 
-      {/* Éxito 2FA */}
       {twoFASuccess && (
         <div className="flex items-center gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20">
           <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0" />
           <p className="text-xs text-emerald-700 dark:text-emerald-400">{twoFASuccess}</p>
+        </div>
+      )}
+
+      {/* ═══ 🆕 BIOMETRÍA ═════════════════════════════════════ */}
+      {bioSupported && (
+        <div>
+          <h3 className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 px-1">
+            Biometría
+          </h3>
+          <Card padding="md" className="space-y-3">
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-indigo-500/10 flex items-center justify-center flex-shrink-0">
+                <Fingerprint className="h-5 w-5 text-indigo-500" />
+              </div>
+              <div className="flex-1">
+                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                  {bioType}
+                </p>
+                <p className="text-xs text-gray-400">
+                  {bioDevices.length > 0
+                    ? `${bioDevices.length} dispositivo${bioDevices.length !== 1 ? "s" : ""} activo${bioDevices.length !== 1 ? "s" : ""}`
+                    : "Acceso rápido y seguro"}
+                </p>
+              </div>
+            </div>
+
+            {bioDevices.length > 0 ? (
+              <>
+                <div className="space-y-1.5">
+                  {bioDevices.map((device) => (
+                    <div
+                      key={device.id}
+                      className="flex items-center justify-between p-2.5 rounded-xl bg-gray-50 dark:bg-white/5"
+                    >
+                      <div className="flex items-center gap-2 flex-1 min-w-0">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500 flex-shrink-0" />
+                        <div className="min-w-0">
+                          <p className="text-xs font-semibold text-gray-900 dark:text-white truncate">
+                            {device.deviceName}
+                          </p>
+                          <p className="text-[10px] text-gray-400">
+                            {new Date(device.createdAt).toLocaleDateString("es-CU")}
+                          </p>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleRemoveBio(device.id)}
+                        className="p-1.5 rounded-lg text-red-500 hover:bg-red-500/10"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+
+                <Button
+                  size="sm"
+                  fullWidth
+                  loading={bioLoading}
+                  onClick={handleActivateBio}
+                  variant="outline"
+                  icon={<Fingerprint className="h-4 w-4" />}
+                >
+                  Agregar otro dispositivo
+                </Button>
+              </>
+            ) : (
+              <Button
+                size="lg"
+                fullWidth
+                loading={bioLoading}
+                onClick={handleActivateBio}
+                icon={<Fingerprint className="h-4 w-4" />}
+                className="bg-gradient-to-r from-indigo-500 to-purple-500 hover:opacity-90"
+              >
+                Activar {bioType}
+              </Button>
+            )}
+          </Card>
         </div>
       )}
 
@@ -646,7 +749,6 @@ export function SecurityPage() {
             </div>
           </div>
 
-          {/* Info según estado */}
           <div className={`p-2.5 rounded-xl border ${
             twoFAEnabled
               ? "bg-emerald-500/10 border-emerald-500/20"
@@ -663,7 +765,6 @@ export function SecurityPage() {
             </p>
           </div>
 
-          {/* Apps recomendadas — solo si NO está activo */}
           {!twoFAEnabled && (
             <div className="p-2.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
               <p className="text-[11px] text-gray-500 dark:text-gray-400 font-semibold mb-1">
@@ -682,7 +783,6 @@ export function SecurityPage() {
             </div>
           )}
 
-          {/* Botones de acción */}
           {twoFAEnabled ? (
             <Button
               size="sm"
@@ -709,17 +809,16 @@ export function SecurityPage() {
               Activar 2FA con Authenticator
             </Button>
           )}
-          
-          {/* Error 2FA (para la pantalla principal) */}
-{twoFAError && (
-  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
-    <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-    <p className="text-xs text-red-700 dark:text-red-400 flex-1">{twoFAError}</p>
-    <button onClick={() => setTwoFAError(null)}>
-      <X className="h-3.5 w-3.5 text-red-400" />
-    </button>
-  </div>
-)}
+
+          {twoFAError && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
+              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700 dark:text-red-400 flex-1">{twoFAError}</p>
+              <button onClick={() => setTwoFAError(null)}>
+                <X className="h-3.5 w-3.5 text-red-400" />
+              </button>
+            </div>
+          )}
 
         </Card>
       </div>
@@ -890,4 +989,4 @@ export function SecurityPage() {
 
     </div>
   );
-          }
+}
