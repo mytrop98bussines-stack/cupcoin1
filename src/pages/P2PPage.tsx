@@ -110,7 +110,6 @@ export function P2PPage() {
       if (selectedPayment !== "all" && !order.paymentMethods.includes(selectedPayment))    return false;
       if (searchQuery && !order.userName.toLowerCase().includes(searchQuery.toLowerCase())) return false;
 
-      // ✅ Filtro "Solo traders verificados"
       if (onlyVerified && !(order as any).userVerified) return false;
 
       return true;
@@ -181,10 +180,16 @@ export function P2PPage() {
       const data = await res.json();
 
       if (data.code === "P2P_BANNED") {
-  setTradeError(`🚫 ${data.error}`);
-  return;
+        setTradeError(`🚫 ${data.error}`);
+        return;
       }
-      
+
+      // 🆕 Manejar error de email no verificado
+      if (data.code === "EMAIL_NOT_VERIFIED") {
+        setTradeError(`📧 ${data.error} Ve al Dashboard para verificarlo.`);
+        return;
+      }
+
       if (!data.success) throw new Error(data.error);
 
       setActiveTrade(data.trade);
@@ -361,6 +366,7 @@ export function P2PPage() {
           }`} />
         </div>
       </button>
+
             {/* ═══ BÚSQUEDA Y FILTROS ══════════════════════════════ */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
@@ -783,4 +789,4 @@ export function P2PPage() {
       )}
     </div>
   );
-                  }
+ }
