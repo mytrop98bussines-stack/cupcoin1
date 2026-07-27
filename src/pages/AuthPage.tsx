@@ -8,6 +8,9 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
 } from "lucide-react";
 import type { User as AppUser } from "@/types";
+import { isBiometricSupported } from "@/lib/biometric";
+import { BiometricActivationModal } from "@/components/BiometricActivationModal";
+import { BiometricLoginButton } from "@/components/BiometricLoginButton";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
@@ -36,6 +39,10 @@ export function AuthPage() {
   const [twoFALoading, setTwoFALoading]               = useState(false);
   const [twoFAError, setTwoFAError]                   = useState<string | null>(null);
 
+  // ─── 🆕 Estados Biometría ─────────────────────────────────
+  const [showBiometricModal, setShowBiometricModal] = useState(false);
+  const [pendingUserData, setPendingUserData]       = useState<any>(null);
+
   // ─── Helper: completar login ───────────────────────────────
   const finishLogin = useCallback((data: any) => {
     localStorage.setItem("cubax_token",         data.token);
@@ -58,11 +65,45 @@ export function AuthPage() {
       rating:        u.rating             || 5.0,
       walletAddress: u.walletAddress      || null,
       role:          u.role               || "user",
-    };
+      emailVerified: u.emailVerified      || false, // 🆕 NUEVO
+    } as any;
 
-    login(appUser);
-    navigate("dashboard");
+    // 🆕 Verificar si debemos preguntar por biometría
+    const promptedBefore   = localStorage.getItem(`biometric_prompted_${data.uid}`);
+    const alreadyEnabled   = localStorage.getItem("biometric_enabled");
+
+    if (isBiometricSupported() && !promptedBefore && !alreadyEnabled) {
+      // Guardar datos y mostrar modal ANTES de entrar
+      setPendingUserData({ appUser, data });
+      setShowBiometricModal(true);
+    } else {
+      // Login normal directo
+      login(appUser);
+      navigate("dashboard");
+    }
   }, [login, navigate]);
+
+  // ─── 🆕 Callbacks del modal biométrico ────────────────────
+  const handleBiometricActivated = () => {
+    localStorage.setItem("biometric_enabled", "1");
+    if (pendingUserData) {
+      localStorage.setItem(`biometric_prompted_${pendingUserData.data.uid}`, "1");
+      login(pendingUserData.appUser);
+      navigate("dashboard");
+      setPendingUserData(null);
+    }
+    setShowBiometricModal(false);
+  };
+
+  const handleBiometricSkip = () => {
+    if (pendingUserData) {
+      localStorage.setItem(`biometric_prompted_${pendingUserData.data.uid}`, "1");
+      login(pendingUserData.appUser);
+      navigate("dashboard");
+      setPendingUserData(null);
+    }
+    setShowBiometricModal(false);
+  };
 
   // ─── Procesar callback de Google OAuth ────────────────────
   useEffect(() => {
@@ -192,21 +233,21 @@ export function AuthPage() {
         const data = await res.json();
 
         if (!data.success) {
-  if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
-    setErrors({ email: data.error });
-  } else if (
-    data.code === "INVALID_PASSWORD" ||
-    data.code === "INVALID_LOGIN_CREDENTIALS"
-  ) {
-    setErrors({ password: data.error });
-  } else if (data.code === "ACCOUNT_SUSPENDED") {
-    setGlobalError("🚫 " + data.error);
-  } else if (data.code === "RATE_LIMIT") {
-    setGlobalError(`⏳ ${data.error}`);
-  } else {
-    setGlobalError(data.error);
-  }
-  return;
+          if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
+            setErrors({ email: data.error });
+          } else if (
+            data.code === "INVALID_PASSWORD" ||
+            data.code === "INVALID_LOGIN_CREDENTIALS"
+          ) {
+            setErrors({ password: data.error });
+          } else if (data.code === "ACCOUNT_SUSPENDED") {
+            setGlobalError("🚫 " + data.error);
+          } else if (data.code === "RATE_LIMIT") {
+            setGlobalError(`⏳ ${data.error}`);
+          } else {
+            setGlobalError(data.error);
+          }
+          return;
         }
 
         if (data.requires2FA) {
@@ -251,21 +292,21 @@ export function AuthPage() {
       const data = await res.json();
 
       if (!data.success) {
-  if (data.code === "RATE_LIMIT") {
-    setTwoFAError(`⏳ ${data.error}`);
-  } else {
-    setTwoFAError(data.error || "Código incorrecto.");
-  }
+        if (data.code === "RATE_LIMIT") {
+          setTwoFAError(`⏳ ${data.error}`);
+        } else {
+          setTwoFAError(data.error || "Código incorrecto.");
+        }
 
-  if (data.error?.includes("expirada") || data.error?.includes("inválida")) {
-    setTimeout(() => {
-      setTwoFARequired(false);
-      setTwoFACode("");
-      setTwoFAError(null);
-      setTwoFAChallengeToken("");
-    }, 2000);
-  }
-  return;
+        if (data.error?.includes("expirada") || data.error?.includes("inválida")) {
+          setTimeout(() => {
+            setTwoFARequired(false);
+            setTwoFACode("");
+            setTwoFAError(null);
+            setTwoFAChallengeToken("");
+          }, 2000);
+        }
+        return;
       }
 
       finishLogin(data);
@@ -297,11 +338,11 @@ export function AuthPage() {
       const data = await res.json();
 
       if (data.success) {
-  setResetSent(true);
-} else if (data.code === "RATE_LIMIT") {
-  setGlobalError(`⏳ ${data.error}`);
-} else {
-  setGlobalError(data.error);
+        setResetSent(true);
+      } else if (data.code === "RATE_LIMIT") {
+        setGlobalError(`⏳ ${data.error}`);
+      } else {
+        setGlobalError(data.error);
       }
     } catch {
       setGlobalError("Error de conexión.");
@@ -317,8 +358,7 @@ export function AuthPage() {
     setResetSent(false);
     navigate(isLogin ? "register" : "login");
   };
-
-  // ─── PANTALLA 2FA ─────────────────────────────────────────
+    // ─── PANTALLA 2FA ─────────────────────────────────────────
   if (twoFARequired) {
     return (
       <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
@@ -542,6 +582,12 @@ export function AuthPage() {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-4">
+
+          {/* 🆕 Botón biométrico arriba del formulario (solo en login) */}
+          {isLogin && (
+            <BiometricLoginButton onSuccess={(data) => finishLogin(data)} />
+          )}
+
           {!isLogin && (
             <Input
               label="Nombre completo"
@@ -721,6 +767,14 @@ export function AuthPage() {
           </button>
         </p>
       </div>
+
+      {/* 🆕 Modal de activación biométrica */}
+      {showBiometricModal && (
+        <BiometricActivationModal
+          onClose={handleBiometricSkip}
+          onActivated={handleBiometricActivated}
+        />
+      )}
     </div>
   );
-}
+        }
