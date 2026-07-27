@@ -3,7 +3,8 @@ import { Card } from "@/components/ui/Card";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
-import { CryptoIcon } from "@/components/ui/CryptoIcon"; // Integrado componente unificado
+import { CryptoIcon } from "@/components/ui/CryptoIcon";
+import { EmailVerifyBanner } from "@/components/EmailVerifyBanner"; // 🆕 NUEVO
 import {
   TrendingUp,
   TrendingDown,
@@ -153,6 +154,9 @@ export function DashboardPage() {
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
+
+      {/* ═══ 🆕 BANNER VERIFICAR EMAIL ═══════════════════════ */}
+      <EmailVerifyBanner />
 
       {/* ═══ GREETING ════════════════════════════════════════ */}
       <div className="flex items-center justify-between">
@@ -315,8 +319,7 @@ export function DashboardPage() {
           <ChevronRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
         </button>
       )}
-
-      {/* ═══ MIS ACTIVOS ═════════════════════════════════════ */}
+            {/* ═══ MIS ACTIVOS ═════════════════════════════════════ */}
       {balances.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
@@ -349,7 +352,6 @@ export function DashboardPage() {
                     className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-gray-200 dark:hover:border-white/10 transition-all text-left active:scale-[0.99]"
                   >
                     <div className="flex items-center gap-3">
-                      {/* OPTIMIZADO: Ahora usa tu componente CryptoIcon global con el asset dinámico */}
                       <CryptoIcon symbol={balance.asset} size={40} />
                       <div>
                         <p className="font-bold text-sm text-gray-900 dark:text-white">
@@ -393,7 +395,6 @@ export function DashboardPage() {
                 );
               })}
 
-            {/* Si no hay saldo */}
             {balances.filter((b) => b.amount > 0).length === 0 && (
               <div className="text-center py-6">
                 <Wallet className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
@@ -414,23 +415,23 @@ export function DashboardPage() {
           </div>
         </div>
       )}
-      
+
       <button
-  onClick={() => navigate("stellar")}
-  className="flex items-center gap-3 p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors w-full"
->
-  <div className="h-10 w-10 rounded-xl bg-blue-500 flex items-center justify-center">
-    <Star className="h-5 w-5 text-white" />
-  </div>
-  <div className="flex-1 text-left">
-    <p className="font-bold text-sm text-gray-900 dark:text-white">
-      Stellar Wallet
-    </p>
-    <p className="text-xs text-gray-400">
-      Envía y recibe XLM al instante
-    </p>
-  </div>
-</button>
+        onClick={() => navigate("stellar")}
+        className="flex items-center gap-3 p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors w-full"
+      >
+        <div className="h-10 w-10 rounded-xl bg-blue-500 flex items-center justify-center">
+          <Star className="h-5 w-5 text-white" />
+        </div>
+        <div className="flex-1 text-left">
+          <p className="font-bold text-sm text-gray-900 dark:text-white">
+            Stellar Wallet
+          </p>
+          <p className="text-xs text-gray-400">
+            Envía y recibe XLM al instante
+          </p>
+        </div>
+      </button>
 
       {/* ═══ MERCADO EN VIVO ═════════════════════════════════ */}
       <div>
@@ -459,7 +460,6 @@ export function DashboardPage() {
           </div>
         </div>
 
-        {/* Skeleton loading */}
         {loadingMarket && !cryptoPrices ? (
           <div className="grid grid-cols-2 gap-2">
             {[1, 2, 3, 4].map((i) => (
@@ -482,7 +482,6 @@ export function DashboardPage() {
                   className="flex flex-col p-3.5 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    {/* OPTIMIZADO: Implementado CryptoIcon global para los logos en la cuadrícula de mercado */}
                     <CryptoIcon symbol={symbolUpper} size={28} />
                     <div>
                       <p className="text-xs font-bold text-gray-900 dark:text-white">
@@ -639,4 +638,4 @@ export function DashboardPage() {
       </button>
     </div>
   );
-      }
+}
