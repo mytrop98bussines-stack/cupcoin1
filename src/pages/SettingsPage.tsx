@@ -9,8 +9,9 @@ import {
   ArrowLeftRight, Wallet, FileText, ExternalLink,
   Wrench, Copy, Check, User, AlertTriangle,
   Smartphone, ShoppingBag, CheckCircle2, Clock, X, Crown,
-  Users, Megaphone,
+  Users, Megaphone, Mail,
 } from "lucide-react";
+import { EmailVerificationModal } from "@/components/EmailVerificationModal"; // 🆕 NUEVO
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 
@@ -19,6 +20,7 @@ export function SettingsPage() {
 
   const [copied, setCopied]                       = useState(false);
   const [showLogoutConfirm, setShowLogoutConfirm] = useState(false);
+  const [showEmailModal, setShowEmailModal]       = useState(false); // 🆕 NUEVO
 
   // ─── Modo oscuro ──────────────────────────────────────────
   useEffect(() => {
@@ -326,6 +328,27 @@ export function SettingsPage() {
           </button>
         </div>
 
+        {/* 🆕 BOTÓN VERIFICAR EMAIL */}
+        {user && !(user as any).emailVerified && (
+          <button
+            onClick={() => setShowEmailModal(true)}
+            className="mt-3 w-full flex items-center gap-3 p-4 rounded-xl bg-amber-500/5 hover:bg-amber-500/10 border border-amber-500/20 transition-colors text-left"
+          >
+            <div className="h-10 w-10 rounded-xl bg-amber-500/10 flex items-center justify-center flex-shrink-0">
+              <Mail className="h-5 w-5 text-amber-500" />
+            </div>
+            <div className="flex-1 text-left min-w-0">
+              <p className="text-sm font-bold text-gray-900 dark:text-white">
+                Verificar email
+              </p>
+              <p className="text-[11px] text-gray-400">
+                Confirma que este email es tuyo
+              </p>
+            </div>
+            <ChevronRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          </button>
+        )}
+
         {/* Banner KYC dinámico */}
         {user.kycStatus === "unverified" && (
           <button
@@ -391,8 +414,7 @@ export function SettingsPage() {
           </button>
         )}
       </Card>
-
-      {/* ═══ PANEL ADMIN ═════════════════════════════════════ */}
+            {/* ═══ PANEL ADMIN ═════════════════════════════════════ */}
       {user?.role === "admin" && (
         <div className="animate-fade-in">
           <h3 className="text-xs font-bold text-amber-500 uppercase tracking-wider mb-2 px-1 flex items-center gap-1.5">
@@ -420,55 +442,55 @@ export function SettingsPage() {
       )}
 
       {user?.role === "admin" && (
-  <button
-    onClick={() => navigate("admin-promos")}
-    className="w-full flex items-center gap-3 p-4 rounded-xl bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/20"
-  >
-    <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
-      <Megaphone className="h-5 w-5 text-purple-500" />
-    </div>
-    <div className="flex-1 text-left">
-      <p className="text-sm font-bold">Promociones</p>
-      <p className="text-[11px] text-gray-400">Gestionar anuncios de la app</p>
-    </div>
-  </button>
-)}
-      
+        <button
+          onClick={() => navigate("admin-promos")}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-purple-500/5 hover:bg-purple-500/10 border border-purple-500/20"
+        >
+          <div className="h-10 w-10 rounded-xl bg-purple-500/10 flex items-center justify-center">
+            <Megaphone className="h-5 w-5 text-purple-500" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-bold">Promociones</p>
+            <p className="text-[11px] text-gray-400">Gestionar anuncios de la app</p>
+          </div>
+        </button>
+      )}
+
       {user?.role === "admin" && (
-  <button
-    onClick={() => navigate("admin-users")}
-    className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-500/5 hover:bg-red-500/10 border border-red-500/20"
-  >
-    <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center">
-      <Users className="h-5 w-5 text-red-500" />
-    </div>
-    <div className="flex-1 text-left">
-      <p className="text-sm font-bold">Gestión de Usuarios</p>
-      <p className="text-[11px] text-gray-400">Suspender, reactivar y ver stats</p>
-    </div>
-  </button>
-)}
+        <button
+          onClick={() => navigate("admin-users")}
+          className="w-full flex items-center gap-3 p-4 rounded-xl bg-red-500/5 hover:bg-red-500/10 border border-red-500/20"
+        >
+          <div className="h-10 w-10 rounded-xl bg-red-500/10 flex items-center justify-center">
+            <Users className="h-5 w-5 text-red-500" />
+          </div>
+          <div className="flex-1 text-left">
+            <p className="text-sm font-bold">Gestión de Usuarios</p>
+            <p className="text-[11px] text-gray-400">Suspender, reactivar y ver stats</p>
+          </div>
+        </button>
+      )}
 
       <button
-  onClick={() => {
-    useAppStore.getState().setSelectedSalesProductId(null);
-    navigate("sales-management");
-  }}
-  className="w-full flex items-center gap-3 p-4 rounded-xl bg-brand-500/5 hover:bg-brand-500/10 border border-brand-500/20"
->
-  <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
-    <ShoppingBag className="h-5 w-5 text-brand-500" />
-  </div>
-  <div className="flex-1 text-left">
-    <p className="text-sm font-bold text-gray-900 dark:text-white">
-      Mis Ventas
-    </p>
-    <p className="text-[11px] text-gray-400">
-      Gestiona todos tus pedidos
-    </p>
-  </div>
-  <ChevronRight className="h-4 w-4 text-gray-400" />
-</button>
+        onClick={() => {
+          useAppStore.getState().setSelectedSalesProductId(null);
+          navigate("sales-management");
+        }}
+        className="w-full flex items-center gap-3 p-4 rounded-xl bg-brand-500/5 hover:bg-brand-500/10 border border-brand-500/20"
+      >
+        <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
+          <ShoppingBag className="h-5 w-5 text-brand-500" />
+        </div>
+        <div className="flex-1 text-left">
+          <p className="text-sm font-bold text-gray-900 dark:text-white">
+            Mis Ventas
+          </p>
+          <p className="text-[11px] text-gray-400">
+            Gestiona todos tus pedidos
+          </p>
+        </div>
+        <ChevronRight className="h-4 w-4 text-gray-400" />
+      </button>
 
       {/* ═══ SECCIONES DEL MENÚ ══════════════════════════════ */}
       {menuSections.map((section) => {
@@ -565,6 +587,22 @@ export function SettingsPage() {
           Hecho con ❤️ para Cuba
         </p>
       </div>
+
+      {/* 🆕 MODAL DE VERIFICACIÓN DE EMAIL */}
+      {showEmailModal && user?.email && (
+        <EmailVerificationModal
+          email={user.email}
+          onClose={() => setShowEmailModal(false)}
+          onVerified={() => {
+            useAppStore.setState((state) => ({
+              user: state.user
+                ? { ...state.user, emailVerified: true } as any
+                : null,
+            }));
+            setShowEmailModal(false);
+          }}
+        />
+      )}
     </div>
   );
 }
