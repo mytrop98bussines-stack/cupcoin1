@@ -41,7 +41,7 @@ interface AppState {
   selectedTradeId:          string | null;
   selectedProductId:        string | null;
   selectedPublicUserId:     string | null;
-  selectedSalesProductId:   string | null;  // ← NUEVO
+  selectedSalesProductId:   string | null;
   isLoading:                boolean;
   mobileMenuOpen:           boolean;
   loadingPrices:            boolean;
@@ -124,7 +124,7 @@ interface AppState {
   setSelectedTradeId:        (id: string | null) => void;
   setSelectedProductId:      (id: string | null) => void;
   setSelectedPublicUserId:   (id: string | null) => void;
-  setSelectedSalesProductId: (id: string | null) => void;  // ← NUEVO
+  setSelectedSalesProductId: (id: string | null) => void;
   setLoading:                (loading: boolean) => void;
   setMobileMenuOpen:         (open: boolean) => void;
   setModalOpen:              (open: boolean) => void;
@@ -170,7 +170,7 @@ const getInitialView = (): AppView => {
       "wallet", "settings", "notifications", "membership", "profile",
       "security", "help", "terms", "language", "notification-settings",
       "trade-history", "my-orders", "admin-kyc", "admin-disputes",
-      "public-profile", "sales-management",  // ← NUEVO
+      "public-profile", "sales-management",
     ];
 
     if (stored && validViews.includes(stored)) return stored;
@@ -189,7 +189,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   depositAddresses:       {},
   modalOpen:              false,
   selectedPublicUserId:   null,
-  selectedSalesProductId: null,  // ← NUEVO
+  selectedSalesProductId: null,
   language:               (localStorage.getItem("cubax_language") as "es" | "en") || "es",
 
   prices: [
@@ -259,13 +259,31 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ user, isAuthenticated: true, currentView: "dashboard" });
   },
 
+  // 🆕 LOGOUT MODIFICADO — Preserva datos de biometría
   logout: () => {
+    // Guardar datos importantes ANTES de limpiar
+    const savedUid         = localStorage.getItem("cubax_uid");
+    const savedEmail       = localStorage.getItem("cubax_email");
+    const biometricEnabled = localStorage.getItem("biometric_enabled");
+
+    // Limpiar tokens de sesión (esto SÍ se debe borrar)
     localStorage.removeItem("cubax_token");
     localStorage.removeItem("cubax_refresh_token");
-    localStorage.removeItem("cubax_uid");
     localStorage.removeItem("cubax_last_view");
-    localStorage.removeItem("cubax_email");
     localStorage.removeItem("cubax_name");
+
+    // 🔐 Preservar UID y email SOLO si tiene biometría activada
+    if (biometricEnabled === "1" && savedUid) {
+      // Mantener cubax_uid y cubax_email para que aparezca el botón biométrico
+      if (savedEmail) localStorage.setItem("cubax_email", savedEmail);
+      localStorage.setItem("cubax_uid", savedUid);
+      localStorage.setItem("biometric_enabled", "1");
+      console.log("🔐 [Logout] Biometría preservada para próximo login");
+    } else {
+      // Si NO tiene biometría, limpiar todo
+      localStorage.removeItem("cubax_uid");
+      localStorage.removeItem("cubax_email");
+    }
 
     set({
       user:             null,
@@ -344,8 +362,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       set({ loadingPrices: false });
     }
   },
-
-  // =========================================================
+    // =========================================================
   // DEPÓSITOS Y RETIROS
   // =========================================================
   fetchDepositAddress: async (asset, _chain) => {
@@ -433,7 +450,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   addOrder:  (order)  => set({ orders: [order, ...get().orders] }),
 
   fetchOrders: async () => {
-    // ✅ Cache primero
     const cached = getCache<P2POrder[]>("orders");
     if (cached) set({ orders: cached });
 
@@ -532,7 +548,7 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
 
- // =========================================================
+  // =========================================================
   // MENSAJES
   // =========================================================
   setTradeMessages: (messages) => set({ tradeMessages: messages }),
@@ -600,7 +616,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   setProducts: (products) => set({ products }),
 
   fetchProducts: async () => {
-    // ✅ Cache primero
     const cached = getCache<Product[]>("products");
     if (cached) set({ products: cached });
 
@@ -669,7 +684,6 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchNotifications: async (userId: string) => {
     if (!userId || userId === "invitado") return;
 
-    // ✅ Cache primero
     const cached = getCache<Notification[]>(`notifications_${userId}`);
     if (cached) set({ notifications: cached });
 
@@ -738,11 +752,11 @@ export const useAppStore = create<AppState>((set, get) => ({
   // =========================================================
   // UI
   // =========================================================
-  setSelectedTradeId:      (id)      => set({ selectedTradeId:      id }),
-  setSelectedProductId:    (id)      => set({ selectedProductId:    id }),
-  setSelectedSalesProductId: (id)    => set({ selectedSalesProductId: id }),
-  setSelectedPublicUserId: (id)      => set({ selectedPublicUserId: id }),
-  setLoading:              (loading) => set({ isLoading:            loading }),
-  setMobileMenuOpen:       (open)    => set({ mobileMenuOpen:       open }),
-  setModalOpen:            (open)    => set({ modalOpen:            open }),
+  setSelectedTradeId:        (id)      => set({ selectedTradeId:        id }),
+  setSelectedProductId:      (id)      => set({ selectedProductId:      id }),
+  setSelectedSalesProductId: (id)      => set({ selectedSalesProductId: id }),
+  setSelectedPublicUserId:   (id)      => set({ selectedPublicUserId:   id }),
+  setLoading:                (loading) => set({ isLoading:              loading }),
+  setMobileMenuOpen:         (open)    => set({ mobileMenuOpen:         open }),
+  setModalOpen:              (open)    => set({ modalOpen:              open }),
 }));
