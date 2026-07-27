@@ -44,23 +44,25 @@ export async function registerBiometric(): Promise<{
   try {
     const token = localStorage.getItem("cubax_token");
 
-    // 1. Obtener opciones del servidor
+    console.log("🔐 [Register] Solicitando opciones...");
     const optionsRes = await fetch(`${BACKEND_URL}/biometric/register/options`, {
       method:  "POST",
       headers: { Authorization: `Bearer ${token}` },
     });
     const optionsData = await optionsRes.json();
+    console.log("🔐 [Register] Opciones recibidas:", optionsData);
 
     if (!optionsData.success) {
       return { success: false, error: optionsData.error };
     }
 
-    // 2. Iniciar registro con el navegador
+    console.log("🔐 [Register] Iniciando prompt biométrico...");
     const response = await startRegistration({ optionsJSON: optionsData.options });
+    console.log("🔐 [Register] Respuesta del navegador:", response);
 
-    // 3. Verificar con el servidor
     const deviceName = navigator.userAgent.match(/\((.*?)\)/)?.[1]?.split(";")[0]?.trim() || "Este dispositivo";
 
+    console.log("🔐 [Register] Verificando en el servidor...");
     const verifyRes = await fetch(`${BACKEND_URL}/biometric/register/verify`, {
       method:  "POST",
       headers: {
@@ -70,9 +72,11 @@ export async function registerBiometric(): Promise<{
       body: JSON.stringify({ response, deviceName }),
     });
     const verifyData = await verifyRes.json();
+    console.log("🔐 [Register] Verificación:", verifyData);
 
     return { success: verifyData.success, error: verifyData.error };
   } catch (err: any) {
+    console.error("❌ [Register] Error:", err);
     if (err.name === "NotAllowedError") {
       return { success: false, error: "Cancelado o rechazado" };
     }
@@ -87,28 +91,39 @@ export async function authenticateBiometric(uid: string): Promise<{
   error?:  string;
 }> {
   try {
+    console.log("🔓 [Auth] Iniciando autenticación con UID:", uid);
+
     // 1. Obtener opciones
+    console.log("🔓 [Auth] Solicitando opciones al backend...");
     const optionsRes = await fetch(`${BACKEND_URL}/biometric/authenticate/options`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ uid }),
     });
+
+    console.log("🔓 [Auth] Status:", optionsRes.status);
     const optionsData = await optionsRes.json();
+    console.log("🔓 [Auth] Opciones recibidas:", optionsData);
 
     if (!optionsData.success) {
+      console.error("❌ [Auth] Error en opciones:", optionsData.error);
       return { success: false, error: optionsData.error };
     }
 
     // 2. Iniciar autenticación con el navegador
+    console.log("🔓 [Auth] Lanzando prompt biométrico...");
     const response = await startAuthentication({ optionsJSON: optionsData.options });
+    console.log("🔓 [Auth] Respuesta del navegador:", response);
 
     // 3. Verificar
+    console.log("🔓 [Auth] Verificando en el servidor...");
     const verifyRes = await fetch(`${BACKEND_URL}/biometric/authenticate/verify`, {
       method:  "POST",
       headers: { "Content-Type": "application/json" },
       body:    JSON.stringify({ uid, response }),
     });
     const verifyData = await verifyRes.json();
+    console.log("🔓 [Auth] Verificación completada:", verifyData);
 
     if (verifyData.success) {
       return { success: true, data: verifyData };
@@ -116,8 +131,12 @@ export async function authenticateBiometric(uid: string): Promise<{
       return { success: false, error: verifyData.error };
     }
   } catch (err: any) {
+    console.error("❌ [Auth] Error completo:", err);
+    console.error("❌ [Auth] Nombre del error:", err.name);
+    console.error("❌ [Auth] Mensaje:", err.message);
+
     if (err.name === "NotAllowedError") {
-      return { success: false, error: "Cancelado" };
+      return { success: false, error: "Cancelado o rechazado" };
     }
     return { success: false, error: err.message || "Error autenticando" };
   }
