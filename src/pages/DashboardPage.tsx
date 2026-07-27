@@ -4,7 +4,7 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
 import { CryptoIcon } from "@/components/ui/CryptoIcon";
-import { EmailVerifyBanner } from "@/components/EmailVerifyBanner"; // 🆕 NUEVO
+import { EmailVerifyBanner } from "@/components/EmailVerificationBanner";
 import {
   TrendingUp,
   TrendingDown,
