@@ -4,8 +4,14 @@ import {
   X, Mail, CheckCircle2, AlertTriangle,
   Loader2, RefreshCw,
 } from "lucide-react";
+import emailjs from "@emailjs/browser";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
+
+// ─── Configuración EmailJS ──────────────────────────────
+const EMAILJS_SERVICE_ID  = "service_juidf7j";
+const EMAILJS_TEMPLATE_ID = "template_zjcqvlp";
+const EMAILJS_PUBLIC_KEY  = "DRnIThFiCRxqBkZsrx3TP";
 
 interface EmailVerificationModalProps {
   email:       string;
@@ -46,6 +52,7 @@ export function EmailVerificationModal({
     setError(null);
 
     try {
+      // 1. Pedir código al backend (para que lo genere y guarde)
       const token = localStorage.getItem("cubax_token");
       const res   = await fetch(`${BACKEND_URL}/auth/email/send-code`, {
         method:  "POST",
@@ -53,24 +60,47 @@ export function EmailVerificationModal({
       });
       const data = await res.json();
 
-      if (data.success) {
-        setCodeSent(true);
-        setResendCooldown(60);
-      } else if (data.code === "COOLDOWN") {
-        setError(data.error);
-        const match = data.error.match(/(\d+)/);
-        if (match) setResendCooldown(parseInt(match[1]));
-      } else if (data.code === "ALREADY_VERIFIED") {
+      if (data.code === "ALREADY_VERIFIED") {
         setSuccess(true);
         setTimeout(() => {
           onVerified?.();
           onClose();
         }, 1500);
-      } else {
-        setError(data.error);
+        return;
       }
-    } catch {
-      setError("Error de conexión");
+
+      if (data.code === "COOLDOWN") {
+        setError(data.error);
+        const match = data.error.match(/(\d+)/);
+        if (match) setResendCooldown(parseInt(match[1]));
+        return;
+      }
+
+      if (!data.success || !data.code) {
+        setError(data.error || "Error generando código");
+        return;
+      }
+
+      // 2. Enviar el email vía EmailJS
+      const userName = localStorage.getItem("cubax_name") || "Usuario";
+
+      await emailjs.send(
+        EMAILJS_SERVICE_ID,
+        EMAILJS_TEMPLATE_ID,
+        {
+          to_email:   email,
+          to_name:    userName,
+          from_email: "mytrop98bussines@gmail.com",
+          code:       data.code, // el código de 6 dígitos que generó el backend
+        },
+        EMAILJS_PUBLIC_KEY
+      );
+
+      setCodeSent(true);
+      setResendCooldown(60);
+    } catch (err: any) {
+      console.error("❌ [EmailJS] Error:", err);
+      setError(err?.text || err?.message || "Error enviando email");
     } finally {
       setSending(false);
     }
@@ -127,7 +157,6 @@ export function EmailVerificationModal({
       <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-3xl overflow-hidden shadow-2xl animate-slide-up">
 
         {success ? (
-          // ─── Pantalla de éxito ────────────────────────────
           <div className="p-8 text-center space-y-4">
             <div className="h-20 w-20 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto animate-scale-in">
               <CheckCircle2 className="h-10 w-10 text-emerald-500" />
@@ -143,7 +172,6 @@ export function EmailVerificationModal({
           </div>
         ) : (
           <>
-            {/* Header */}
             <div className="relative p-6 pb-4 bg-gradient-to-br from-brand-500 to-brand-700 text-white">
               <button
                 onClick={onClose}
@@ -167,10 +195,8 @@ export function EmailVerificationModal({
               </p>
             </div>
 
-            {/* Body */}
             <div className="p-6 space-y-4">
 
-              {/* Error */}
               {error && (
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
                   <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -180,7 +206,6 @@ export function EmailVerificationModal({
                 </div>
               )}
 
-              {/* Input código */}
               <div>
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 text-center">
                   Código de verificación
@@ -202,7 +227,6 @@ export function EmailVerificationModal({
                 />
               </div>
 
-              {/* Botón verificar */}
               <Button
                 size="lg"
                 fullWidth
@@ -215,7 +239,6 @@ export function EmailVerificationModal({
                 Verificar código
               </Button>
 
-              {/* Reenviar */}
               <button
                 onClick={handleSendCode}
                 disabled={sending || resendCooldown > 0}
@@ -233,7 +256,6 @@ export function EmailVerificationModal({
                   : codeSent ? "Reenviar código" : "Enviar código"}
               </button>
 
-              {/* Info */}
               <div className="p-3 rounded-xl bg-blue-500/10 border border-blue-500/20">
                 <p className="text-[11px] text-blue-700 dark:text-blue-400 text-center leading-relaxed">
                   💡 Revisa tu bandeja de entrada y la carpeta de spam.
@@ -246,4 +268,4 @@ export function EmailVerificationModal({
       </div>
     </div>
   );
-      }
+}
