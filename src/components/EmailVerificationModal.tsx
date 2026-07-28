@@ -13,6 +13,9 @@ const EMAILJS_SERVICE_ID  = "service_juidf7j";
 const EMAILJS_TEMPLATE_ID = "template_zjcqvlp";
 const EMAILJS_PUBLIC_KEY  = "DRnIThFiCRxqBkZsrx3TP";
 
+// 🆕 Inicializar EmailJS al cargar el módulo
+emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
+
 interface EmailVerificationModalProps {
   email:       string;
   onClose:     () => void;
@@ -53,12 +56,14 @@ export function EmailVerificationModal({
 
     try {
       // 1. Pedir código al backend (para que lo genere y guarde)
+      console.log("📧 [1/2] Pidiendo código al backend...");
       const token = localStorage.getItem("cubax_token");
       const res   = await fetch(`${BACKEND_URL}/auth/email/send-code`, {
         method:  "POST",
         headers: { Authorization: `Bearer ${token}` },
       });
       const data = await res.json();
+      console.log("📧 [1/2] Respuesta backend:", data);
 
       if (data.code === "ALREADY_VERIFIED") {
         setSuccess(true);
@@ -82,24 +87,28 @@ export function EmailVerificationModal({
       }
 
       // 2. Enviar el email vía EmailJS
+      console.log("📧 [2/2] Enviando email vía EmailJS...");
       const userName = localStorage.getItem("cubax_name") || "Usuario";
 
-      await emailjs.send(
+      const emailjsResponse = await emailjs.send(
         EMAILJS_SERVICE_ID,
         EMAILJS_TEMPLATE_ID,
         {
           to_email:   email,
           to_name:    userName,
           from_email: "mytrop98bussines@gmail.com",
-          code:       data.code, // el código de 6 dígitos que generó el backend
-        },
-        EMAILJS_PUBLIC_KEY
+          code:       data.code,
+        }
       );
+
+      console.log("✅ [2/2] Email enviado:", emailjsResponse);
 
       setCodeSent(true);
       setResendCooldown(60);
     } catch (err: any) {
-      console.error("❌ [EmailJS] Error:", err);
+      console.error("❌ [EmailJS] Error completo:", err);
+      console.error("❌ [EmailJS] Text:", err?.text);
+      console.error("❌ [EmailJS] Status:", err?.status);
       setError(err?.text || err?.message || "Error enviando email");
     } finally {
       setSending(false);
