@@ -5,7 +5,7 @@ import { BottomNav }  from "@/components/layout/BottomNav";
 import { WifiOff }    from "lucide-react";
 import { requestNotificationPermission } from "@/lib/firebase/messaging";
 import { Logo }       from "@/components/Logo";
-import { BiometricLockScreen } from "@/components/BiometricLockScreen"; // 🆕
+import { BiometricLockScreen } from "@/components/BiometricLockScreen";
 
 // ─── Páginas públicas ─────────────────────────────────────
 import { LandingPage } from "@/pages/LandingPage";
@@ -29,8 +29,7 @@ import { PublicProfilePage }  from "@/pages/PublicProfilePage";
 import { SwapPage }           from "@/pages/SwapPage";
 import { HistoryPage }        from "@/pages/HistoryPage";
 import { SalesManagementPage } from "@/pages/SalesManagementPage";
-import { AdminPromosPage }  from "@/pages/AdminPromosPage";
-import { PromoBanner } from "@/components/PromoBanner";
+import { AdminPromosPage }    from "@/pages/AdminPromosPage";
 
 // ─── Páginas de configuración ─────────────────────────────
 import { ProfilePage }              from "@/pages/ProfilePage";
@@ -51,8 +50,9 @@ import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
-// ... (mantén VIEW_TITLES, SHOW_BACK_VIEWS, AUTHENTICATED_VIEWS igual que antes)
-
+// =========================================================
+// CONFIG DE VISTAS
+// =========================================================
 const VIEW_TITLES: Record<string, string> = {
   dashboard: "", p2p: "", marketplace: "",
   "create-order": "Nueva oferta P2P", trade: "Trade en curso",
@@ -89,7 +89,7 @@ const AUTHENTICATED_VIEWS = [
 ];
 
 // =========================================================
-// APP CONTENT (sin cambios)
+// APP CONTENT
 // =========================================================
 function AppContent() {
   const {
@@ -196,7 +196,6 @@ function AppContent() {
         </div>
       )}
       <Header title={VIEW_TITLES[currentView] || ""} showBack={SHOW_BACK_VIEWS.includes(currentView)} />
-      {user && <PromoBanner />}
       <main className="flex-1 min-h-0 overflow-y-auto pb-16" style={{
         WebkitOverflowScrolling: "touch",
         overscrollBehaviorY: "auto",
@@ -238,11 +237,11 @@ function AppContent() {
 }
 
 // =========================================================
-// APP ROOT (MODIFICADO)
+// APP ROOT
 // =========================================================
 export default function App() {
   const [isInitializing, setIsInitializing] = useState(true);
-  const [showBiometricLock, setShowBiometricLock] = useState(false); // 🆕
+  const [showBiometricLock, setShowBiometricLock] = useState(false);
   const { navigate } = useAppStore();
 
   useEffect(() => {
@@ -261,9 +260,9 @@ export default function App() {
 
     const savedToken       = localStorage.getItem("cubax_token");
     const savedUid         = localStorage.getItem("cubax_uid");
-    const biometricEnabled = localStorage.getItem("biometric_enabled"); // 🆕
+    const biometricEnabled = localStorage.getItem("biometric_enabled");
 
-    // 🆕 CASO 1: Tiene biometría activa (con o sin token)
+    // CASO 1: Tiene biometría activa (con o sin token)
     if (biometricEnabled === "1" && savedUid) {
       setShowBiometricLock(true);
       setIsInitializing(false);
@@ -300,7 +299,7 @@ export default function App() {
     }
   }, [navigate]);
 
-  // 🆕 Handler cuando desbloquea con biometría
+  // Handler cuando desbloquea con biometría
   const handleBiometricUnlock = (data: any) => {
     localStorage.setItem("cubax_token",         data.token);
     localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
@@ -318,7 +317,7 @@ export default function App() {
     setShowBiometricLock(false);
   };
 
-  // 🆕 Handler cuando cancela / usa otra cuenta
+  // Handler cuando cancela / usa otra cuenta
   const handleBiometricCancel = () => {
     setShowBiometricLock(false);
     navigate("landing");
@@ -366,7 +365,7 @@ export default function App() {
     );
   }
 
-  // 🆕 Mostrar pantalla de bloqueo biométrico
+  // Mostrar pantalla de bloqueo biométrico
   if (showBiometricLock) {
     return (
       <BiometricLockScreen
