@@ -3,7 +3,8 @@ import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { Card }   from "@/components/ui/Card";
-import { PAYMENT_METHOD_LABELS, CRYPTO_ICONS } from "@/data/data";
+import { CryptoIcon } from "@/components/ui/CryptoIcon"; // ✅ Añadido
+import { PAYMENT_METHOD_LABELS } from "@/data/data";
 import {
   ArrowLeftRight, Shield, CheckCircle2,
   AlertTriangle, Loader2, Info, Crown,
@@ -13,6 +14,15 @@ import {
 import type { OrderType, CryptoAsset, PaymentMethod } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
+
+// ─── Placeholders sugeridos por asset ─────────────────────
+const PRICE_PLACEHOLDERS: Record<string, string> = {
+  USDT: "395",
+  USDC: "395",
+  BTC:  "26500000",
+  ETH:  "1400000",
+  XLM:  "48",
+};
 
 export function CreateOrderPage() {
   const { navigate, user } = useAppStore();
@@ -258,34 +268,36 @@ export function CreateOrderPage() {
         </div>
       </div>
 
-      {/* Criptomoneda */}
+      {/* Criptomoneda (con XLM + iconos SVG) */}
       <div>
         <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
           Criptomoneda
         </p>
-        <div className="grid grid-cols-4 gap-2">
-          {(["USDT", "USDC", "BTC", "ETH"] as CryptoAsset[]).map((a) => (
+        {/* ✅ grid-cols-5 para incluir XLM */}
+        <div className="grid grid-cols-5 gap-2">
+          {(["USDT", "USDC", "BTC", "ETH", "XLM"] as CryptoAsset[]).map((a) => (
             <button
               key={a}
               onClick={() => setAsset(a)}
-              className={`py-3 rounded-xl text-center transition-all duration-200 border ${
+              className={`py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 border ${
                 asset === a
                   ? "border-brand-500 bg-brand-500/10 text-brand-500 shadow-sm"
                   : "border-gray-200 dark:border-white/10 text-gray-600 dark:text-gray-400"
               }`}
             >
-              <div className="text-xl mb-0.5">{CRYPTO_ICONS[a]}</div>
-              <div className="text-xs font-bold">{a}</div>
+              {/* ✅ Icono SVG oficial */}
+              <CryptoIcon symbol={a} size={22} />
+              <div className="text-[11px] font-bold">{a}</div>
             </button>
           ))}
         </div>
       </div>
 
-      {/* Precio */}
+      {/* Precio (con placeholder dinámico según asset) */}
       <Input
         label={`Precio por 1 ${asset} (CUP)`}
         type="number"
-        placeholder="395"
+        placeholder={PRICE_PLACEHOLDERS[asset] || "0"}
         value={price}
         onChange={(e) => setPrice(e.target.value)}
         rightElement={
@@ -298,7 +310,7 @@ export function CreateOrderPage() {
         <Input
           label="Mínimo"
           type="number"
-          placeholder="10"
+          placeholder={asset === "XLM" ? "100" : "10"}
           value={minAmount}
           onChange={(e) => setMinAmount(e.target.value)}
           rightElement={
@@ -308,7 +320,7 @@ export function CreateOrderPage() {
         <Input
           label="Máximo"
           type="number"
-          placeholder="500"
+          placeholder={asset === "XLM" ? "5000" : "500"}
           value={maxAmount}
           onChange={(e) => setMaxAmount(e.target.value)}
           rightElement={
@@ -316,8 +328,7 @@ export function CreateOrderPage() {
           }
         />
       </div>
-
-      {/* Rango en CUP */}
+            {/* Rango en CUP */}
       {price && minAmount && maxAmount &&
         parseFloat(minAmount) > 0 &&
         parseFloat(maxAmount) > 0 &&
@@ -417,7 +428,7 @@ export function CreateOrderPage() {
         </Card>
       )}
 
-      {/* Resumen */}
+      {/* Resumen (con icono SVG) */}
       {price && minAmount && maxAmount &&
         parseFloat(price) > 0 &&
         parseFloat(minAmount) > 0 &&
@@ -433,10 +444,11 @@ export function CreateOrderPage() {
                 {orderType === "sell" ? "🔴 Venta" : "🟢 Compra"}
               </span>
             </div>
-            <div className="flex justify-between text-sm">
+            <div className="flex justify-between text-sm items-center">
               <span className="text-gray-400">Activo</span>
-              <span className="font-bold text-gray-900 dark:text-white">
-                {CRYPTO_ICONS[asset]} {asset}
+              <span className="font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
+                <CryptoIcon symbol={asset} size={16} />
+                {asset}
               </span>
             </div>
             <div className="flex justify-between text-sm">
@@ -467,40 +479,41 @@ export function CreateOrderPage() {
           </div>
         </Card>
       )}
-      {/* ✅ Teléfono de pago guardado */}
-{(user as any).phone && (
-  <div className="flex items-center gap-2 p-3 rounded-xl bg-brand-500/5 border border-brand-500/20">
-    <Phone className="h-4 w-4 text-brand-500 flex-shrink-0" />
-    <div className="flex-1">
-      <p className="text-xs font-bold text-brand-600 dark:text-brand-400">
-        Número de pago guardado
-      </p>
-      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-        {(user as any).phone} — Los compradores verán este número
-      </p>
-    </div>
-  </div>
-)}
 
-{!(user as any).phone && (
-  <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
-    <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
-    <div className="flex-1">
-      <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
-        Sin número de pago
-      </p>
-      <p className="text-[11px] text-gray-500 dark:text-gray-400">
-        Agrega tu número en el perfil para que aparezca automáticamente.
-      </p>
-    </div>
-    <button
-      onClick={() => navigate("profile")}
-      className="text-[11px] font-bold text-amber-500 hover:text-amber-400"
-    >
-      Agregar →
-    </button>
-  </div>
-)}
+      {/* ✅ Teléfono de pago guardado */}
+      {(user as any).phone && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-brand-500/5 border border-brand-500/20">
+          <Phone className="h-4 w-4 text-brand-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs font-bold text-brand-600 dark:text-brand-400">
+              Número de pago guardado
+            </p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              {(user as any).phone} — Los compradores verán este número
+            </p>
+          </div>
+        </div>
+      )}
+
+      {!(user as any).phone && (
+        <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-500/5 border border-amber-500/20">
+          <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+          <div className="flex-1">
+            <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+              Sin número de pago
+            </p>
+            <p className="text-[11px] text-gray-500 dark:text-gray-400">
+              Agrega tu número en el perfil para que aparezca automáticamente.
+            </p>
+          </div>
+          <button
+            onClick={() => navigate("profile")}
+            className="text-[11px] font-bold text-amber-500 hover:text-amber-400"
+          >
+            Agregar →
+          </button>
+        </div>
+      )}
 
       {/* Botón publicar */}
       <Button
@@ -529,4 +542,4 @@ export function CreateOrderPage() {
       </Button>
     </div>
   );
-    }
+}
