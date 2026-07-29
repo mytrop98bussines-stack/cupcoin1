@@ -26,7 +26,7 @@ export type TradeStatus =
   | "disputed"
   | "cancelled";
 
-export type CryptoAsset = "BTC" | "ETH" | "USDT" | "USDC";
+export type CryptoAsset = "BTC" | "ETH" | "USDT" | "USDC" | "XLM";
 
 export type ProductCategory =
   | "electronics"
