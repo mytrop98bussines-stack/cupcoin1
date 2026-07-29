@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/Button";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
 import { CryptoIcon } from "@/components/ui/CryptoIcon";
 import { EmailVerifyBanner } from "@/components/EmailVerificationBanner";
+import { PromoBanner } from "@/components/PromoBanner"; // ✅ Añadido
 import {
   TrendingUp,
   TrendingDown,
@@ -279,6 +280,9 @@ export function DashboardPage() {
         </div>
       </div>
 
+      {/* ═══ 🎯 PROMO BANNER (auto-rotación) ═════════════════ */}
+      <PromoBanner />
+
       {/* ═══ ACCIONES RÁPIDAS ════════════════════════════════ */}
       <div className="grid grid-cols-4 gap-2">
         {quickActions.map((action) => (
@@ -365,6 +369,8 @@ export function DashboardPage() {
                                   ? 6
                                   : balance.asset === "ETH"
                                   ? 4
+                                  : balance.asset === "XLM"
+                                  ? 4
                                   : 2
                               )} ${balance.asset}`}
                         </p>
@@ -416,12 +422,13 @@ export function DashboardPage() {
         </div>
       )}
 
+      {/* ═══ STELLAR WALLET (usa el icono oficial) ═══════════ */}
       <button
         onClick={() => navigate("stellar")}
         className="flex items-center gap-3 p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors w-full"
       >
-        <div className="h-10 w-10 rounded-xl bg-blue-500 flex items-center justify-center">
-          <Star className="h-5 w-5 text-white" />
+        <div className="h-10 w-10 rounded-xl bg-white dark:bg-black/40 flex items-center justify-center p-1.5 overflow-hidden">
+          <CryptoIcon symbol="XLM" size={32} />
         </div>
         <div className="flex-1 text-left">
           <p className="font-bold text-sm text-gray-900 dark:text-white">
@@ -431,9 +438,10 @@ export function DashboardPage() {
             Envía y recibe XLM al instante
           </p>
         </div>
+        <ChevronRight className="h-4 w-4 text-blue-500 flex-shrink-0" />
       </button>
 
-      {/* ═══ MERCADO EN VIVO ═════════════════════════════════ */}
+      {/* ═══ MERCADO EN VIVO (incluye XLM automáticamente) ═══ */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -462,7 +470,8 @@ export function DashboardPage() {
 
         {loadingMarket && !cryptoPrices ? (
           <div className="grid grid-cols-2 gap-2">
-            {[1, 2, 3, 4].map((i) => (
+            {/* ✅ 6 placeholders para alinear con 5-6 cryptos (BTC, ETH, USDT, USDC, XLM) */}
+            {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
                 className="h-24 bg-gray-100 dark:bg-white/5 animate-pulse rounded-2xl"
@@ -614,7 +623,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* ═══ BANNER PROMO ════════════════════════════════════ */}
+      {/* ═══ BANNER PROMO CTA ════════════════════════════════ */}
       <button
         onClick={() => navigate("create-order")}
         className="w-full relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 text-white text-left active:scale-[0.99] transition-all"
