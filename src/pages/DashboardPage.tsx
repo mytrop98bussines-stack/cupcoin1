@@ -280,7 +280,7 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* ═══ 🎯 PROMO BANNER (auto-rotación) ═════════════════ */}
+      {/* ═══ 🎯 PROMO BANNER (dinámico desde backend) ═══════ */}
       <PromoBanner />
 
       {/* ═══ ACCIONES RÁPIDAS ════════════════════════════════ */}
@@ -422,7 +422,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* ═══ STELLAR WALLET (usa el icono oficial) ═══════════ */}
+      {/* ═══ STELLAR WALLET (usa el icono oficial XLM) ═══════ */}
       <button
         onClick={() => navigate("stellar")}
         className="flex items-center gap-3 p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors w-full"
@@ -470,7 +470,7 @@ export function DashboardPage() {
 
         {loadingMarket && !cryptoPrices ? (
           <div className="grid grid-cols-2 gap-2">
-            {/* ✅ 6 placeholders para alinear con 5-6 cryptos (BTC, ETH, USDT, USDC, XLM) */}
+            {/* ✅ 6 placeholders para acomodar hasta 6 cryptos */}
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
@@ -622,29 +622,6 @@ export function DashboardPage() {
           </div>
         </div>
       )}
-
-      {/* ═══ BANNER PROMO CTA ════════════════════════════════ */}
-      <button
-        onClick={() => navigate("create-order")}
-        className="w-full relative overflow-hidden p-4 rounded-2xl bg-gradient-to-r from-brand-500 to-brand-600 text-white text-left active:scale-[0.99] transition-all"
-      >
-        <div className="absolute -top-4 -right-4 h-20 w-20 bg-white/5 rounded-full" />
-        <div className="absolute -bottom-3 -left-3 h-16 w-16 bg-white/5 rounded-full" />
-        <div className="relative z-10 flex items-center gap-3">
-          <div className="h-10 w-10 rounded-xl bg-white/10 flex items-center justify-center flex-shrink-0">
-            <Zap className="h-5 w-5 text-white fill-white" />
-          </div>
-          <div className="flex-1">
-            <p className="text-sm font-black">
-              Publica tu primera oferta P2P
-            </p>
-            <p className="text-xs text-white/70 mt-0.5">
-              Compra o vende cripto sin comisiones
-            </p>
-          </div>
-          <ChevronRight className="h-4 w-4 text-white/60 flex-shrink-0" />
-        </div>
-      </button>
     </div>
   );
 }
