@@ -11,7 +11,7 @@ const BACKEND_URL = "https://cubax-backend.onrender.com/api";
 // ─── Configuración EmailJS ──────────────────────────────
 const EMAILJS_SERVICE_ID  = "service_juidf7j";
 const EMAILJS_TEMPLATE_ID = "template_zjcqvlp";
-const EMAILJS_PUBLIC_KEY = "BX3GTStYAvJfHGHkoXrRK";
+const EMAILJS_PUBLIC_KEY = "PBxqd6if2L_r8Kr9C";
 
 // 🆕 Inicializar EmailJS al cargar el módulo
 emailjs.init({ publicKey: EMAILJS_PUBLIC_KEY });
