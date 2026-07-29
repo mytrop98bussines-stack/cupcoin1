@@ -59,18 +59,9 @@ export function PromoBanner() {
         return;
       }
 
-      const seenIds = JSON.parse(
-        localStorage.getItem("promos_seen") || "[]"
-      ) as string[];
-
-      const newPromos = data.promos.filter(
-        (p: Promo) => !seenIds.includes(p.id)
-      );
-
-      if (newPromos.length > 0) {
-        setPromos(newPromos);
-        setShow(true);
-      }
+      // ✅ Mostramos TODAS las promos activas del backend
+      setPromos(data.promos);
+      setShow(true);
     } catch (err) {
       console.error("❌ Error cargando promos:", err);
     } finally {
@@ -78,16 +69,8 @@ export function PromoBanner() {
     }
   };
 
+  // ❌ Ya no guardamos en localStorage, solo cerramos temporalmente
   const handleDismiss = () => {
-    const seenIds = JSON.parse(
-      localStorage.getItem("promos_seen") || "[]"
-    ) as string[];
-
-    const newSeenIds = [
-      ...new Set([...seenIds, ...promos.map((p) => p.id)]),
-    ];
-
-    localStorage.setItem("promos_seen", JSON.stringify(newSeenIds));
     setShow(false);
   };
 
@@ -131,7 +114,6 @@ export function PromoBanner() {
     if (!isDragging || promos.length <= 1) return;
     touchCurrentX.current = e.touches[0].clientX;
     const offset = touchCurrentX.current - touchStartX.current;
-    // Limitamos el arrastre (efecto elástico)
     setDragOffset(offset * 0.5);
   };
 
@@ -154,7 +136,6 @@ export function PromoBanner() {
     setDragOffset(0);
     setIsDragging(false);
 
-    // Reanudar auto-rotación luego de 3s
     setTimeout(() => setIsPaused(false), 3000);
   };
 
@@ -268,4 +249,4 @@ export function PromoBanner() {
       </div>
     </div>
   );
-  }
+}
