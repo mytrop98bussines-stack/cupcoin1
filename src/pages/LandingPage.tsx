@@ -21,7 +21,8 @@ const MAPEO_CRYPTO_SVG: Record<string, string> = {
   USDT: "/crypto/usdt.svg",
   ETH:  "/crypto/eth.svg",
   USDC: "/crypto/usdc.svg",
-  TRX:  "/crypto/trx.svg"
+  TRX:  "/crypto/trx.svg",
+  XLM:  "/crypto/xlm.svg", // ✅ Stellar añadido
 };
 
 export function LandingPage() {
@@ -169,7 +170,7 @@ export function LandingPage() {
 
         {loadingPrices && !cryptoPrices ? (
           <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
+            {[1, 2, 3, 4, 5].map((i) => (
               <div
                 key={i}
                 className="h-16 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] animate-pulse rounded-xl"
@@ -178,7 +179,8 @@ export function LandingPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {cryptoPrices?.slice(0, 4).map((coin) => {
+            {/* ✅ Cambiado slice(0, 4) → slice(0, 5) para mostrar XLM */}
+            {cryptoPrices?.slice(0, 5).map((coin) => {
               const symbolUpper = coin.symbol.toUpperCase();
               const symbolLower = coin.symbol.toLowerCase();
               const isUp        = coin.price_change_percentage_24h >= 0;
