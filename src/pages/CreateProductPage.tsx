@@ -4,7 +4,8 @@ import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { Select } from "@/components/ui/Select";
 import { Card }   from "@/components/ui/Card";
-import { CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/data";
+import { CryptoIcon } from "@/components/ui/CryptoIcon"; // ✅ Añadido
+import { CATEGORY_LABELS } from "@/data/data";
 import {
   Upload, Camera, CheckCircle2, Shield,
   Loader2, X, Crown, Truck, MapPin,
@@ -310,8 +311,7 @@ export function CreateProductPage() {
         onChange={(e) => setPrice(e.target.value)}
         rightElement={<span className="text-xs font-medium text-gray-400">USD</span>}
       />
-
-      {/* Equivalencia crypto */}
+            {/* Equivalencia crypto (ahora con formato XLM) */}
       {price && parseFloat(price) > 0 && (
         <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/5 space-y-1.5">
           <p className="text-[10px] font-bold text-gray-400 uppercase tracking-wide">
@@ -322,12 +322,18 @@ export function CreateProductPage() {
               const cryptoData      = prices.find((p) => p.symbol === crypto);
               const rate            = cryptoData ? cryptoData.priceUSD : 1;
               const amount          = parseFloat(price) / rate;
+              // ✅ XLM también con 4 decimales (por su bajo precio)
               const formattedAmount = crypto === "BTC" || crypto === "ETH"
                 ? amount.toFixed(6)
+                : crypto === "XLM"
+                ? amount.toFixed(4)
                 : amount.toFixed(2);
               return (
                 <div key={crypto} className="flex items-center justify-between text-xs font-mono bg-white dark:bg-black/20 p-1.5 rounded-lg px-2 border dark:border-white/5">
-                  <span className="text-gray-500">{crypto}:</span>
+                  <div className="flex items-center gap-1.5">
+                    <CryptoIcon symbol={crypto} size={14} />
+                    <span className="text-gray-500">{crypto}:</span>
+                  </div>
                   <span className="font-bold text-brand-500">{formattedAmount}</span>
                 </div>
               );
@@ -479,24 +485,26 @@ export function CreateProductPage() {
         </div>
       </div>
 
-      {/* Criptomonedas */}
+      {/* Criptomonedas (con XLM + iconos SVG) */}
       <div>
         <p className="text-xs font-medium text-gray-500 dark:text-gray-400 mb-2 uppercase tracking-wide">
           Criptomonedas aceptadas
         </p>
-        <div className="grid grid-cols-4 gap-2">
-          {(["USDT", "USDC", "BTC", "ETH"] as CryptoAsset[]).map((crypto) => (
+        {/* ✅ grid-cols-5 para incluir XLM */}
+        <div className="grid grid-cols-5 gap-2">
+          {(["USDT", "USDC", "BTC", "ETH", "XLM"] as CryptoAsset[]).map((crypto) => (
             <button
               key={crypto}
               onClick={() => toggleCrypto(crypto)}
-              className={`py-3 rounded-xl text-center transition-all duration-200 border ${
+              className={`py-3 rounded-xl flex flex-col items-center justify-center gap-1 transition-all duration-200 border ${
                 acceptedCryptos.includes(crypto)
                   ? "border-brand-500 bg-brand-500/10 text-brand-500"
                   : "border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400"
               }`}
             >
-              <div className="text-lg mb-0.5">{CRYPTO_ICONS[crypto]}</div>
-              <div className="text-xs font-semibold">{crypto}</div>
+              {/* ✅ Icono SVG oficial */}
+              <CryptoIcon symbol={crypto} size={20} />
+              <div className="text-[11px] font-semibold">{crypto}</div>
             </button>
           ))}
         </div>
