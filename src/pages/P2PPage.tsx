@@ -4,11 +4,11 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
+import { CryptoIcon } from "@/components/ui/CryptoIcon"; // ✅ Añadido
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import {
   PAYMENT_METHOD_LABELS,
   PAYMENT_METHOD_COLORS,
-  CRYPTO_ICONS,
 } from "@/data/data";
 import {
   TrendingUp, TrendingDown, Star, Plus,
@@ -22,6 +22,17 @@ import type {
 
 // ─── Constante del backend ────────────────────────────────
 const BACKEND_URL = "https://cubax-backend.onrender.com/api";
+
+// ─── Helper para formato de precio ────────────────────────
+const formatPrice = (price: number): string => {
+  if (price >= 1) {
+    return price.toLocaleString("en-US", {
+      minimumFractionDigits: 2,
+      maximumFractionDigits: 2,
+    });
+  }
+  return price.toFixed(4);
+};
 
 export function P2PPage() {
   const {
@@ -45,7 +56,7 @@ export function P2PPage() {
     amount: string;
   } | null>(null);
 
-  // ─── Barra de precios ─────────────────────────────────────
+  // ─── Barra de precios (ahora con XLM) ─────────────────────
   const priceBar = useMemo(() => [
     {
       id:     "btc",
@@ -70,6 +81,13 @@ export function P2PPage() {
       symbol: "USDC",
       current_price:               prices.find((p) => p.symbol === "USDC")?.priceUSD || 1,
       price_change_percentage_24h: prices.find((p) => p.symbol === "USDC")?.change24h || 0,
+    },
+    // ✅ Stellar añadido
+    {
+      id:     "xlm",
+      symbol: "XLM",
+      current_price:               prices.find((p) => p.symbol === "XLM")?.priceUSD  || 0.12,
+      price_change_percentage_24h: prices.find((p) => p.symbol === "XLM")?.change24h || 0,
     },
   ], [prices]);
 
@@ -237,7 +255,7 @@ export function P2PPage() {
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-      {/* ═══ BARRA DE PRECIOS ════════════════════════════════ */}
+      {/* ═══ BARRA DE PRECIOS (con SVG oficial) ══════════════ */}
       <div className="flex gap-2 overflow-x-auto scrollbar-hide -mx-4 px-4">
         {priceBar.map((coin) => {
           const isUp = coin.price_change_percentage_24h >= 0;
@@ -246,12 +264,11 @@ export function P2PPage() {
               key={coin.id}
               className="flex-shrink-0 flex items-center gap-2 px-3 py-2 rounded-xl bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06]"
             >
-              <span className="text-lg">
-                {CRYPTO_ICONS[coin.symbol.toUpperCase()] || "🪙"}
-              </span>
+              {/* ✅ Icono SVG oficial */}
+              <CryptoIcon symbol={coin.symbol} size={20} />
               <div>
                 <div className="text-xs font-bold text-gray-900 dark:text-white">
-                  ${coin.current_price.toLocaleString("en-US")}
+                  ${formatPrice(coin.current_price)}
                 </div>
                 <div className={`text-[10px] font-semibold flex items-center gap-0.5 ${isUp ? "text-emerald-500" : "text-red-500"}`}>
                   {isUp
@@ -366,7 +383,6 @@ export function P2PPage() {
           }`} />
         </div>
       </button>
-
             {/* ═══ BÚSQUEDA Y FILTROS ══════════════════════════════ */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
@@ -402,7 +418,7 @@ export function P2PPage() {
         </button>
       </div>
 
-      {/* ═══ PANEL DE FILTROS ════════════════════════════════ */}
+      {/* ═══ PANEL DE FILTROS (con XLM y iconos SVG) ═════════ */}
       {showFilters && (
         <Card padding="md" className="animate-slide-up space-y-3">
           <div>
@@ -410,17 +426,25 @@ export function P2PPage() {
               Criptomoneda
             </p>
             <div className="flex flex-wrap gap-1.5">
-              {(["all", "USDT", "USDC", "BTC", "ETH"] as const).map((asset) => (
+              {/* ✅ XLM añadido a la lista */}
+              {(["all", "USDT", "USDC", "BTC", "ETH", "XLM"] as const).map((asset) => (
                 <button
                   key={asset}
                   onClick={() => setSelectedAsset(asset)}
-                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors ${
+                  className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-colors flex items-center gap-1.5 ${
                     selectedAsset === asset
                       ? "bg-brand-500 text-white"
                       : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400"
                   }`}
                 >
-                  {asset === "all" ? "Todas" : `${CRYPTO_ICONS[asset] || ""} ${asset}`}
+                  {asset === "all" ? (
+                    "Todas"
+                  ) : (
+                    <>
+                      <CryptoIcon symbol={asset} size={14} />
+                      {asset}
+                    </>
+                  )}
                 </button>
               ))}
             </div>
@@ -544,10 +568,11 @@ export function P2PPage() {
                   </Badge>
                 </div>
 
-                {/* Precio y disponible */}
+                {/* Precio y disponible (con icono SVG) */}
                 <div className="flex items-end justify-between">
                   <div>
-                    <p className="text-[10px] text-gray-400 mb-0.5">
+                    <p className="text-[10px] text-gray-400 mb-0.5 flex items-center gap-1">
+                      <CryptoIcon symbol={order.asset} size={12} />
                       Precio por {order.asset}
                     </p>
                     <p className="text-xl font-black text-gray-900 dark:text-white leading-none">
@@ -632,14 +657,15 @@ export function P2PPage() {
         )}
       </div>
 
-      {/* ═══ MODAL DE CANTIDAD ═══════════════════════════════ */}
+      {/* ═══ MODAL DE CANTIDAD (con icono SVG) ═══════════════ */}
       {tradeModal && (
         <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/60 backdrop-blur-sm px-4 pb-6">
           <div className="w-full max-w-lg bg-white dark:bg-navy-900 rounded-2xl shadow-2xl p-5 space-y-4 animate-slide-up">
 
             {/* Cabecera del modal */}
             <div className="flex items-center justify-between">
-              <h3 className="font-bold text-gray-900 dark:text-white text-base">
+              <h3 className="font-bold text-gray-900 dark:text-white text-base flex items-center gap-2">
+                <CryptoIcon symbol={tradeModal.order.asset} size={20} />
                 {activeTab === "buy" ? "Comprar" : "Vender"}{" "}
                 {tradeModal.order.asset}
               </h3>
@@ -789,4 +815,4 @@ export function P2PPage() {
       )}
     </div>
   );
- }
+}
