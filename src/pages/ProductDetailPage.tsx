@@ -4,7 +4,8 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { CONDITION_LABELS, CATEGORY_LABELS, CRYPTO_ICONS } from "@/data/data";
+import { CryptoIcon } from "@/components/ui/CryptoIcon"; // ✅ Añadido
+import { CONDITION_LABELS, CATEGORY_LABELS } from "@/data/data";
 import {
   MapPin, Calendar, Star, MessageCircle,
   ShoppingCart, Share2, Heart, Loader2,
@@ -173,51 +174,46 @@ export function ProductDetailPage() {
   }, [selectedChatRoom, isOwner, showChat]);
 
   // ─── Enviar mensaje ───────────────────────────────────────
-const handleSendMessage = async () => {
-  if (!newMessage.trim() || !chatRoomId || !user || sendingMsg) return;
+  const handleSendMessage = async () => {
+    if (!newMessage.trim() || !chatRoomId || !user || sendingMsg) return;
 
-  setSendingMsg(true);
-  const msgText = newMessage.trim();
-  setNewMessage("");
+    setSendingMsg(true);
+    const msgText = newMessage.trim();
+    setNewMessage("");
 
-  try {
-    const token = localStorage.getItem("cubax_token");
-    const res   = await fetch(
-      `${BACKEND_URL}/api/chats/${encodeURIComponent(chatRoomId)}/messages`,
-      {
-        method:  "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Authorization:  `Bearer ${token}`,
-        },
-        body: JSON.stringify({
-          text:         msgText,
-          productId:    product?.id,
-          sellerId:     product?.sellerId,
-          productTitle: product?.title,
-        }),
+    try {
+      const token = localStorage.getItem("cubax_token");
+      const res   = await fetch(
+        `${BACKEND_URL}/api/chats/${encodeURIComponent(chatRoomId)}/messages`,
+        {
+          method:  "POST",
+          headers: {
+            "Content-Type": "application/json",
+            Authorization:  `Bearer ${token}`,
+          },
+          body: JSON.stringify({
+            text:         msgText,
+            productId:    product?.id,
+            sellerId:     product?.sellerId,
+            productTitle: product?.title,
+          }),
+        }
+      );
+      const data = await res.json();
+      if (data.success) {
+        setChatMessages((prev) => [...prev, data.message]);
+      } else {
+        console.error("❌ Error backend:", data.error);
+        setNewMessage(msgText);
+        alert("Error enviando mensaje: " + data.error);
       }
-    );
-    const data = await res.json();
-    if (data.success) {
-      setChatMessages((prev) => [...prev, data.message]);
-    } else {
-      console.error("❌ Error backend:", data.error);
+    } catch (err: any) {
+      console.error("❌ Error enviando mensaje:", err);
       setNewMessage(msgText);
-      alert("Error enviando mensaje: " + data.error);
+    } finally {
+      setSendingMsg(false);
     }
-  } catch (err: any) {
-    console.error("❌ Error enviando mensaje:", err);
-    setNewMessage(msgText);
-  } finally {
-    setSendingMsg(false);
-  }
-};
-
-  // ─── Abrir chat desde notificación ───────────────────────
-  useEffect(() => {
-    // Extensible desde el store si se pasa el chatRoomId
-  }, []);
+  };
 
   // ─── Compartir ────────────────────────────────────────────
   const handleShare = async () => {
@@ -347,9 +343,8 @@ const handleSendMessage = async () => {
         </Button>
       </div>
     );
-  }
-
-  // ─── RENDER PRINCIPAL ─────────────────────────────────────
+            }
+    // ─── RENDER PRINCIPAL ─────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto pb-24 animate-fade-in">
       
@@ -435,7 +430,6 @@ const handleSendMessage = async () => {
           </div>
         )}
 
-        {/* ✅ Badge de ventas realizadas */}
         {(product.totalSold || 0) > 0 && (
           <div className="absolute bottom-3 right-3 px-2.5 py-1 rounded-full bg-emerald-500 text-white text-[10px] font-bold flex items-center gap-1">
             <ShoppingBag className="h-3 w-3" />
@@ -467,12 +461,16 @@ const handleSendMessage = async () => {
           </div>
         </div>
 
-        {/* Criptos */}
+        {/* ✅ Criptos con iconos SVG oficiales */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-gray-400 mr-1">Acepta:</span>
           {product.acceptedCryptos?.map((c) => (
-            <span key={c} className="px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-500 text-xs font-bold">
-              {CRYPTO_ICONS[c] || "🪙"} {c}
+            <span
+              key={c}
+              className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-500 text-xs font-bold"
+            >
+              <CryptoIcon symbol={c} size={14} />
+              {c}
             </span>
           ))}
         </div>
@@ -492,13 +490,12 @@ const handleSendMessage = async () => {
           </Badge>
         </div>
 
-        {/* ✅ Opciones de entrega y pago */}
+        {/* Opciones de entrega y pago */}
         <Card padding="md">
           <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-3">
             Entrega y pago
           </p>
           <div className="space-y-2">
-            {/* Entrega */}
             <div className="flex items-center gap-2 flex-wrap">
               {product.delivery?.pickup && (
                 <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
@@ -523,14 +520,12 @@ const handleSendMessage = async () => {
               )}
             </div>
 
-            {/* Info de entrega */}
             {product.delivery?.deliveryInfo && (
               <p className="text-[11px] text-gray-400 bg-gray-50 dark:bg-white/5 px-3 py-2 rounded-xl">
                 📍 {product.delivery.deliveryInfo}
               </p>
             )}
 
-            {/* Momento de pago */}
             <div className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
               {product.paymentTiming === "before"      && <CreditCard className="h-3.5 w-3.5 text-brand-500" />}
               {product.paymentTiming === "on_delivery" && <Truck       className="h-3.5 w-3.5 text-brand-500" />}
@@ -574,7 +569,6 @@ const handleSendMessage = async () => {
               </div>
             </div>
 
-            {/* ✅ Botón chat para todos */}
             <Button
               size="sm"
               variant="ghost"
@@ -589,11 +583,10 @@ const handleSendMessage = async () => {
           </div>
         </Card>
 
-        {/* ✅ CHAT ─────────────────────────────────────────── */}
+                {/* ✅ CHAT ─────────────────────────────────────────── */}
         {showChat && (
           <Card padding="none" className="overflow-hidden animate-slide-up">
 
-            {/* Header */}
             <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 dark:bg-white/[0.02] border-b border-gray-100 dark:border-white/[0.06]">
               <div className="flex items-center gap-2">
                 <div className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
@@ -609,7 +602,6 @@ const handleSendMessage = async () => {
               </button>
             </div>
 
-            {/* Vendedor: tabs de compradores */}
             {isOwner && productChats.length > 1 && (
               <div className="px-3 py-2 bg-gray-50 dark:bg-white/[0.01] border-b border-gray-100 dark:border-white/[0.04] flex gap-2 overflow-x-auto scrollbar-hide">
                 {productChats.map((chat) => (
@@ -632,7 +624,6 @@ const handleSendMessage = async () => {
               </div>
             )}
 
-            {/* Sin chats — vendedor */}
             {isOwner && productChats.length === 0 ? (
               <div className="h-48 flex flex-col items-center justify-center text-center p-4">
                 <MessageCircle className="h-8 w-8 text-gray-300 dark:text-gray-600 mb-2" />
@@ -643,7 +634,6 @@ const handleSendMessage = async () => {
               </div>
             ) : (
               <>
-                {/* Mensajes */}
                 <div className="h-52 overflow-y-auto p-3 space-y-2 bg-gray-50 dark:bg-white/[0.01]">
                   {chatMessages.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center">
@@ -695,7 +685,6 @@ const handleSendMessage = async () => {
                   )}
                 </div>
 
-                {/* Input */}
                 <form
                   onSubmit={(e) => { e.preventDefault(); handleSendMessage(); }}
                   className="p-3 bg-white dark:bg-navy-900 border-t border-gray-100 dark:border-white/[0.06] flex items-center gap-2"
@@ -721,7 +710,6 @@ const handleSendMessage = async () => {
           </Card>
         )}
 
-        {/* ✅ Orden creada — banner de confirmación */}
         {orderCreated && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-emerald-50 dark:bg-emerald-500/5 border border-emerald-200 dark:border-emerald-500/20 animate-slide-up">
             <CheckCircle2 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
@@ -738,7 +726,6 @@ const handleSendMessage = async () => {
           </div>
         )}
 
-        {/* Error */}
         {buyError && (
           <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
             <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
@@ -751,19 +738,19 @@ const handleSendMessage = async () => {
 
         {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
         {isOwner && (
-  <Button
-    size="lg"
-    fullWidth
-    onClick={() => {
-      useAppStore.getState().setSelectedSalesProductId(product.id);
-      navigate("sales-management");
-    }}
-    icon={<ShoppingBag className="h-4 w-4" />}
-    className="bg-brand-500 hover:bg-brand-600 text-white"
-  >
-    Gestión de ventas
-  </Button>
-)}
+          <Button
+            size="lg"
+            fullWidth
+            onClick={() => {
+              useAppStore.getState().setSelectedSalesProductId(product.id);
+              navigate("sales-management");
+            }}
+            icon={<ShoppingBag className="h-4 w-4" />}
+            className="bg-brand-500 hover:bg-brand-600 text-white"
+          >
+            Gestión de ventas
+          </Button>
+        )}
         
         {isOwner ? (
           <div className="space-y-2">
@@ -786,7 +773,6 @@ const handleSendMessage = async () => {
           </div>
         ) : (
           <div className="space-y-2">
-            {/* ✅ Botón comprar — abre modal de opciones */}
             {!orderCreated ? (
               <Button
                 size="lg"
@@ -838,7 +824,6 @@ const handleSendMessage = async () => {
               </button>
             </div>
 
-            {/* Resumen del producto */}
             <div className="flex items-center gap-3 p-3 rounded-xl bg-gray-50 dark:bg-white/5">
               <div className="h-12 w-12 rounded-xl overflow-hidden flex-shrink-0">
                 {product.images?.[0] ? (
@@ -859,7 +844,24 @@ const handleSendMessage = async () => {
               </div>
             </div>
 
-            {/* ✅ Método de entrega */}
+            {/* ✅ Cryptos aceptadas en el modal con iconos SVG */}
+            <div>
+              <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                Pagas con
+              </p>
+              <div className="flex items-center gap-1.5 flex-wrap">
+                {product.acceptedCryptos?.map((c) => (
+                  <span
+                    key={c}
+                    className="flex items-center gap-1 px-2.5 py-1 rounded-lg bg-brand-500/10 text-brand-500 text-xs font-bold"
+                  >
+                    <CryptoIcon symbol={c} size={12} />
+                    {c}
+                  </span>
+                ))}
+              </div>
+            </div>
+
             <div>
               <p className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                 ¿Cómo quieres recibirlo?
@@ -934,7 +936,6 @@ const handleSendMessage = async () => {
               </div>
             </div>
 
-            {/* Dirección de entrega */}
             {selectedDelivery === "delivery" && (
               <div className="animate-slide-up">
                 <label className="block text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
@@ -950,7 +951,6 @@ const handleSendMessage = async () => {
               </div>
             )}
 
-            {/* Info de pago */}
             <div className="flex items-center gap-2 p-2.5 rounded-xl bg-blue-50 dark:bg-blue-500/5 border border-blue-200 dark:border-blue-500/20">
               {product.paymentTiming === "before"      && <CreditCard className="h-4 w-4 text-blue-500 flex-shrink-0" />}
               {product.paymentTiming === "on_delivery" && <Truck       className="h-4 w-4 text-blue-500 flex-shrink-0" />}
@@ -966,7 +966,6 @@ const handleSendMessage = async () => {
               </p>
             )}
 
-            {/* Botones */}
             <div className="flex gap-2">
               <button
                 onClick={() => setShowBuyModal(false)}
@@ -1063,4 +1062,3 @@ const handleSendMessage = async () => {
     </div>
   );
 }
-          
