@@ -6,6 +6,8 @@ const MAPEO_CRYPTO_SVG: Record<string, string> = {
   USDT: "/crypto/usdt.svg",
   ETH:  "/crypto/eth.svg",
   USDC: "/crypto/usdc.svg",
+  XLM:  "/crypto/xlm.svg", // ✅ Stellar añadido
+  TRX:  "/crypto/trx.svg", // (por si lo agregas después)
 };
 
 interface CryptoIconProps extends React.ImgHTMLAttributes<HTMLImageElement> {
@@ -31,5 +33,4 @@ export function CryptoIcon({ symbol, size = 24, className = "", ...props }: Cryp
       {...props}
     />
   );
-}
-
+        }
