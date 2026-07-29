@@ -3,10 +3,12 @@ import { useAppStore } from "@/store/useAppStore";
 import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
+import { CryptoIcon } from "@/components/ui/CryptoIcon";
 import { CONDITION_LABELS } from "@/data/data";
 import {
   Search, Plus, MapPin, Filter,
-  ShoppingBag, X,
+  ShoppingBag, X, Camera, Truck,
+  Package, Sparkles,
 } from "lucide-react";
 import type { ProductCategory } from "@/types";
 
@@ -27,7 +29,6 @@ export function MarketplacePage() {
 
   // ─── Cargar productos via backend ─────────────────────────
   useEffect(() => {
-    // ✅ Si ya hay productos en el store no recargar
     if (products.length > 0) {
       setLoadingProducts(false);
       return;
@@ -78,16 +79,16 @@ export function MarketplacePage() {
     navigate("product-detail");
   };
 
-  const categories: { value: ProductCategory | "all"; label: string }[] = [
-    { value: "all",         label: "Todos"          },
-    { value: "phones",      label: "📱 Teléfonos"   },
-    { value: "computers",   label: "💻 Computadoras" },
-    { value: "electronics", label: "🔌 Electrónica"  },
-    { value: "clothing",    label: "👕 Ropa"         },
-    { value: "services",    label: "🛠 Servicios"    },
-    { value: "home",        label: "🏠 Hogar"        },
-    { value: "vehicles",    label: "🚗 Vehículos"    },
-    { value: "other",       label: "📦 Otros"        },
+  const categories: { value: ProductCategory | "all"; label: string; emoji: string }[] = [
+    { value: "all",         label: "Todos",        emoji: "🔥" },
+    { value: "phones",      label: "Teléfonos",    emoji: "📱" },
+    { value: "computers",   label: "Computadoras", emoji: "💻" },
+    { value: "electronics", label: "Electrónica",  emoji: "🔌" },
+    { value: "clothing",    label: "Ropa",         emoji: "👕" },
+    { value: "services",    label: "Servicios",    emoji: "🛠" },
+    { value: "home",        label: "Hogar",        emoji: "🏠" },
+    { value: "vehicles",    label: "Vehículos",    emoji: "🚗" },
+    { value: "other",       label: "Otros",        emoji: "📦" },
   ];
 
   const getCategoryEmoji = (category: string) => {
@@ -103,17 +104,34 @@ export function MarketplacePage() {
     return map[category] || "📦";
   };
 
+  const getConditionStyle = (condition: string) => {
+    switch (condition) {
+      case "new":
+        return "bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20";
+      case "used":
+        return "bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20";
+      case "refurbished":
+        return "bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20";
+      default:
+        return "bg-gray-100 text-gray-500 border-gray-200";
+    }
+  };
+
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
       {/* ═══ HEADER ══════════════════════════════════════════ */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-lg font-bold text-gray-900 dark:text-white">
+          <h1 className="text-lg font-bold text-gray-900 dark:text-white flex items-center gap-1.5">
             Marketplace
+            <Sparkles className="h-4 w-4 text-amber-400" />
           </h1>
           <p className="text-xs text-gray-500 dark:text-gray-400">
-            Compra con cripto, entrega en persona
+            {loadingProducts
+              ? "Cargando productos..."
+              : `${filteredProducts.length} producto${filteredProducts.length !== 1 ? "s" : ""} disponible${filteredProducts.length !== 1 ? "s" : ""}`
+            }
           </p>
         </div>
         <Button
@@ -125,7 +143,7 @@ export function MarketplacePage() {
         </Button>
       </div>
 
-      {/* ═══ BÚSQUEDA MEJORADA ═══════════════════════════════ */}
+      {/* ═══ BÚSQUEDA ════════════════════════════════════════ */}
       <div className="flex gap-2">
         <div className="flex-1 relative">
           <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
@@ -134,7 +152,7 @@ export function MarketplacePage() {
             placeholder="Buscar productos, ubicación..."
             value={searchQuery}
             onChange={(e) => setSearchQuery(e.target.value)}
-            className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none"
+            className="w-full pl-9 pr-9 py-2.5 text-sm rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white placeholder-gray-400 focus:border-brand-500 focus:ring-2 focus:ring-brand-500/20 outline-none transition-all"
           />
           {searchQuery && (
             <button
@@ -147,17 +165,20 @@ export function MarketplacePage() {
         </div>
         <button
           onClick={() => setShowFilters(!showFilters)}
-          className={`p-2.5 rounded-xl border transition-colors ${
-            showFilters
+          className={`p-2.5 rounded-xl border transition-colors relative ${
+            showFilters || selectedCategory !== "all"
               ? "border-brand-500 bg-brand-500/10 text-brand-500"
               : "border-gray-200 dark:border-white/10 text-gray-500 dark:text-gray-400"
           }`}
         >
           <Filter className="h-4 w-4" />
+          {selectedCategory !== "all" && (
+            <span className="absolute -top-1 -right-1 h-3 w-3 bg-brand-500 rounded-full" />
+          )}
         </button>
       </div>
 
-      {/* ✅ Contador de resultados */}
+      {/* Contador de resultados */}
       {searchQuery && (
         <p className="text-xs text-gray-400 px-1">
           {filteredProducts.length === 0
@@ -169,113 +190,176 @@ export function MarketplacePage() {
         </p>
       )}
 
-      {/* ═══ CATEGORÍAS ══════════════════════════════════════ */}
+      {/* ═══ CATEGORÍAS (mejoradas con emojis separados) ═════ */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4">
         {categories.map((cat) => (
           <button
             key={cat.value}
             onClick={() => setSelectedCategory(cat.value)}
-            className={`flex-shrink-0 px-3 py-1.5 rounded-full text-xs font-medium transition-all ${
+            className={`flex-shrink-0 flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-semibold transition-all ${
               selectedCategory === cat.value
-                ? "bg-brand-500 text-white"
-                : "bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-400"
+                ? "bg-brand-500 text-white shadow-sm shadow-brand-500/20"
+                : "bg-gray-100 dark:bg-white/[0.03] text-gray-600 dark:text-gray-400 border border-gray-100 dark:border-white/[0.06]"
             }`}
           >
+            <span className="text-sm">{cat.emoji}</span>
             {cat.label}
           </button>
         ))}
       </div>
-
-      {/* ═══ PRODUCTOS ═══════════════════════════════════════ */}
+            {/* ═══ PRODUCTOS ═══════════════════════════════════════ */}
       {loadingProducts ? (
-        <div className="text-center py-12">
-          <div className="h-6 w-6 border-2 border-brand-500 border-t-transparent rounded-full animate-spin mx-auto mb-2" />
-          <p className="text-xs text-gray-400">
-            Escaneando ofertas en el Marketplace...
-          </p>
+        /* ✅ Skeleton loader mejorado */
+        <div className="grid grid-cols-2 gap-3">
+          {[1, 2, 3, 4].map((i) => (
+            <div
+              key={i}
+              className="rounded-2xl border border-gray-100 dark:border-white/[0.06] overflow-hidden"
+            >
+              <div className="aspect-square bg-gray-100 dark:bg-white/5 animate-pulse" />
+              <div className="p-3 space-y-2">
+                <div className="h-3 bg-gray-100 dark:bg-white/5 rounded-full animate-pulse w-3/4" />
+                <div className="h-4 bg-gray-100 dark:bg-white/5 rounded-full animate-pulse w-1/2" />
+                <div className="flex gap-1">
+                  <div className="h-4 w-10 bg-gray-100 dark:bg-white/5 rounded animate-pulse" />
+                  <div className="h-4 w-10 bg-gray-100 dark:bg-white/5 rounded animate-pulse" />
+                </div>
+                <div className="h-3 bg-gray-100 dark:bg-white/5 rounded-full animate-pulse w-2/3" />
+              </div>
+            </div>
+          ))}
         </div>
 
       ) : filteredProducts.length === 0 ? (
-        <Card padding="lg" className="text-center">
-          <ShoppingBag className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
+        <div className="text-center py-16">
+          <div className="h-16 w-16 rounded-full bg-gray-100 dark:bg-white/5 flex items-center justify-center mx-auto mb-4">
+            <ShoppingBag className="h-8 w-8 text-gray-300 dark:text-gray-600" />
+          </div>
           <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
             {searchQuery
               ? `Sin resultados para "${searchQuery}"`
-              : "No hay productos disponibles."}
+              : "No hay productos disponibles"}
           </p>
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="text-xs text-brand-500 font-semibold mt-2"
+          <p className="text-xs text-gray-400 mb-4">
+            {searchQuery
+              ? "Prueba con otros términos de búsqueda"
+              : "Sé el primero en publicar un producto"}
+          </p>
+          <div className="flex gap-2 justify-center">
+            {searchQuery && (
+              <Button
+                size="sm"
+                variant="outline"
+                onClick={() => setSearchQuery("")}
+              >
+                Limpiar búsqueda
+              </Button>
+            )}
+            <Button
+              size="sm"
+              onClick={() => navigate("create-product")}
+              icon={<Plus className="h-3.5 w-3.5" />}
             >
-              Limpiar búsqueda
-            </button>
-          )}
-        </Card>
+              Publicar producto
+            </Button>
+          </div>
+        </div>
 
       ) : (
         <div className="grid grid-cols-2 gap-3">
           {filteredProducts.map((product) => (
-            <Card
+            <button
               key={product.id}
-              hover
-              padding="none"
-              className="overflow-hidden cursor-pointer flex flex-col justify-between"
               onClick={() => handleProductClick(product.id)}
+              className="text-left rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] overflow-hidden hover:border-brand-500/20 hover:shadow-lg hover:shadow-brand-500/5 transition-all duration-300 active:scale-[0.98] flex flex-col"
             >
-              {/* Imagen */}
-              <div className="aspect-square w-full bg-gray-100 dark:bg-white/5 relative overflow-hidden flex items-center justify-center">
+              {/* Imagen con overlays */}
+              <div className="aspect-square w-full bg-gray-100 dark:bg-white/5 relative overflow-hidden">
                 {product.images && product.images.length > 0 ? (
-                  <img
-                    src={product.images[0]}
-                    alt={product.title}
-                    className="h-full w-full object-cover transform hover:scale-105 transition-transform duration-300"
-                    loading="lazy"
-                  />
+                  <>
+                    <img
+                      src={product.images[0]}
+                      alt={product.title}
+                      className="h-full w-full object-cover transform hover:scale-105 transition-transform duration-500"
+                      loading="lazy"
+                    />
+                    {/* ✅ Indicador de fotos */}
+                    {product.images.length > 1 && (
+                      <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm">
+                        <Camera className="h-2.5 w-2.5" />
+                        {product.images.length}
+                      </div>
+                    )}
+                  </>
                 ) : (
-                  <span className="text-3xl">
-                    {getCategoryEmoji(product.category)}
-                  </span>
+                  <div className="h-full w-full flex items-center justify-center">
+                    <span className="text-4xl opacity-60">
+                      {getCategoryEmoji(product.category)}
+                    </span>
+                  </div>
                 )}
+
+                {/* ✅ Badge de condición sobre la imagen */}
+                <div className="absolute bottom-2 left-2">
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${getConditionStyle(product.condition)}`}>
+                    {CONDITION_LABELS[product.condition] || product.condition}
+                  </span>
+                </div>
               </div>
 
-              {/* Info */}
-              <div className="p-3 space-y-1.5 flex-1 flex flex-col justify-between">
-                <div className="space-y-1">
-                  <h3 className="font-semibold text-xs text-gray-900 dark:text-white line-clamp-2 leading-tight">
+              {/* Info del producto */}
+              <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
+                <div className="space-y-1.5">
+                  {/* Título */}
+                  <h3 className="font-bold text-xs text-gray-900 dark:text-white line-clamp-2 leading-snug">
                     {product.title}
                   </h3>
-                  <p className="text-sm font-bold text-brand-500">
-                    ${product.priceUSD.toLocaleString("en-US")}
-                  </p>
+
+                  {/* Precio */}
+                  <div className="flex items-baseline gap-1">
+                    <p className="text-base font-black text-brand-500 leading-none">
+                      ${product.priceUSD.toLocaleString("en-US")}
+                    </p>
+                    <span className="text-[9px] text-gray-400 font-medium">USD</span>
+                  </div>
                 </div>
 
                 <div className="space-y-1.5 pt-1">
-                  <div className="flex flex-wrap gap-1">
-                    {product.acceptedCryptos.slice(0, 3).map((c) => (
+                  {/* ✅ Cryptos aceptadas con iconos SVG */}
+                  <div className="flex items-center gap-1 flex-wrap">
+                    {product.acceptedCryptos.slice(0, 4).map((c) => (
                       <span
                         key={c}
-                        className="text-[9px] px-1.5 py-0.5 rounded bg-brand-500/10 text-brand-500 font-semibold"
+                        className="flex items-center gap-0.5 text-[9px] px-1.5 py-0.5 rounded-md bg-gray-50 dark:bg-white/5 text-gray-600 dark:text-gray-400 font-semibold border border-gray-100 dark:border-white/[0.06]"
                       >
+                        <CryptoIcon symbol={c} size={10} />
                         {c}
                       </span>
                     ))}
+                    {product.acceptedCryptos.length > 4 && (
+                      <span className="text-[9px] text-gray-400 font-medium">
+                        +{product.acceptedCryptos.length - 4}
+                      </span>
+                    )}
                   </div>
-                  <div className="flex items-center gap-1 text-[10px] text-gray-400 dark:text-gray-500">
-                    <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
-                    <span className="truncate">{product.location}</span>
-                  </div>
-                  <div className="pt-0.5">
-                    <Badge
-                      variant={product.condition === "new" ? "success" : "default"}
-                      size="sm"
-                    >
-                      {CONDITION_LABELS[product.condition] || product.condition}
-                    </Badge>
+
+                  {/* ✅ Ubicación + entrega */}
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-0.5 text-[10px] text-gray-400 dark:text-gray-500 flex-1 min-w-0">
+                      <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
+                      <span className="truncate">{product.location}</span>
+                    </div>
+                    {/* ✅ Indicador de envío */}
+                    {(product as any).homeDelivery && (
+                      <div className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-semibold flex-shrink-0">
+                        <Truck className="h-2.5 w-2.5" />
+                        Envío
+                      </div>
+                    )}
                   </div>
                 </div>
               </div>
-            </Card>
+            </button>
           ))}
         </div>
       )}
