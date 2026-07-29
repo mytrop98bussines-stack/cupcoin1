@@ -18,7 +18,8 @@ export interface CoinGeckoPrice {
 }
 
 export async function fetchCryptoPrices(): Promise<CoinGeckoPrice[]> {
-  const ids = 'bitcoin,ethereum,tether,usd-coin';
+  // ✅ Añadido stellar (XLM)
+  const ids = 'bitcoin,ethereum,tether,usd-coin,stellar';
   
   // 🛠️ Pasamos la API Key de forma correcta y nativa en los Headers de la petición
   const response = await fetch(
