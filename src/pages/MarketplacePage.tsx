@@ -4,11 +4,13 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { CryptoIcon } from "@/components/ui/CryptoIcon";
+import { QRScanner } from "@/components/marketplace/QRScanner";
+import { PayWithQRModal } from "@/components/marketplace/PayWithQRModal";
 import { CONDITION_LABELS } from "@/data/data";
 import {
   Search, Plus, MapPin, Filter,
   ShoppingBag, X, Camera, Truck,
-  Package, Sparkles,
+  Package, Sparkles, QrCode,
 } from "lucide-react";
 import type { ProductCategory } from "@/types";
 
@@ -26,6 +28,11 @@ export function MarketplacePage() {
   const [selectedCategory, setSelectedCategory] = useState<ProductCategory | "all">("all");
   const [showFilters, setShowFilters]           = useState(false);
   const [loadingProducts, setLoadingProducts]   = useState(true);
+
+  // 🎯 Estados del sistema QR
+  const [showScanner, setShowScanner]         = useState(false);
+  const [scannedData, setScannedData]         = useState<any>(null);
+  const [paymentSuccess, setPaymentSuccess]   = useState<string | null>(null);
 
   // ─── Cargar productos via backend ─────────────────────────
   useEffect(() => {
@@ -49,7 +56,6 @@ export function MarketplacePage() {
       });
   }, [setProducts]);
 
-  // ─── Filtrado mejorado ────────────────────────────────────
   const filteredProducts = useMemo(() => {
     return products.filter((p) => {
       if (p.status !== "active") return false;
@@ -77,6 +83,18 @@ export function MarketplacePage() {
   const handleProductClick = (productId: string) => {
     setSelectedProductId(productId);
     navigate("product-detail");
+  };
+
+  // 🎯 Handlers del sistema QR
+  const handleScanSuccess = (data: any) => {
+    setShowScanner(false);
+    setScannedData(data);
+  };
+
+  const handlePaymentSuccess = (orderId: string) => {
+    setScannedData(null);
+    setPaymentSuccess(orderId);
+    setTimeout(() => setPaymentSuccess(null), 5000);
   };
 
   const categories: { value: ProductCategory | "all"; label: string; emoji: string }[] = [
@@ -178,7 +196,6 @@ export function MarketplacePage() {
         </button>
       </div>
 
-      {/* Contador de resultados */}
       {searchQuery && (
         <p className="text-xs text-gray-400 px-1">
           {filteredProducts.length === 0
@@ -190,7 +207,7 @@ export function MarketplacePage() {
         </p>
       )}
 
-      {/* ═══ CATEGORÍAS (mejoradas con emojis separados) ═════ */}
+      {/* ═══ CATEGORÍAS ══════════════════════════════════════ */}
       <div className="flex gap-1.5 overflow-x-auto scrollbar-hide -mx-4 px-4">
         {categories.map((cat) => (
           <button
@@ -207,9 +224,9 @@ export function MarketplacePage() {
           </button>
         ))}
       </div>
-            {/* ═══ PRODUCTOS ═══════════════════════════════════════ */}
+
+      {/* ═══ PRODUCTOS ═══════════════════════════════════════ */}
       {loadingProducts ? (
-        /* ✅ Skeleton loader mejorado */
         <div className="grid grid-cols-2 gap-3">
           {[1, 2, 3, 4].map((i) => (
             <div
@@ -273,7 +290,6 @@ export function MarketplacePage() {
               onClick={() => handleProductClick(product.id)}
               className="text-left rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] overflow-hidden hover:border-brand-500/20 hover:shadow-lg hover:shadow-brand-500/5 transition-all duration-300 active:scale-[0.98] flex flex-col"
             >
-              {/* Imagen con overlays */}
               <div className="aspect-square w-full bg-gray-100 dark:bg-white/5 relative overflow-hidden">
                 {product.images && product.images.length > 0 ? (
                   <>
@@ -283,7 +299,6 @@ export function MarketplacePage() {
                       className="h-full w-full object-cover transform hover:scale-105 transition-transform duration-500"
                       loading="lazy"
                     />
-                    {/* ✅ Indicador de fotos */}
                     {product.images.length > 1 && (
                       <div className="absolute top-2 right-2 flex items-center gap-1 bg-black/60 text-white text-[9px] font-bold px-1.5 py-0.5 rounded-full backdrop-blur-sm">
                         <Camera className="h-2.5 w-2.5" />
@@ -299,7 +314,6 @@ export function MarketplacePage() {
                   </div>
                 )}
 
-                {/* ✅ Badge de condición sobre la imagen */}
                 <div className="absolute bottom-2 left-2">
                   <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full border backdrop-blur-sm ${getConditionStyle(product.condition)}`}>
                     {CONDITION_LABELS[product.condition] || product.condition}
@@ -307,15 +321,12 @@ export function MarketplacePage() {
                 </div>
               </div>
 
-              {/* Info del producto */}
               <div className="p-3 space-y-2 flex-1 flex flex-col justify-between">
                 <div className="space-y-1.5">
-                  {/* Título */}
                   <h3 className="font-bold text-xs text-gray-900 dark:text-white line-clamp-2 leading-snug">
                     {product.title}
                   </h3>
 
-                  {/* Precio */}
                   <div className="flex items-baseline gap-1">
                     <p className="text-base font-black text-brand-500 leading-none">
                       ${product.priceUSD.toLocaleString("en-US")}
@@ -325,7 +336,6 @@ export function MarketplacePage() {
                 </div>
 
                 <div className="space-y-1.5 pt-1">
-                  {/* ✅ Cryptos aceptadas con iconos SVG */}
                   <div className="flex items-center gap-1 flex-wrap">
                     {product.acceptedCryptos.slice(0, 4).map((c) => (
                       <span
@@ -343,13 +353,11 @@ export function MarketplacePage() {
                     )}
                   </div>
 
-                  {/* ✅ Ubicación + entrega */}
                   <div className="flex items-center gap-2">
                     <div className="flex items-center gap-0.5 text-[10px] text-gray-400 dark:text-gray-500 flex-1 min-w-0">
                       <MapPin className="h-2.5 w-2.5 flex-shrink-0" />
                       <span className="truncate">{product.location}</span>
                     </div>
-                    {/* ✅ Indicador de envío */}
                     {(product as any).homeDelivery && (
                       <div className="flex items-center gap-0.5 text-[9px] text-emerald-500 font-semibold flex-shrink-0">
                         <Truck className="h-2.5 w-2.5" />
@@ -363,6 +371,43 @@ export function MarketplacePage() {
           ))}
         </div>
       )}
+
+      {/* ═══ BOTÓN FLOTANTE ESCANEAR QR ══════════════════════ */}
+      <button
+        onClick={() => setShowScanner(true)}
+        className="fixed bottom-20 right-4 z-40 h-14 w-14 rounded-full bg-gradient-to-br from-brand-500 to-brand-600 text-white shadow-2xl shadow-brand-500/30 flex items-center justify-center hover:scale-105 active:scale-95 transition-transform"
+        title="Escanear QR de pago"
+      >
+        <QrCode className="h-6 w-6" />
+      </button>
+
+      {/* ═══ TOAST DE PAGO EXITOSO ═══════════════════════════ */}
+      {paymentSuccess && (
+        <div className="fixed top-4 left-1/2 -translate-x-1/2 z-[80] px-4 py-3 rounded-2xl bg-emerald-500 text-white shadow-2xl animate-slide-up flex items-center gap-2">
+          <span className="text-lg">🎉</span>
+          <div>
+            <p className="text-xs font-black">¡Pago exitoso!</p>
+            <p className="text-[10px] opacity-90">Orden #{paymentSuccess.slice(-8)}</p>
+          </div>
+        </div>
+      )}
+
+      {/* ═══ ESCÁNER QR ══════════════════════════════════════ */}
+      {showScanner && (
+        <QRScanner
+          onScan={handleScanSuccess}
+          onClose={() => setShowScanner(false)}
+        />
+      )}
+
+      {/* ═══ MODAL DE PAGO ═══════════════════════════════════ */}
+      {scannedData && (
+        <PayWithQRModal
+          data={scannedData}
+          onClose={() => setScannedData(null)}
+          onSuccess={handlePaymentSuccess}
+        />
+      )}
     </div>
   );
-}
+          }
