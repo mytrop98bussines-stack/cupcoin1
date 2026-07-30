@@ -4,8 +4,8 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { CryptoIcon } from "@/components/ui/CryptoIcon";
-import { QRScanner } from "@/components/marketplace/QRScanner";
-import { PayWithQRModal } from "@/components/marketplace/PayWithQRModal";
+import { QRScanner } from "@/components/QRScanner";
+import { PayWithQRModal } from "@/components/PayWithQRModal";
 import { CONDITION_LABELS } from "@/data/data";
 import {
   Search, Plus, MapPin, Filter,
