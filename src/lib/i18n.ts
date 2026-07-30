@@ -2,61 +2,6 @@ export type Language = "es" | "en";
 
 const translations = {
   es: {
-    // Añadir a la sección "es"
-landing: {
-  loginBtn:            "Iniciar Sesión",
-  badge:               "En desarrollo activo · Únete a la lista de espera",
-  heroTitle1:          "Cripto para",
-  heroTitle2:          "Cuba",
-  heroTitle3:          ", sin",
-  heroTitle4:          "fronteras",
-  heroDesc:            "Compra, vende e intercambia criptomonedas de forma segura con métodos de pago cubanos. Todo protegido por contratos inteligentes.",
-  trust: {
-    encrypted:  "Transacciones cifradas",
-    escrow:     "Escrow automático",
-    support:    "Soporte 24/7",
-  },
-  cta: {
-    createFree:      "Crear cuenta gratis",
-    haveAccount:     "Ya tengo cuenta",
-  },
-  livePrices:          "Precios en vivo",
-  featuresTitle:       "Todo lo que necesitas",
-  featuresSubtitle:    "Una plataforma completa para el mercado cubano",
-  features: {
-    p2pTitle:        "P2P Sin Límites",
-    p2pDesc:         "Compra y vende cripto con Transfermóvil, EnZona y efectivo",
-    escrowTitle:     "Escrow Seguro",
-    escrowDesc:      "Fondos protegidos en contrato inteligente durante el trade",
-    marketTitle:     "Marketplace",
-    marketDesc:      "Compra productos reales pagando con criptomonedas",
-    fastTitle:       "Ultra Rápido",
-    fastDesc:        "Optimizado para redes 3G/4G del mercado cubano",
-    realTimeTitle:   "Precios en Tiempo Real",
-    realTimeDesc:    "Cotizaciones globales de CoinGecko actualizadas al instante",
-    kycTitle:        "Verificación KYC",
-    kycDesc:         "Sistema de identidad seguro para operar sin restricciones",
-  },
-  community: {
-    badge:        "Fase de desarrollo activo",
-    title:        "¿Quieres ser parte del primer P2P cubano?",
-    desc:         "Creado por un emprendedor cubano que entiende las necesidades reales de la isla.",
-    waitlist:     "Lista de espera",
-    waitlistDesc: "Sé de los primeros en usar la app",
-    investors:    "Inversores ángeles",
-    investorsDesc: "Únete a un proyecto con impacto real",
-    community:    "Comunidad",
-    communityDesc: "Comparte tu feedback y crece con nosotros",
-    writeMe:      "Escríbeme directamente:",
-  },
-  footer: {
-    madeIn:     "Hecho con ❤️ en Cuba, para Cuba 🇨🇺",
-    rights:     "© 2026 CupCoin. Todos los derechos reservados.",
-    terms:      "Términos",
-    privacy:    "Privacidad",
-    support:    "Soporte",
-  },
-},
     // ═══ COMÚN ══════════════════════════════════════════════
     common: {
       save:      "Guardar",
@@ -103,7 +48,7 @@ landing: {
       notifications: "Notificaciones",
     },
 
-    // ═══ AUTH ═══════════════════════════════════════════════
+    // ═══ AUTH (EXPANDIDO) ═══════════════════════════════════
     auth: {
       login:           "Iniciar sesión",
       register:        "Crear cuenta",
@@ -114,6 +59,143 @@ landing: {
       forgotPassword:  "¿Olvidaste tu contraseña?",
       createAccount:   "Crear cuenta gratis",
       alreadyAccount:  "Ya tengo cuenta",
+
+      // Landing tags
+      welcomeBack:        "Bienvenido de vuelta",
+      createAccountTitle: "Crear cuenta",
+      loginSubtitle:      "Inicia sesión para acceder a tu cuenta",
+      registerSubtitle:   "Regístrate gratis y empieza a operar hoy",
+
+      // Form placeholders
+      emailPlaceholder:    "tu@correo.com",
+      namePlaceholder:     "Tu nombre completo",
+      passwordPlaceholder: "••••••••",
+
+      // Validación de errores
+      errors: {
+        emailRequired:    "Correo requerido.",
+        emailInvalid:     "Formato de correo inválido.",
+        passwordRequired: "Contraseña requerida.",
+        passwordShort:    "Mínimo 6 caracteres.",
+        nameRequired:     "Nombre requerido.",
+        nameShort:        "Nombre demasiado corto.",
+        connection:       "Error de conexión. Verifica tu internet.",
+        loadUser:         "No se pudo cargar el usuario.",
+        googleSession:    "Error al completar la sesión con Google.",
+        invalidEmail:     "Correo válido requerido.",
+      },
+
+      // Password strength
+      password: {
+        veryWeak:  "Contraseña muy débil",
+        weak:      "Contraseña débil",
+        good:      "Contraseña buena",
+        strong:    "Contraseña fuerte ✓",
+      },
+
+      // Términos
+      terms: {
+        accept:   "Al registrarte aceptas nuestros",
+        tos:      "Términos de Uso",
+        and:      "y",
+        privacy:  "Política de Privacidad",
+      },
+
+      // Social login
+      orContinueWith:  "o continúa con",
+      continueGoogle:  "Continuar con Google",
+      connecting:      "Conectando...",
+
+      // Trust badges
+      trust: {
+        noVpn:      "Sin VPN",
+        ssl:        "Cifrado SSL",
+        noFees:     "Sin comisiones",
+      },
+
+      // Switch login/register
+      noAccount:    "¿No tienes cuenta?",
+      haveAccount:  "¿Ya tienes cuenta?",
+      registerFree: "Regístrate gratis",
+      signIn:       "Inicia sesión",
+
+      // 2FA
+      twoFA: {
+        title:       "Verificación 2FA",
+        subtitle:    "Abre tu app de autenticación e ingresa el código de 6 dígitos de CupCoin.",
+        codeLabel:   "Código de verificación",
+        verify:      "Verificar código",
+        codeInfo:    "🔐 El código cambia cada 30 segundos. Si expiró, espera al siguiente y vuelve a intentarlo.",
+        backToLogin: "← Volver al inicio de sesión",
+        enterCode:   "Ingresa el código de 6 dígitos.",
+        incorrect:   "Código incorrecto.",
+      },
+
+      // Reset password
+      reset: {
+        title:       "Recuperar contraseña",
+        subtitle:    "Te enviaremos un enlace para restablecer tu contraseña.",
+        emailSent:   "¡Correo enviado!",
+        checkInbox:  "Revisa tu bandeja de entrada en",
+        backToLogin: "Volver al inicio de sesión →",
+        send:        "Enviar enlace de recuperación",
+      },
+    },
+
+    // ═══ LANDING ════════════════════════════════════════════
+    landing: {
+      loginBtn:            "Iniciar Sesión",
+      badge:               "En desarrollo activo · Únete a la lista de espera",
+      heroTitle1:          "Cripto para",
+      heroTitle2:          "Cuba",
+      heroTitle3:          ", sin",
+      heroTitle4:          "fronteras",
+      heroDesc:            "Compra, vende e intercambia criptomonedas de forma segura con métodos de pago cubanos. Todo protegido por contratos inteligentes.",
+      trust: {
+        encrypted:  "Transacciones cifradas",
+        escrow:     "Escrow automático",
+        support:    "Soporte 24/7",
+      },
+      cta: {
+        createFree:      "Crear cuenta gratis",
+        haveAccount:     "Ya tengo cuenta",
+      },
+      livePrices:          "Precios en vivo",
+      featuresTitle:       "Todo lo que necesitas",
+      featuresSubtitle:    "Una plataforma completa para el mercado cubano",
+      features: {
+        p2pTitle:        "P2P Sin Límites",
+        p2pDesc:         "Compra y vende cripto con Transfermóvil, EnZona y efectivo",
+        escrowTitle:     "Escrow Seguro",
+        escrowDesc:      "Fondos protegidos en contrato inteligente durante el trade",
+        marketTitle:     "Marketplace",
+        marketDesc:      "Compra productos reales pagando con criptomonedas",
+        fastTitle:       "Ultra Rápido",
+        fastDesc:        "Optimizado para redes 3G/4G del mercado cubano",
+        realTimeTitle:   "Precios en Tiempo Real",
+        realTimeDesc:    "Cotizaciones globales de CoinGecko actualizadas al instante",
+        kycTitle:        "Verificación KYC",
+        kycDesc:         "Sistema de identidad seguro para operar sin restricciones",
+      },
+      community: {
+        badge:         "Fase de desarrollo activo",
+        title:         "¿Quieres ser parte del primer P2P cubano?",
+        desc:          "Creado por un emprendedor cubano que entiende las necesidades reales de la isla.",
+        waitlist:      "Lista de espera",
+        waitlistDesc:  "Sé de los primeros en usar la app",
+        investors:     "Inversores ángeles",
+        investorsDesc: "Únete a un proyecto con impacto real",
+        community:     "Comunidad",
+        communityDesc: "Comparte tu feedback y crece con nosotros",
+        writeMe:       "Escríbeme directamente:",
+      },
+      footer: {
+        madeIn:  "Hecho con ❤️ en Cuba, para Cuba 🇨🇺",
+        rights:  "© 2026 CupCoin. Todos los derechos reservados.",
+        terms:   "Términos",
+        privacy: "Privacidad",
+        support: "Soporte",
+      },
     },
 
     // ═══ DASHBOARD ══════════════════════════════════════════
@@ -251,61 +333,6 @@ landing: {
   },
 
   en: {
-    // Añadir a la sección "en"
-landing: {
-  loginBtn:            "Sign in",
-  badge:               "In active development · Join the waitlist",
-  heroTitle1:          "Crypto for",
-  heroTitle2:          "Cuba",
-  heroTitle3:          ", without",
-  heroTitle4:          "borders",
-  heroDesc:            "Buy, sell and exchange cryptocurrencies safely with Cuban payment methods. All protected by smart contracts.",
-  trust: {
-    encrypted:  "Encrypted transactions",
-    escrow:     "Automatic escrow",
-    support:    "24/7 Support",
-  },
-  cta: {
-    createFree:      "Create free account",
-    haveAccount:     "I already have an account",
-  },
-  livePrices:          "Live prices",
-  featuresTitle:       "Everything you need",
-  featuresSubtitle:    "A complete platform for the Cuban market",
-  features: {
-    p2pTitle:        "Unlimited P2P",
-    p2pDesc:         "Buy and sell crypto with Transfermóvil, EnZona and cash",
-    escrowTitle:     "Secure Escrow",
-    escrowDesc:      "Funds protected by smart contract during the trade",
-    marketTitle:     "Marketplace",
-    marketDesc:      "Buy real products paying with cryptocurrencies",
-    fastTitle:       "Ultra Fast",
-    fastDesc:        "Optimized for 3G/4G networks in the Cuban market",
-    realTimeTitle:   "Real-Time Prices",
-    realTimeDesc:    "Global quotes from CoinGecko updated instantly",
-    kycTitle:        "KYC Verification",
-    kycDesc:         "Secure identity system to operate without restrictions",
-  },
-  community: {
-    badge:        "Active development phase",
-    title:        "Want to be part of the first Cuban P2P?",
-    desc:         "Created by a Cuban entrepreneur who understands the real needs of the island.",
-    waitlist:     "Waitlist",
-    waitlistDesc: "Be among the first to use the app",
-    investors:    "Angel investors",
-    investorsDesc: "Join a project with real impact",
-    community:    "Community",
-    communityDesc: "Share your feedback and grow with us",
-    writeMe:      "Write to me directly:",
-  },
-  footer: {
-    madeIn:     "Made with ❤️ in Cuba, for Cuba 🇨🇺",
-    rights:     "© 2026 CupCoin. All rights reserved.",
-    terms:      "Terms",
-    privacy:    "Privacy",
-    support:    "Support",
-  },
-},
     // ═══ COMMON ═════════════════════════════════════════════
     common: {
       save:      "Save",
@@ -352,7 +379,7 @@ landing: {
       notifications: "Notifications",
     },
 
-    // ═══ AUTH ═══════════════════════════════════════════════
+    // ═══ AUTH (EXPANDED) ════════════════════════════════════
     auth: {
       login:           "Sign in",
       register:        "Create account",
@@ -363,9 +390,146 @@ landing: {
       forgotPassword:  "Forgot password?",
       createAccount:   "Create free account",
       alreadyAccount:  "I already have an account",
+
+      // Landing tags
+      welcomeBack:        "Welcome back",
+      createAccountTitle: "Create account",
+      loginSubtitle:      "Sign in to access your account",
+      registerSubtitle:   "Sign up for free and start trading today",
+
+      // Form placeholders
+      emailPlaceholder:    "you@email.com",
+      namePlaceholder:     "Your full name",
+      passwordPlaceholder: "••••••••",
+
+      // Validation errors
+      errors: {
+        emailRequired:    "Email required.",
+        emailInvalid:     "Invalid email format.",
+        passwordRequired: "Password required.",
+        passwordShort:    "Minimum 6 characters.",
+        nameRequired:     "Name required.",
+        nameShort:        "Name too short.",
+        connection:       "Connection error. Check your internet.",
+        loadUser:         "Could not load user.",
+        googleSession:    "Error completing Google session.",
+        invalidEmail:     "Valid email required.",
+      },
+
+      // Password strength
+      password: {
+        veryWeak:  "Very weak password",
+        weak:      "Weak password",
+        good:      "Good password",
+        strong:    "Strong password ✓",
+      },
+
+      // Terms
+      terms: {
+        accept:   "By signing up you accept our",
+        tos:      "Terms of Service",
+        and:      "and",
+        privacy:  "Privacy Policy",
+      },
+
+      // Social login
+      orContinueWith:  "or continue with",
+      continueGoogle:  "Continue with Google",
+      connecting:      "Connecting...",
+
+      // Trust badges
+      trust: {
+        noVpn:      "No VPN",
+        ssl:        "SSL Encrypted",
+        noFees:     "No fees",
+      },
+
+      // Switch login/register
+      noAccount:    "Don't have an account?",
+      haveAccount:  "Already have an account?",
+      registerFree: "Sign up free",
+      signIn:       "Sign in",
+
+      // 2FA
+      twoFA: {
+        title:       "2FA Verification",
+        subtitle:    "Open your authenticator app and enter the 6-digit CupCoin code.",
+        codeLabel:   "Verification code",
+        verify:      "Verify code",
+        codeInfo:    "🔐 The code changes every 30 seconds. If it expired, wait for the next one and try again.",
+        backToLogin: "← Back to sign in",
+        enterCode:   "Enter the 6-digit code.",
+        incorrect:   "Incorrect code.",
+      },
+
+      // Reset password
+      reset: {
+        title:       "Recover password",
+        subtitle:    "We'll send you a link to reset your password.",
+        emailSent:   "Email sent!",
+        checkInbox:  "Check your inbox at",
+        backToLogin: "Back to sign in →",
+        send:        "Send recovery link",
+      },
     },
 
-    // ═══ DASHBOARD ══════════════════════════════════════════
+    // ═══ LANDING ════════════════════════════════════════════
+    landing: {
+      loginBtn:            "Sign in",
+      badge:               "In active development · Join the waitlist",
+      heroTitle1:          "Crypto for",
+      heroTitle2:          "Cuba",
+      heroTitle3:          ", without",
+      heroTitle4:          "borders",
+      heroDesc:            "Buy, sell and exchange cryptocurrencies safely with Cuban payment methods. All protected by smart contracts.",
+      trust: {
+        encrypted:  "Encrypted transactions",
+        escrow:     "Automatic escrow",
+        support:    "24/7 Support",
+      },
+      cta: {
+        createFree:      "Create free account",
+        haveAccount:     "I already have an account",
+      },
+      livePrices:          "Live prices",
+      featuresTitle:       "Everything you need",
+      featuresSubtitle:    "A complete platform for the Cuban market",
+      features: {
+        p2pTitle:        "Unlimited P2P",
+        p2pDesc:         "Buy and sell crypto with Transfermóvil, EnZona and cash",
+        escrowTitle:     "Secure Escrow",
+        escrowDesc:      "Funds protected by smart contract during the trade",
+        marketTitle:     "Marketplace",
+        marketDesc:      "Buy real products paying with cryptocurrencies",
+        fastTitle:       "Ultra Fast",
+        fastDesc:        "Optimized for 3G/4G networks in the Cuban market",
+        realTimeTitle:   "Real-Time Prices",
+        realTimeDesc:    "Global quotes from CoinGecko updated instantly",
+        kycTitle:        "KYC Verification",
+        kycDesc:         "Secure identity system to operate without restrictions",
+      },
+      community: {
+        badge:         "Active development phase",
+        title:         "Want to be part of the first Cuban P2P?",
+        desc:          "Created by a Cuban entrepreneur who understands the real needs of the island.",
+        waitlist:      "Waitlist",
+        waitlistDesc:  "Be among the first to use the app",
+        investors:     "Angel investors",
+        investorsDesc: "Join a project with real impact",
+        community:     "Community",
+        communityDesc: "Share your feedback and grow with us",
+        writeMe:       "Write to me directly:",
+      },
+      footer: {
+        madeIn:  "Made with ❤️ in Cuba, for Cuba 🇨🇺",
+        rights:  "© 2026 CupCoin. All rights reserved.",
+        terms:   "Terms",
+        privacy: "Privacy",
+        support: "Support",
+      },
+    },
+
+        // ═══ DASHBOARD ══════════════════════════════════════════
     dashboard: {
       greeting: {
         morning:   "Good morning",
