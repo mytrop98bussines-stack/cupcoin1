@@ -498,4 +498,10 @@ function AppRoot() {
 // =========================================================
 // ✅ EXPORT PRINCIPAL — Con ErrorBoundary
 // =========================================================
-export
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppRoot />
+    </ErrorBoundary>
+  );
+}
