@@ -19,7 +19,7 @@ const FAQS = [
     items: [
       {
         q: "¿Cómo funciona el sistema de Escrow?",
-        a: "Cuando inicias un trade, el vendedor deposita las criptomonedas en un escrow seguro dentro de CubaX. Los fondos solo se liberan al comprador cuando el vendedor confirma haber recibido el pago en CUP. Si hay algún problema, puedes abrir una disputa y un moderador intervendrá.",
+        a: "Cuando inicias un trade, el vendedor deposita las criptomonedas en un escrow seguro dentro de CUPCOIN. Los fondos solo se liberan al comprador cuando el vendedor confirma haber recibido el pago en CUP. Si hay algún problema, puedes abrir una disputa y un moderador intervendrá.",
       },
       {
         q: "¿Qué métodos de pago se aceptan?",
@@ -31,7 +31,7 @@ const FAQS = [
       },
       {
         q: "¿Qué hago si el vendedor no libera las criptos?",
-        a: "Si el vendedor no responde o no libera los fondos después de que realizaste el pago, puedes abrir una disputa desde el chat del trade. Un moderador de CubaX revisará el caso en menos de 24 horas.",
+        a: "Si el vendedor no responde o no libera los fondos después de que realizaste el pago, puedes abrir una disputa desde el chat del trade. Un moderador de CUPCOIN revisará el caso en menos de 24 horas.",
       },
       {
         q: "¿Puedo cancelar un trade?",
@@ -52,11 +52,11 @@ const FAQS = [
       },
       {
         q: "¿Cuánto cobran de comisión los retiros?",
-        a: "CubaX no cobra comisión adicional. Solo pagas la comisión de red: TRC20 ~1 USDT, BSC ~0.5 USDT, ERC20 variable según congestión.",
+        a: "CUPCOIN no cobra comisión adicional. Solo pagas la comisión de red: TRC20 ~1 USDT, BSC ~0.5 USDT, ERC20 variable según congestión.",
       },
       {
-        q: "¿Es seguro guardar cripto en CubaX?",
-        a: "CubaX usa un modelo de custodia off-chain seguro. Sin embargo, recomendamos no guardar grandes cantidades por períodos largos. Para ahorros grandes, usa una wallet hardware.",
+        q: "¿Es seguro guardar cripto en CUPCOIN?",
+        a: "CUPCOIN usa un modelo de custodia off-chain seguro. Sin embargo, recomendamos no guardar grandes cantidades por períodos largos. Para ahorros grandes, usa una wallet hardware.",
       },
     ],
   },
@@ -90,7 +90,7 @@ const FAQS = [
       },
       {
         q: "¿Cómo se procesan los pagos en el Marketplace?",
-        a: "Al comprar, el saldo se descuenta de tu wallet de CubaX de forma instantánea y se transfiere al vendedor. La entrega se coordina en persona entre comprador y vendedor.",
+        a: "Al comprar, el saldo se descuenta de tu wallet de CUPCOIN de forma instantánea y se transfiere al vendedor. La entrega se coordina en persona entre comprador y vendedor.",
       },
       {
         q: "¿Puedo eliminar mi publicación?",
@@ -298,4 +298,4 @@ export function HelpPage() {
       </Card>
     </div>
   );
-}
+      }
