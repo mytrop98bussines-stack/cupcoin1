@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import { useAppStore } from "@/store/useAppStore";
+import { useTranslation } from "@/lib/useTranslation"; // ✅ Añadido
 import { Avatar } from "@/components/ui/Avatar";
 import { Logo }   from "@/components/Logo";
 import {
@@ -32,6 +33,8 @@ export function Header({ title, showBack = false }: HeaderProps) {
     currentView,
   } = useAppStore();
 
+  const { t } = useTranslation(); // ✅ Hook mágico
+
   const [realtimeCount, setRealtimeCount] = useState(0);
   const [hasNewNotif, setHasNewNotif]     = useState(false);
   const previousCountRef                   = useRef(0);
@@ -53,23 +56,19 @@ export function Header({ title, showBack = false }: HeaderProps) {
         if (data.success) {
           const newCount = data.count || 0;
 
-          // Si aumentó el número, activar animación y sonido
           if (newCount > previousCountRef.current && previousCountRef.current > 0) {
             setHasNewNotif(true);
 
-            // Vibración en móvil
             if ("vibrate" in navigator) {
               navigator.vibrate([100, 50, 100]);
             }
 
-            // Sonido opcional
             try {
               if (audioRef.current) {
                 audioRef.current.play().catch(() => {});
               }
             } catch {}
 
-            // Quitar animación después de 3s
             setTimeout(() => setHasNewNotif(false), 3000);
           }
 
@@ -87,11 +86,20 @@ export function Header({ title, showBack = false }: HeaderProps) {
     return () => window.clearInterval(interval);
   }, [user?.uid]);
 
-  // Fallback: contar del store local si el backend no responde
   const localUnread   = notifications.filter((n) => !n.read).length;
   const unreadCount   = realtimeCount > 0 ? realtimeCount : localUnread;
 
   const showLogo = !showBack && ["dashboard", "p2p", "marketplace"].includes(currentView);
+
+  // ✅ Items del menú móvil con traducción
+  const menuItems = [
+    { view: "dashboard"   as const, label: t("nav.dashboard")   },
+    { view: "p2p"         as const, label: t("p2p.title")       },
+    { view: "marketplace" as const, label: t("marketplace.title") },
+    { view: "wallet"      as const, label: t("wallet.title")    },
+    { view: "kyc"         as const, label: t("kyc.title")       },
+    { view: "settings"    as const, label: t("settings.title")  },
+  ];
 
   return (
     <header className="sticky top-0 z-50 glass bg-white/80 dark:bg-navy-950/80 border-b border-gray-100 dark:border-white/[0.06]">
@@ -109,6 +117,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
             <button
               onClick={goBack}
               className="p-1.5 -ml-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              title={t("common.back")} // ✅ Tooltip traducido
             >
               <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
             </button>
@@ -142,6 +151,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
           <button
             onClick={toggleTheme}
             className="p-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+            title={theme === "dark" ? t("settings.lightMode") : t("settings.darkMode")} // ✅ Tooltip
           >
             {theme === "dark" ? (
               <Sun className="h-4.5 w-4.5 text-gray-500 dark:text-gray-400" />
@@ -162,6 +172,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
                 ? "bg-red-500/10 animate-pulse"
                 : "hover:bg-gray-100 dark:hover:bg-white/5"
             )}
+            title={t("nav.notifications")} // ✅ Tooltip
           >
             <Bell
               className={cn(
@@ -176,12 +187,10 @@ export function Header({ title, showBack = false }: HeaderProps) {
 
             {unreadCount > 0 && (
               <>
-                {/* Punto de pulso animado */}
                 {hasNewNotif && (
                   <span className="absolute top-0.5 right-0.5 h-3 w-3 rounded-full bg-red-500 animate-ping" />
                 )}
 
-                {/* Badge con número */}
                 <span className={cn(
                   "absolute -top-0.5 -right-0.5 min-w-[16px] h-4 px-1 rounded-full bg-red-500 text-white text-[9px] font-bold flex items-center justify-center shadow-sm",
                   hasNewNotif && "ring-2 ring-red-300 dark:ring-red-500/50"
@@ -196,6 +205,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
             <button
               onClick={() => navigate("settings")}
               className="ml-1"
+              title={t("nav.profile")} // ✅ Tooltip
             >
               <Avatar name={user.displayName} src={user.photoURL} size="sm" />
             </button>
@@ -203,7 +213,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
         </div>
       </div>
 
-      {/* Mobile slide menu */}
+      {/* Mobile slide menu (ahora traducido) */}
       <div
         className={cn(
           "absolute top-14 left-0 right-0 bg-white dark:bg-navy-950 border-b border-gray-100 dark:border-white/[0.06] transition-all duration-300 overflow-hidden lg:hidden",
@@ -211,14 +221,7 @@ export function Header({ title, showBack = false }: HeaderProps) {
         )}
       >
         <nav className="p-4 space-y-1">
-          {[
-            { view: "dashboard"   as const, label: "Dashboard" },
-            { view: "p2p"         as const, label: "Mercado P2P" },
-            { view: "marketplace" as const, label: "Marketplace" },
-            { view: "wallet"      as const, label: "Wallet" },
-            { view: "kyc"         as const, label: "Verificación KYC" },
-            { view: "settings"    as const, label: "Configuración" },
-          ].map((item) => (
+          {menuItems.map((item) => (
             <button
               key={item.view}
               onClick={() => {
@@ -239,4 +242,4 @@ export function Header({ title, showBack = false }: HeaderProps) {
       </div>
     </header>
   );
-        }
+                         }
