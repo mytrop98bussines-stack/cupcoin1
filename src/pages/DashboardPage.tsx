@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/Button";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
 import { CryptoIcon } from "@/components/ui/CryptoIcon";
 import { EmailVerifyBanner } from "@/components/EmailVerificationBanner";
-import { PromoBanner } from "@/components/PromoBanner"; // ✅ Añadido
+import { PromoBanner } from "@/components/PromoBanner";
+import { useTranslation } from "@/lib/useTranslation"; // ✅ Añadido
 import {
   TrendingUp,
   TrendingDown,
@@ -40,6 +41,8 @@ export function DashboardPage() {
     fetchPrices,
     prices,
   } = useAppStore();
+
+  const { t } = useTranslation(); // ✅ Hook mágico
 
   const [hideBalance, setHideBalance] = useState(false);
   const [refreshing, setRefreshing]   = useState(false);
@@ -80,28 +83,28 @@ export function DashboardPage() {
 
   if (!user) return null;
 
-  // ─── KYC config ───────────────────────────────────────────
+  // ─── KYC config (usando traducciones) ─────────────────────
   const kycStatusConfig = {
     unverified: {
-      label:   "Sin verificar",
+      label:   t("kyc.unverified"),
       variant: "warning" as const,
       icon:    <AlertTriangle className="h-3.5 w-3.5" />,
       color:   "text-amber-500",
     },
     pending_verification: {
-      label:   "En revisión",
+      label:   t("kyc.pending"),
       variant: "info" as const,
       icon:    <Clock className="h-3.5 w-3.5" />,
       color:   "text-blue-500",
     },
     verified: {
-      label:   "Verificado ✓",
+      label:   `${t("kyc.verified")} ✓`,
       variant: "success" as const,
       icon:    <CheckCircle2 className="h-3.5 w-3.5" />,
       color:   "text-emerald-500",
     },
     rejected: {
-      label:   "Rechazado",
+      label:   t("kyc.rejected"),
       variant: "danger" as const,
       icon:    <AlertTriangle className="h-3.5 w-3.5" />,
       color:   "text-red-500",
@@ -112,25 +115,25 @@ export function DashboardPage() {
     kycStatusConfig[user.kycStatus as keyof typeof kycStatusConfig] ||
     kycStatusConfig.unverified;
 
-  // ─── Acciones rápidas ─────────────────────────────────────
+  // ─── Acciones rápidas (traducidas) ────────────────────────
   const quickActions = [
     {
       icon:  <ArrowLeftRight className="h-5 w-5" />,
-      label: "P2P",
+      label: t("nav.p2p"),
       view:  "p2p"          as const,
       bg:    "bg-brand-500/10",
       color: "text-brand-500",
     },
     {
       icon:  <Plus className="h-5 w-5" />,
-      label: "Publicar",
+      label: t("common.publish"),
       view:  "create-order" as const,
       bg:    "bg-emerald-500/10",
       color: "text-emerald-500",
     },
     {
       icon:  <ShoppingBag className="h-5 w-5" />,
-      label: "Tienda",
+      label: t("nav.marketplace"),
       view:  "marketplace"  as const,
       bg:    "bg-violet-500/10",
       color: "text-violet-500",
@@ -144,19 +147,19 @@ export function DashboardPage() {
     },
   ];
 
-  // ─── Hora del día ─────────────────────────────────────────
+  // ─── Hora del día (traducida) ─────────────────────────────
   const getGreeting = () => {
     const hour = new Date().getHours();
-    if (hour < 12) return "Buenos días";
-    if (hour < 18) return "Buenas tardes";
-    return "Buenas noches";
+    if (hour < 12) return t("dashboard.greeting.morning");
+    if (hour < 18) return t("dashboard.greeting.afternoon");
+    return t("dashboard.greeting.evening");
   };
 
   // ─── RENDER ───────────────────────────────────────────────
   return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
-      {/* ═══ 🆕 BANNER VERIFICAR EMAIL ═══════════════════════ */}
+      {/* ═══ BANNER VERIFICAR EMAIL ═══════════════════════ */}
       <EmailVerifyBanner />
 
       {/* ═══ GREETING ════════════════════════════════════════ */}
@@ -166,7 +169,7 @@ export function DashboardPage() {
             {getGreeting()} 👋
           </p>
           <h1 className="text-xl font-bold text-gray-900 dark:text-white leading-tight">
-            {user.displayName?.split(" ")[0] || "Usuario"}
+            {user.displayName?.split(" ")[0] || t("auth.name")}
           </h1>
         </div>
 
@@ -175,6 +178,7 @@ export function DashboardPage() {
           <button
             onClick={() => navigate("notifications")}
             className="relative p-2 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 transition-colors"
+            title={t("nav.notifications")}
           >
             <Bell className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             {unreadNotifs.length > 0 && (
@@ -205,7 +209,7 @@ export function DashboardPage() {
             <div className="flex items-center gap-1.5">
               <Sparkles className="h-3.5 w-3.5 text-amber-400" />
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                Balance total
+                {t("dashboard.totalBalance")}
               </span>
             </div>
             <button
@@ -250,7 +254,7 @@ export function DashboardPage() {
             <div className="flex items-center gap-1.5">
               <ArrowLeftRight className="h-3.5 w-3.5 text-brand-400" />
               <span className="text-xs font-semibold text-gray-300">
-                {user.totalTrades || 0} trades
+                {user.totalTrades || 0} {t("dashboard.trades")}
               </span>
             </div>
             <div className="h-3 w-px bg-gray-700" />
@@ -267,20 +271,20 @@ export function DashboardPage() {
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-lg shadow-brand-500/25 active:scale-[0.98]"
             >
               <ArrowLeftRight className="h-4 w-4" />
-              Intercambiar
+              {t("dashboard.exchange")}
             </button>
             <button
               onClick={() => navigate("wallet")}
               className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-white/10 hover:bg-white/15 text-white text-xs font-bold transition-all active:scale-[0.98]"
             >
               <Wallet className="h-4 w-4" />
-              Mi Wallet
+              {t("dashboard.myWallet")}
             </button>
           </div>
         </div>
       </div>
 
-      {/* ═══ 🎯 PROMO BANNER (dinámico desde backend) ═══════ */}
+      {/* ═══ 🎯 PROMO BANNER ═════════════════════════════════ */}
       <PromoBanner />
 
       {/* ═══ ACCIONES RÁPIDAS ════════════════════════════════ */}
@@ -314,27 +318,28 @@ export function DashboardPage() {
           </div>
           <div className="flex-1">
             <p className="text-sm font-bold text-gray-900 dark:text-white">
-              Completa tu verificación KYC
+              {t("dashboard.kycAlert")}
             </p>
             <p className="text-xs text-gray-500 dark:text-gray-400 mt-0.5">
-              Verifica tu identidad para operar sin límites
+              {t("dashboard.kycAlertDesc")}
             </p>
           </div>
           <ChevronRight className="h-4 w-4 text-amber-500 flex-shrink-0" />
         </button>
       )}
+
             {/* ═══ MIS ACTIVOS ═════════════════════════════════════ */}
       {balances.length > 0 && (
         <div>
           <div className="flex items-center justify-between mb-3">
             <h2 className="text-sm font-bold text-gray-900 dark:text-white">
-              Mis activos
+              {t("dashboard.myAssets")}
             </h2>
             <button
               onClick={() => navigate("wallet")}
               className="text-xs text-brand-500 font-semibold flex items-center gap-0.5 hover:text-brand-400"
             >
-              Ver todo <ChevronRight className="h-3 w-3" />
+              {t("dashboard.viewAll")} <ChevronRight className="h-3 w-3" />
             </button>
           </div>
 
@@ -405,16 +410,16 @@ export function DashboardPage() {
               <div className="text-center py-6">
                 <Wallet className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
                 <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-1">
-                  Sin saldo aún
+                  {t("dashboard.noBalance")}
                 </p>
                 <p className="text-xs text-gray-400 mb-3">
-                  Deposita cripto para empezar a operar
+                  {t("dashboard.depositToStart")}
                 </p>
                 <button
                   onClick={() => navigate("wallet")}
                   className="text-xs font-bold text-brand-500 hover:text-brand-400"
                 >
-                  Ir a Wallet →
+                  {t("dashboard.goToWallet")} →
                 </button>
               </div>
             )}
@@ -422,7 +427,7 @@ export function DashboardPage() {
         </div>
       )}
 
-      {/* ═══ STELLAR WALLET (usa el icono oficial XLM) ═══════ */}
+      {/* ═══ STELLAR WALLET ══════════════════════════════════ */}
       <button
         onClick={() => navigate("stellar")}
         className="flex items-center gap-3 p-4 rounded-2xl bg-blue-500/10 hover:bg-blue-500/20 transition-colors w-full"
@@ -432,20 +437,20 @@ export function DashboardPage() {
         </div>
         <div className="flex-1 text-left">
           <p className="font-bold text-sm text-gray-900 dark:text-white">
-            Stellar Wallet
+            {t("dashboard.stellarWallet")}
           </p>
           <p className="text-xs text-gray-400">
-            Envía y recibe XLM al instante
+            {t("dashboard.stellarDesc")}
           </p>
         </div>
         <ChevronRight className="h-4 w-4 text-blue-500 flex-shrink-0" />
       </button>
 
-      {/* ═══ MERCADO EN VIVO (incluye XLM automáticamente) ═══ */}
+      {/* ═══ MERCADO EN VIVO ═════════════════════════════════ */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 dark:text-white">
-            Mercado
+            {t("dashboard.market")}
           </h2>
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
@@ -470,7 +475,6 @@ export function DashboardPage() {
 
         {loadingMarket && !cryptoPrices ? (
           <div className="grid grid-cols-2 gap-2">
-            {/* ✅ 6 placeholders para acomodar hasta 6 cryptos */}
             {[1, 2, 3, 4, 5, 6].map((i) => (
               <div
                 key={i}
@@ -541,10 +545,10 @@ export function DashboardPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-gray-900 dark:text-white">
-              Mis trades
+              {t("dashboard.myTrades")}
             </p>
             <p className="text-[10px] text-gray-400">
-              {user.totalTrades || 0} completados
+              {user.totalTrades || 0} {t("dashboard.completed")}
             </p>
           </div>
         </button>
@@ -558,10 +562,10 @@ export function DashboardPage() {
           </div>
           <div>
             <p className="text-xs font-bold text-gray-900 dark:text-white">
-              Mis anuncios
+              {t("dashboard.myOrders")}
             </p>
             <p className="text-[10px] text-gray-400">
-              P2P activos
+              {t("dashboard.p2pActive")}
             </p>
           </div>
         </button>
@@ -573,7 +577,7 @@ export function DashboardPage() {
           <div className="flex items-center justify-between mb-3">
             <div className="flex items-center gap-2">
               <h2 className="text-sm font-bold text-gray-900 dark:text-white">
-                Notificaciones
+                {t("nav.notifications")}
               </h2>
               <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-brand-500 text-white text-[9px] font-black flex items-center justify-center">
                 {unreadNotifs.length}
@@ -583,7 +587,7 @@ export function DashboardPage() {
               onClick={() => navigate("notifications")}
               className="text-xs text-brand-500 font-semibold flex items-center gap-0.5 hover:text-brand-400"
             >
-              Ver todo <ChevronRight className="h-3 w-3" />
+              {t("dashboard.viewAll")} <ChevronRight className="h-3 w-3" />
             </button>
           </div>
 
@@ -624,4 +628,4 @@ export function DashboardPage() {
       )}
     </div>
   );
-}
+      }
