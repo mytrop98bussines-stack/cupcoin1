@@ -3,6 +3,7 @@ import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { Logo }   from "@/components/Logo";
+import { useTranslation } from "@/lib/useTranslation";
 import {
   Mail, Lock, User, Eye, EyeOff,
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
@@ -16,6 +17,7 @@ const BACKEND_URL = "https://cubax-backend.onrender.com";
 
 export function AuthPage() {
   const { currentView, navigate, login } = useAppStore();
+  const { t } = useTranslation();
   const isLogin = currentView === "login";
 
   // ─── Estados login/registro ───────────────────────────────
@@ -39,7 +41,7 @@ export function AuthPage() {
   const [twoFALoading, setTwoFALoading]               = useState(false);
   const [twoFAError, setTwoFAError]                   = useState<string | null>(null);
 
-  // ─── 🆕 Estados Biometría ─────────────────────────────────
+  // ─── Estados Biometría ─────────────────────────────────
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [pendingUserData, setPendingUserData]       = useState<any>(null);
 
@@ -65,25 +67,22 @@ export function AuthPage() {
       rating:        u.rating             || 5.0,
       walletAddress: u.walletAddress      || null,
       role:          u.role               || "user",
-      emailVerified: u.emailVerified      || false, // 🆕 NUEVO
+      emailVerified: u.emailVerified      || false,
     } as any;
 
-    // 🆕 Verificar si debemos preguntar por biometría
-    const promptedBefore   = localStorage.getItem(`biometric_prompted_${data.uid}`);
-    const alreadyEnabled   = localStorage.getItem("biometric_enabled");
+    const promptedBefore = localStorage.getItem(`biometric_prompted_${data.uid}`);
+    const alreadyEnabled = localStorage.getItem("biometric_enabled");
 
     if (isBiometricSupported() && !promptedBefore && !alreadyEnabled) {
-      // Guardar datos y mostrar modal ANTES de entrar
       setPendingUserData({ appUser, data });
       setShowBiometricModal(true);
     } else {
-      // Login normal directo
       login(appUser);
       navigate("dashboard");
     }
   }, [login, navigate]);
 
-  // ─── 🆕 Callbacks del modal biométrico ────────────────────
+  // ─── Callbacks del modal biométrico ────────────────────
   const handleBiometricActivated = () => {
     localStorage.setItem("biometric_enabled", "1");
     if (pendingUserData) {
@@ -151,7 +150,7 @@ export function AuthPage() {
         .then((r) => r.json())
         .then((me) => {
           if (!me.success) {
-            setGlobalError("No se pudo cargar el usuario.");
+            setGlobalError(t("auth.errors.loadUser"));
             return;
           }
 
@@ -165,38 +164,38 @@ export function AuthPage() {
             userData:    me.userData,
           });
         })
-        .catch(() => setGlobalError("Error al completar la sesión con Google."))
+        .catch(() => setGlobalError(t("auth.errors.googleSession")))
         .finally(() => setGoogleLoading(false));
     }
-  }, [finishLogin]);
+  }, [finishLogin, t]);
 
-  // ─── Validación ───────────────────────────────────────────
+  // ─── Validación (con traducciones) ────────────────────────
   const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!email.trim()) {
-      newErrors.email = "Correo requerido.";
+      newErrors.email = t("auth.errors.emailRequired");
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = "Formato de correo inválido.";
+      newErrors.email = t("auth.errors.emailInvalid");
     }
 
     if (!password) {
-      newErrors.password = "Contraseña requerida.";
+      newErrors.password = t("auth.errors.passwordRequired");
     } else if (password.length < 6) {
-      newErrors.password = "Mínimo 6 caracteres.";
+      newErrors.password = t("auth.errors.passwordShort");
     }
 
     if (!isLogin && !name.trim()) {
-      newErrors.name = "Nombre requerido.";
+      newErrors.name = t("auth.errors.nameRequired");
     }
 
     if (!isLogin && name.trim().length < 2) {
-      newErrors.name = "Nombre demasiado corto.";
+      newErrors.name = t("auth.errors.nameShort");
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [email, password, name, isLogin]);
+  }, [email, password, name, isLogin, t]);
 
   // ─── Google Login ─────────────────────────────────────────
   const handleGoogleLogin = () => {
@@ -262,18 +261,18 @@ export function AuthPage() {
 
       } catch (err: any) {
         console.error("❌ Error de autenticación:", err.message);
-        setGlobalError("Error de conexión. Verifica tu internet.");
+        setGlobalError(t("auth.errors.connection"));
       } finally {
         setLoading(false);
       }
     },
-    [email, password, name, isLogin, validate, finishLogin]
+    [email, password, name, isLogin, validate, finishLogin, t]
   );
 
-  // ─── Verificar código 2FA (TOTP) ──────────────────────────
+  // ─── Verificar código 2FA ─────────────────────────────────
   const handleVerify2FA = async () => {
     if (twoFACode.length !== 6) {
-      setTwoFAError("Ingresa el código de 6 dígitos.");
+      setTwoFAError(t("auth.twoFA.enterCode"));
       return;
     }
 
@@ -295,10 +294,10 @@ export function AuthPage() {
         if (data.code === "RATE_LIMIT") {
           setTwoFAError(`⏳ ${data.error}`);
         } else {
-          setTwoFAError(data.error || "Código incorrecto.");
+          setTwoFAError(data.error || t("auth.twoFA.incorrect"));
         }
 
-        if (data.error?.includes("expirada") || data.error?.includes("inválida")) {
+        if (data.error?.includes("expirada") || data.error?.includes("inválida") || data.error?.includes("expired") || data.error?.includes("invalid")) {
           setTimeout(() => {
             setTwoFARequired(false);
             setTwoFACode("");
@@ -312,7 +311,7 @@ export function AuthPage() {
       finishLogin(data);
 
     } catch {
-      setTwoFAError("Error de conexión.");
+      setTwoFAError(t("auth.errors.connection"));
     } finally {
       setTwoFALoading(false);
     }
@@ -324,7 +323,7 @@ export function AuthPage() {
       !resetEmail.trim() ||
       !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)
     ) {
-      setGlobalError("Ingresa un correo válido.");
+      setGlobalError(t("auth.errors.invalidEmail"));
       return;
     }
 
@@ -345,11 +344,11 @@ export function AuthPage() {
         setGlobalError(data.error);
       }
     } catch {
-      setGlobalError("Error de conexión.");
+      setGlobalError(t("auth.errors.connection"));
     } finally {
       setResetLoading(false);
     }
-  }, [resetEmail]);
+  }, [resetEmail, t]);
 
   const handleSwitchView = () => {
     setErrors({});
@@ -358,7 +357,7 @@ export function AuthPage() {
     setResetSent(false);
     navigate(isLogin ? "register" : "login");
   };
-    // ─── PANTALLA 2FA ─────────────────────────────────────────
+      // ─── PANTALLA 2FA ─────────────────────────────────────────
   if (twoFARequired) {
     return (
       <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
@@ -382,11 +381,10 @@ export function AuthPage() {
               <Shield className="h-8 w-8 text-brand-500" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Verificación 2FA
+              {t("auth.twoFA.title")}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Abre tu app de autenticación e ingresa
-              el código de 6 dígitos de CupCoin.
+              {t("auth.twoFA.subtitle")}
             </p>
             <div className="flex items-center justify-center gap-2 mt-3">
               {["Google Authenticator", "Aegis", "Microsoft Authenticator"].map((app) => (
@@ -410,7 +408,7 @@ export function AuthPage() {
           <div className="space-y-4">
             <div>
               <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
-                Código de verificación
+                {t("auth.twoFA.codeLabel")}
               </label>
               <input
                 type="text"
@@ -436,13 +434,12 @@ export function AuthPage() {
               onClick={handleVerify2FA}
               disabled={twoFACode.length !== 6}
             >
-              Verificar código
+              {t("auth.twoFA.verify")}
             </Button>
 
             <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
               <p className="text-[11px] text-gray-400 text-center">
-                🔐 El código cambia cada 30 segundos.
-                Si expiró, espera al siguiente y vuelve a intentarlo.
+                {t("auth.twoFA.codeInfo")}
               </p>
             </div>
 
@@ -455,7 +452,7 @@ export function AuthPage() {
               }}
               className="w-full text-xs text-gray-400 font-semibold text-center py-1"
             >
-              ← Volver al inicio de sesión
+              {t("auth.twoFA.backToLogin")}
             </button>
           </div>
         </div>
@@ -486,10 +483,10 @@ export function AuthPage() {
               <Lock className="h-7 w-7 text-amber-500" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              Recuperar contraseña
+              {t("auth.reset.title")}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              Te enviaremos un enlace para restablecer tu contraseña.
+              {t("auth.reset.subtitle")}
             </p>
           </div>
 
@@ -500,10 +497,10 @@ export function AuthPage() {
               </div>
               <div>
                 <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
-                  ¡Correo enviado!
+                  {t("auth.reset.emailSent")}
                 </p>
                 <p className="text-xs text-gray-500 dark:text-gray-400">
-                  Revisa tu bandeja de entrada en{" "}
+                  {t("auth.reset.checkInbox")}{" "}
                   <strong>{resetEmail}</strong>.
                 </p>
               </div>
@@ -511,7 +508,7 @@ export function AuthPage() {
                 onClick={() => { setShowReset(false); setResetSent(false); }}
                 className="text-sm text-brand-500 font-semibold"
               >
-                Volver al inicio de sesión →
+                {t("auth.reset.backToLogin")}
               </button>
             </div>
           ) : (
@@ -523,9 +520,9 @@ export function AuthPage() {
                 </div>
               )}
               <Input
-                label="Correo electrónico"
+                label={t("auth.email")}
                 type="email"
-                placeholder="tu@correo.com"
+                placeholder={t("auth.emailPlaceholder")}
                 icon={<Mail className="h-4 w-4" />}
                 value={resetEmail}
                 onChange={(e) => setResetEmail(e.target.value)}
@@ -536,7 +533,7 @@ export function AuthPage() {
                 loading={resetLoading}
                 onClick={handlePasswordReset}
               >
-                Enviar enlace de recuperación
+                {t("auth.reset.send")}
               </Button>
             </div>
           )}
@@ -544,8 +541,7 @@ export function AuthPage() {
       </div>
     );
   }
-
-  // ─── RENDER PRINCIPAL ─────────────────────────────────────
+    /// ─── RENDER PRINCIPAL ─────────────────────────────────────
   return (
     <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
 
@@ -565,12 +561,12 @@ export function AuthPage() {
             <Logo size={36} className="text-black dark:text-white" />
           </div>
           <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isLogin ? "Bienvenido de vuelta" : "Crear cuenta"}
+            {isLogin ? t("auth.welcomeBack") : t("auth.createAccountTitle")}
           </h1>
           <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
             {isLogin
-              ? "Inicia sesión para acceder a tu cuenta"
-              : "Regístrate gratis y empieza a operar hoy"}
+              ? t("auth.loginSubtitle")
+              : t("auth.registerSubtitle")}
           </p>
         </div>
 
@@ -590,8 +586,8 @@ export function AuthPage() {
 
           {!isLogin && (
             <Input
-              label="Nombre completo"
-              placeholder="Tu nombre completo"
+              label={t("auth.name")}
+              placeholder={t("auth.namePlaceholder")}
               icon={<User className="h-4 w-4" />}
               value={name}
               onChange={(e) => setName(e.target.value)}
@@ -601,9 +597,9 @@ export function AuthPage() {
           )}
 
           <Input
-            label="Correo electrónico"
+            label={t("auth.email")}
             type="email"
-            placeholder="tu@correo.com"
+            placeholder={t("auth.emailPlaceholder")}
             icon={<Mail className="h-4 w-4" />}
             value={email}
             onChange={(e) => {
@@ -615,9 +611,9 @@ export function AuthPage() {
           />
 
           <Input
-            label="Contraseña"
+            label={t("auth.password")}
             type={showPassword ? "text" : "password"}
-            placeholder="••••••••"
+            placeholder={t("auth.passwordPlaceholder")}
             icon={<Lock className="h-4 w-4" />}
             value={password}
             onChange={(e) => {
@@ -660,12 +656,12 @@ export function AuthPage() {
               </div>
               <p className="text-[10px] text-gray-400">
                 {password.length < 6
-                  ? "Contraseña muy débil"
+                  ? t("auth.password.veryWeak")
                   : password.length < 8
-                  ? "Contraseña débil"
+                  ? t("auth.password.weak")
                   : password.length < 12
-                  ? "Contraseña buena"
-                  : "Contraseña fuerte ✓"}
+                  ? t("auth.password.good")
+                  : t("auth.password.strong")}
               </p>
             </div>
           )}
@@ -681,28 +677,28 @@ export function AuthPage() {
                 }}
                 className="text-xs text-brand-500 hover:text-brand-400 font-semibold"
               >
-                ¿Olvidaste tu contraseña?
+                {t("auth.forgotPassword")}
               </button>
             </div>
           )}
 
           {!isLogin && (
             <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-              Al registrarte aceptas nuestros{" "}
+              {t("auth.terms.accept")}{" "}
               <button
                 type="button"
                 onClick={() => navigate("terms")}
                 className="text-brand-500 font-semibold"
               >
-                Términos de Uso
+                {t("auth.terms.tos")}
               </button>{" "}
-              y{" "}
+              {t("auth.terms.and")}{" "}
               <button
                 type="button"
                 onClick={() => navigate("terms")}
                 className="text-brand-500 font-semibold"
               >
-                Política de Privacidad
+                {t("auth.terms.privacy")}
               </button>.
             </p>
           )}
@@ -714,12 +710,12 @@ export function AuthPage() {
             loading={loading}
             className="shadow-lg shadow-brand-500/20"
           >
-            {isLogin ? "Iniciar sesión" : "Crear cuenta gratis"}
+            {isLogin ? t("auth.login") : t("auth.createAccount")}
           </Button>
 
           <div className="flex items-center gap-3">
             <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-            <span className="text-xs text-gray-400 font-medium">o continúa con</span>
+            <span className="text-xs text-gray-400 font-medium">{t("auth.orContinueWith")}</span>
             <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
           </div>
 
@@ -740,13 +736,17 @@ export function AuthPage() {
               </svg>
             )}
             <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {googleLoading ? "Conectando..." : "Continuar con Google"}
+              {googleLoading ? t("auth.connecting") : t("auth.continueGoogle")}
             </span>
           </button>
         </form>
 
         <div className="flex items-center justify-center gap-4 mt-5">
-          {["Sin VPN", "Cifrado SSL", "Sin comisiones"].map((badge) => (
+          {[
+            t("auth.trust.noVpn"),
+            t("auth.trust.ssl"),
+            t("auth.trust.noFees"),
+          ].map((badge) => (
             <div
               key={badge}
               className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
@@ -758,12 +758,12 @@ export function AuthPage() {
         </div>
 
         <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
-          {isLogin ? "¿No tienes cuenta?" : "¿Ya tienes cuenta?"}{" "}
+          {isLogin ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
           <button
             onClick={handleSwitchView}
             className="text-brand-500 hover:text-brand-400 font-bold"
           >
-            {isLogin ? "Regístrate gratis" : "Inicia sesión"}
+            {isLogin ? t("auth.registerFree") : t("auth.signIn")}
           </button>
         </p>
       </div>
@@ -777,4 +777,5 @@ export function AuthPage() {
       )}
     </div>
   );
-        }
+}
+  
