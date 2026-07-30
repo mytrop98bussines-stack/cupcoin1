@@ -1,7 +1,10 @@
+import { useState } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Button } from "@/components/ui/Button";
 import { Logo }   from "@/components/Logo";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
+import { useTranslation } from "@/lib/useTranslation";
+import type { Language } from "@/lib/i18n";
 import {
   Shield,
   ArrowLeftRight,
@@ -22,70 +25,130 @@ const MAPEO_CRYPTO_SVG: Record<string, string> = {
   ETH:  "/crypto/eth.svg",
   USDC: "/crypto/usdc.svg",
   TRX:  "/crypto/trx.svg",
-  XLM:  "/crypto/xlm.svg", // ✅ Stellar añadido
+  XLM:  "/crypto/xlm.svg",
 };
 
 export function LandingPage() {
-  const { navigate } = useAppStore();
+  const { navigate, language, setLanguage } = useAppStore();
+  const { t } = useTranslation();
   const { data: cryptoPrices, isLoading: loadingPrices } = useCryptoPrices();
+  const [showLangMenu, setShowLangMenu] = useState(false);
 
   const features = [
     {
       icon:  <ArrowLeftRight className="h-6 w-6" />,
-      title: "P2P Sin Límites",
-      desc:  "Compra y vende cripto con Transfermóvil, EnZona y efectivo",
+      title: t("landing.features.p2pTitle"),
+      desc:  t("landing.features.p2pDesc"),
       color: "bg-brand-500/10 text-brand-500",
     },
     {
       icon:  <Shield className="h-6 w-6" />,
-      title: "Escrow Seguro",
-      desc:  "Fondos protegidos en contrato inteligente durante el trade",
+      title: t("landing.features.escrowTitle"),
+      desc:  t("landing.features.escrowDesc"),
       color: "bg-emerald-500/10 text-emerald-500",
     },
     {
       icon:  <ShoppingBag className="h-6 w-6" />,
-      title: "Marketplace",
-      desc:  "Compra productos reales pagando con criptomonedas",
+      title: t("landing.features.marketTitle"),
+      desc:  t("landing.features.marketDesc"),
       color: "bg-violet-500/10 text-violet-500",
     },
     {
       icon:  <Zap className="h-6 w-6" />,
-      title: "Ultra Rápido",
-      desc:  "Optimizado para redes 3G/4G del mercado cubano",
+      title: t("landing.features.fastTitle"),
+      desc:  t("landing.features.fastDesc"),
       color: "bg-amber-500/10 text-amber-500",
     },
     {
       icon:  <Globe className="h-6 w-6" />,
-      title: "Precios en Tiempo Real",
-      desc:  "Cotizaciones globales de CoinGecko actualizadas al instante",
+      title: t("landing.features.realTimeTitle"),
+      desc:  t("landing.features.realTimeDesc"),
       color: "bg-blue-500/10 text-blue-500",
     },
     {
       icon:  <Lock className="h-6 w-6" />,
-      title: "Verificación KYC",
-      desc:  "Sistema de identidad seguro para operar sin restricciones",
+      title: t("landing.features.kycTitle"),
+      desc:  t("landing.features.kycDesc"),
       color: "bg-red-500/10 text-red-500",
     },
   ];
 
   const trustBadges = [
-    "Transacciones cifradas",
-    "Escrow automático",
-    "Soporte 24/7",
+    t("landing.trust.encrypted"),
+    t("landing.trust.escrow"),
+    t("landing.trust.support"),
+  ];
+
+  const languages: { code: Language; flag: string; label: string }[] = [
+    { code: "es", flag: "🇨🇺", label: "Español" },
+    { code: "en", flag: "🇺🇸", label: "English" },
   ];
 
   return (
     <div className="min-h-screen bg-white dark:bg-black text-gray-900 dark:text-white transition-colors duration-300">
 
-      {/* ═══ HEADER ══════════════════════════════════════════ */}
+      {/* ═══ HEADER (con selector de idioma) ═════════════════ */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-black/80 backdrop-blur-md border-b border-gray-100 dark:border-white/[0.06]">
         <div className="max-w-lg mx-auto flex items-center justify-between px-4 h-14">
           <div className="flex items-center">
             <Logo size={28} className="text-black dark:text-white" />
           </div>
-          <Button size="sm" onClick={() => navigate("login")}>
-            Iniciar Sesión
-          </Button>
+
+          <div className="flex items-center gap-2">
+            {/* 🌐 Selector de idioma */}
+            <div className="relative">
+              <button
+                onClick={() => setShowLangMenu(!showLangMenu)}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+              >
+                <span className="text-base">
+                  {languages.find((l) => l.code === language)?.flag || "🌐"}
+                </span>
+                <span className="text-xs font-bold text-gray-600 dark:text-gray-300 uppercase">
+                  {language}
+                </span>
+              </button>
+
+              {/* Dropdown */}
+              {showLangMenu && (
+                <>
+                  {/* Overlay para cerrar */}
+                  <div
+                    className="fixed inset-0 z-40"
+                    onClick={() => setShowLangMenu(false)}
+                  />
+
+                  {/* Menú */}
+                  <div className="absolute top-full right-0 mt-1 z-50 bg-white dark:bg-gray-900 rounded-xl shadow-2xl border border-gray-200 dark:border-white/10 overflow-hidden min-w-[140px] animate-fade-in">
+                    {languages.map((lang) => (
+                      <button
+                        key={lang.code}
+                        onClick={() => {
+                          setLanguage(lang.code);
+                          setShowLangMenu(false);
+                        }}
+                        className={`w-full flex items-center gap-2 px-3 py-2.5 text-left transition-colors ${
+                          language === lang.code
+                            ? "bg-brand-500/10 text-brand-500"
+                            : "hover:bg-gray-50 dark:hover:bg-white/5 text-gray-700 dark:text-gray-300"
+                        }`}
+                      >
+                        <span className="text-lg">{lang.flag}</span>
+                        <span className="text-xs font-bold">{lang.label}</span>
+                        {language === lang.code && (
+                          <CheckCircle2 className="h-3.5 w-3.5 ml-auto text-brand-500" />
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </>
+              )}
+            </div>
+
+            <Button size="sm" onClick={() => navigate("login")}>
+              {t("landing.loginBtn")}
+            </Button>
+          </div>
         </div>
       </header>
 
@@ -98,23 +161,22 @@ export function LandingPage() {
         <div className="relative max-w-lg mx-auto px-4 pt-12 pb-8 text-center">
           <div className="inline-flex items-center gap-1.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 px-3 py-1.5 rounded-full text-xs font-bold mb-6 border border-amber-500/20">
             <Zap className="h-3.5 w-3.5 fill-current" />
-            En desarrollo activo · Únete a la lista de espera
+            {t("landing.badge")}
           </div>
 
           <h1 className="text-3xl sm:text-4xl font-black leading-tight mb-4">
-            Cripto para{" "}
+            {t("landing.heroTitle1")}{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-brand-400 to-brand-600">
-              Cuba
+              {t("landing.heroTitle2")}
             </span>
-            , sin{" "}
+            {t("landing.heroTitle3")}{" "}
             <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-400 to-violet-600">
-              fronteras
+              {t("landing.heroTitle4")}
             </span>
           </h1>
 
           <p className="text-gray-500 dark:text-gray-400 text-sm leading-relaxed mb-6 max-w-xs mx-auto">
-            Compra, vende e intercambia criptomonedas de forma segura con
-            métodos de pago cubanos. Todo protegido por contratos inteligentes.
+            {t("landing.heroDesc")}
           </p>
 
           <div className="flex items-center justify-center gap-3 flex-wrap mb-8">
@@ -137,7 +199,7 @@ export function LandingPage() {
               icon={<ChevronRight className="h-4 w-4" />}
               className="shadow-lg shadow-brand-500/20"
             >
-              Crear cuenta gratis
+              {t("landing.cta.createFree")}
             </Button>
             <Button
               variant="outline"
@@ -145,7 +207,7 @@ export function LandingPage() {
               fullWidth
               onClick={() => navigate("login")}
             >
-              Ya tengo cuenta
+              {t("landing.cta.haveAccount")}
             </Button>
           </div>
         </div>
@@ -155,7 +217,7 @@ export function LandingPage() {
       <section className="max-w-lg mx-auto px-4 py-4">
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider flex items-center gap-1.5">
-            Precios en vivo
+            {t("landing.livePrices")}
             {loadingPrices && (
               <div className="h-3 w-3 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
             )}
@@ -179,7 +241,6 @@ export function LandingPage() {
           </div>
         ) : (
           <div className="space-y-2">
-            {/* ✅ Cambiado slice(0, 4) → slice(0, 5) para mostrar XLM */}
             {cryptoPrices?.slice(0, 5).map((coin) => {
               const symbolUpper = coin.symbol.toUpperCase();
               const symbolLower = coin.symbol.toLowerCase();
@@ -244,15 +305,14 @@ export function LandingPage() {
           </div>
         )}
       </section>
-
-      {/* ═══ FEATURES ════════════════════════════════════════ */}
+            {/* ═══ FEATURES ════════════════════════════════════════ */}
       <section className="max-w-lg mx-auto px-4 py-8">
         <div className="text-center mb-6">
           <h2 className="text-xl font-black mb-1">
-            Todo lo que necesitas
+            {t("landing.featuresTitle")}
           </h2>
           <p className="text-xs text-gray-400">
-            Una plataforma completa para el mercado cubano
+            {t("landing.featuresSubtitle")}
           </p>
         </div>
 
@@ -287,34 +347,33 @@ export function LandingPage() {
           <div className="relative z-10">
             <div className="inline-flex items-center gap-1.5 bg-white/10 px-3 py-1 rounded-full text-xs font-bold mb-4">
               <Zap className="h-3 w-3 fill-current" />
-              Fase de desarrollo activo
+              {t("landing.community.badge")}
             </div>
 
             <h2 className="text-xl font-black mb-2">
-              ¿Quieres ser parte del primer P2P cubano?
+              {t("landing.community.title")}
             </h2>
             <p className="text-sm text-white/70 mb-5 max-w-xs mx-auto">
-              Creado por un emprendedor cubano que entiende
-              las necesidades reales de la isla.
+              {t("landing.community.desc")}
             </p>
 
             <div className="space-y-3 mb-5 text-left max-w-xs mx-auto">
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-white/80 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-white/80">
-                  <strong>Lista de espera</strong> — Sé de los primeros en usar la app
+                  <strong>{t("landing.community.waitlist")}</strong> — {t("landing.community.waitlistDesc")}
                 </p>
               </div>
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-white/80 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-white/80">
-                  <strong>Inversores ángeles</strong> — Únete a un proyecto con impacto real
+                  <strong>{t("landing.community.investors")}</strong> — {t("landing.community.investorsDesc")}
                 </p>
               </div>
               <div className="flex items-start gap-2">
                 <CheckCircle2 className="h-4 w-4 text-white/80 flex-shrink-0 mt-0.5" />
                 <p className="text-xs text-white/80">
-                  <strong>Comunidad</strong> — Comparte tu feedback y crece con nosotros
+                  <strong>{t("landing.community.community")}</strong> — {t("landing.community.communityDesc")}
                 </p>
               </div>
             </div>
@@ -325,13 +384,13 @@ export function LandingPage() {
               onClick={() => navigate("register")}
               className="bg-white text-brand-600 hover:bg-gray-50 font-bold shadow-lg"
             >
-              Crear cuenta gratis
+              {t("landing.cta.createFree")}
             </Button>
 
             <p className="text-[11px] text-white/60 mt-4">
-              Escríbeme directamente:{" "}
+              {t("landing.community.writeMe")}{" "}
               <a
-                href="mailto:tu@email.com"
+                href="mailto:mytrop98bussines@gmail.com"
                 className="underline font-semibold text-white"
               >
                 mytrop98bussines@gmail.com
@@ -349,22 +408,23 @@ export function LandingPage() {
           </div>
 
           <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-            Hecho con ❤️ en Cuba, para Cuba 🇨🇺
+            {t("landing.footer.madeIn")}
           </p>
 
           <p className="text-[11px] text-gray-400 dark:text-gray-500 mb-3">
-            © 2026 CupCoin. Todos los derechos reservados.
+            {t("landing.footer.rights")}
           </p>
 
           <div className="flex items-center justify-center gap-3 flex-wrap">
-            {["Términos", "Privacidad", "Soporte"].map((link) => (
-              <button
-                key={link}
-                className="text-[10px] text-gray-400 hover:text-brand-500 transition-colors font-medium"
-              >
-                {link}
-              </button>
-            ))}
+            <button className="text-[10px] text-gray-400 hover:text-brand-500 transition-colors font-medium">
+              {t("landing.footer.terms")}
+            </button>
+            <button className="text-[10px] text-gray-400 hover:text-brand-500 transition-colors font-medium">
+              {t("landing.footer.privacy")}
+            </button>
+            <button className="text-[10px] text-gray-400 hover:text-brand-500 transition-colors font-medium">
+              {t("landing.footer.support")}
+            </button>
           </div>
         </div>
       </footer>
