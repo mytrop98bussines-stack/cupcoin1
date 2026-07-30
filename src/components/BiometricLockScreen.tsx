@@ -1,6 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Fingerprint, Lock, Loader2, LogOut } from "lucide-react";
-import { authenticateBiometric, getBiometricType } from "@/lib/biometric";
+import { authenticateBiometric, getBiometricType, isBiometricSupported } from "@/lib/biometric";
 import { Logo } from "@/components/Logo";
 
 interface BiometricLockScreenProps {
@@ -12,47 +12,102 @@ export function BiometricLockScreen({ onUnlock, onCancel }: BiometricLockScreenP
   const [loading, setLoading]             = useState(false);
   const [error, setError]                 = useState<string | null>(null);
   const [biometricType, setBiometricType] = useState("biometría");
+  const [initError, setInitError]         = useState(false);
+  const autoLaunchedRef                    = useRef(false);
 
   const userName  = localStorage.getItem("cubax_name")  || "Usuario";
   const userEmail = localStorage.getItem("cubax_email") || "";
 
   useEffect(() => {
-    void getBiometricType().then(setBiometricType);
+    let cancelled = false;
 
-    // Auto-lanzar el prompt biométrico al cargar
-    setTimeout(() => {
-      void handleUnlock();
-    }, 500);
+    const init = async () => {
+      try {
+        // ✅ Verificar soporte antes de todo
+        if (!isBiometricSupported()) {
+          if (!cancelled) setInitError(true);
+          return;
+        }
+
+        // ✅ Obtener tipo de biometría con protección
+        try {
+          const type = await getBiometricType();
+          if (!cancelled && type && typeof type === "string") {
+            setBiometricType(type);
+          }
+        } catch (err) {
+          console.warn("⚠️ No se pudo detectar tipo de biometría:", err);
+        }
+
+        // ✅ Auto-lanzar el prompt SOLO UNA VEZ y protegido
+        if (!autoLaunchedRef.current && !cancelled) {
+          autoLaunchedRef.current = true;
+          setTimeout(() => {
+            if (!cancelled) void handleUnlock();
+          }, 500);
+        }
+      } catch (err) {
+        console.error("❌ Error inicializando BiometricLockScreen:", err);
+        if (!cancelled) setInitError(true);
+      }
+    };
+
+    void init();
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   const handleUnlock = async () => {
-    const uid = localStorage.getItem("cubax_uid");
-    if (!uid) {
-      setError("No se encontró UID");
-      return;
+    try {
+      const uid = localStorage.getItem("cubax_uid");
+      if (!uid) {
+        setError("No se encontró UID");
+        return;
+      }
+
+      setLoading(true);
+      setError(null);
+
+      const result = await authenticateBiometric(uid);
+
+      if (result.success && result.data) {
+        onUnlock(result.data);
+      } else {
+        setError(result.error || "Error autenticando");
+      }
+    } catch (err: any) {
+      console.error("❌ Error en handleUnlock:", err);
+      setError(err.message || "Error inesperado");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(true);
-    setError(null);
-
-    const result = await authenticateBiometric(uid);
-
-    if (result.success && result.data) {
-      onUnlock(result.data);
-    } else {
-      setError(result.error || "Error autenticando");
-    }
-
-    setLoading(false);
   };
 
   const handleUsePassword = () => {
-    // Borrar tokens y biometric_enabled para forzar login manual
     localStorage.removeItem("biometric_enabled");
     localStorage.removeItem("cubax_token");
     localStorage.removeItem("cubax_refresh_token");
     onCancel();
   };
+
+  // ✅ Si la biometría no está disponible o hubo error de init, redirige al login
+  useEffect(() => {
+    if (initError) {
+      console.warn("⚠️ Biometría no disponible, redirigiendo a login...");
+      localStorage.removeItem("biometric_enabled");
+      onCancel();
+    }
+  }, [initError, onCancel]);
+
+  if (initError) {
+    return (
+      <div className="min-h-screen bg-white dark:bg-black flex flex-col items-center justify-center">
+        <Loader2 className="h-8 w-8 animate-spin text-brand-500" />
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-indigo-500 via-purple-600 to-pink-500 flex flex-col items-center justify-center p-6 relative overflow-hidden">
@@ -86,7 +141,6 @@ export function BiometricLockScreen({ onUnlock, onCancel }: BiometricLockScreenP
           disabled={loading}
           className="mb-8 relative"
         >
-          {/* Ondas animadas */}
           {!loading && (
             <>
               <div className="absolute inset-0 rounded-full bg-white/20 animate-ping" />
@@ -149,4 +203,4 @@ export function BiometricLockScreen({ onUnlock, onCancel }: BiometricLockScreenP
       </div>
     </div>
   );
-    }
+        }
