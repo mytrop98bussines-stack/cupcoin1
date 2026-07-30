@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, Component, ReactNode } from "react";
 import { useAppStore } from "@/store/useAppStore";
 import { Header }     from "@/components/layout/Header";
 import { BottomNav }  from "@/components/layout/BottomNav";
-import { WifiOff }    from "lucide-react";
+import { WifiOff, AlertTriangle, RefreshCw }    from "lucide-react";
 import { requestNotificationPermission } from "@/lib/firebase/messaging";
 import { Logo }       from "@/components/Logo";
 import { BiometricLockScreen } from "@/components/BiometricLockScreen";
@@ -49,6 +49,98 @@ import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
+
+// =========================================================
+// ✅ ERROR BOUNDARY — Captura errores y evita pantalla blanca
+// =========================================================
+interface ErrorBoundaryState {
+  hasError: boolean;
+  error:    Error | null;
+}
+
+class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+  constructor(props: { children: ReactNode }) {
+    super(props);
+    this.state = { hasError: false, error: null };
+  }
+
+  static getDerivedStateFromError(error: Error): ErrorBoundaryState {
+    return { hasError: true, error };
+  }
+
+  componentDidCatch(error: Error, errorInfo: any) {
+    console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+    console.error("🚨 ErrorBoundary capturó un error:");
+    console.error("Mensaje:", error.message);
+    console.error("Stack:", error.stack);
+    console.error("Componente:", errorInfo.componentStack);
+    console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
+  }
+
+  handleReload = () => {
+    window.location.reload();
+  };
+
+  handleClearAndReload = () => {
+    localStorage.clear();
+    window.location.reload();
+  };
+
+  render() {
+    if (this.state.hasError) {
+      return (
+        <div className="min-h-screen bg-white dark:bg-black flex flex-col items-center justify-center px-6 py-8">
+          <div className="max-w-md w-full space-y-6 text-center">
+            <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
+              <AlertTriangle className="h-8 w-8 text-red-500" />
+            </div>
+
+            <div>
+              <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
+                Algo salió mal
+              </h1>
+              <p className="text-sm text-gray-500 dark:text-gray-400">
+                Ocurrió un error inesperado. Puedes recargar la página o limpiar los datos guardados.
+              </p>
+            </div>
+
+            {this.state.error && (
+              <details className="text-left p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+                <summary className="text-xs font-bold text-gray-500 cursor-pointer">
+                  Detalles técnicos
+                </summary>
+                <pre className="text-[10px] text-red-500 mt-2 overflow-auto max-h-40 font-mono">
+                  {this.state.error.message}
+                  {"\n\n"}
+                  {this.state.error.stack}
+                </pre>
+              </details>
+            )}
+
+            <div className="space-y-2">
+              <button
+                onClick={this.handleReload}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold transition-colors"
+              >
+                <RefreshCw className="h-4 w-4" />
+                Recargar página
+              </button>
+
+              <button
+                onClick={this.handleClearAndReload}
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 font-bold transition-colors"
+              >
+                Limpiar datos y recargar
+              </button>
+            </div>
+          </div>
+        </div>
+      );
+    }
+
+    return this.props.children;
+  }
+}
 
 // =========================================================
 // CONFIG DE VISTAS
@@ -239,61 +331,80 @@ function AppContent() {
 // =========================================================
 // APP ROOT
 // =========================================================
-export default function App() {
+function AppRoot() {
   const [isInitializing, setIsInitializing] = useState(true);
   const [showBiometricLock, setShowBiometricLock] = useState(false);
   const { navigate } = useAppStore();
 
   useEffect(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    const hasOAuthCallback =
-      urlParams.has("token")          ||
-      urlParams.has("requires2FA")    ||
-      urlParams.has("challengeToken") ||
-      urlParams.has("error");
+    try {
+      const urlParams = new URLSearchParams(window.location.search);
+      const hasOAuthCallback =
+        urlParams.has("token")          ||
+        urlParams.has("requires2FA")    ||
+        urlParams.has("challengeToken") ||
+        urlParams.has("error");
 
-    if (hasOAuthCallback) {
-      navigate("login");
-      setIsInitializing(false);
-      return;
-    }
+      if (hasOAuthCallback) {
+        navigate("login");
+        setIsInitializing(false);
+        return;
+      }
 
-    const savedToken       = localStorage.getItem("cubax_token");
-    const savedUid         = localStorage.getItem("cubax_uid");
-    const biometricEnabled = localStorage.getItem("biometric_enabled");
+      const savedToken       = localStorage.getItem("cubax_token");
+      const savedUid         = localStorage.getItem("cubax_uid");
+      const biometricEnabled = localStorage.getItem("biometric_enabled");
 
-    // CASO 1: Tiene biometría activa (con o sin token)
-    if (biometricEnabled === "1" && savedUid) {
-      setShowBiometricLock(true);
-      setIsInitializing(false);
-      return;
-    }
+      // ✅ CASO 1: Tiene biometría activa — verificar soporte antes
+      if (biometricEnabled === "1" && savedUid) {
+        // Verificar que el navegador realmente soporte biometría
+        const supportsBiometric =
+          typeof window !== "undefined" &&
+          !!window.PublicKeyCredential &&
+          !!navigator.credentials &&
+          typeof navigator.credentials.create === "function";
 
-    // CASO 2: Tiene token pero no biometría → auto-login
-    if (savedToken && savedUid) {
-      fetch(`${BACKEND_URL}/api/auth/me`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ uid: savedUid }),
-      })
-        .then((r) => r.json())
-        .then((data) => {
-          if (data.success && data.userData) {
-            const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
-            const safeView = AUTHENTICATED_VIEWS.includes(lastView) ? lastView : "dashboard";
-            useAppStore.setState({
-              user: data.userData as AppUser,
-              isAuthenticated: true,
-              currentView: safeView as any,
-            });
-          } else {
-            localStorage.clear();
-            navigate("landing");
-          }
+        if (supportsBiometric) {
+          setShowBiometricLock(true);
+          setIsInitializing(false);
+          return;
+        } else {
+          // ⚠️ Biometría activa pero navegador no la soporta → quitar flag
+          console.warn("⚠️ Biometría activa pero navegador no soportado. Removiendo flag.");
+          localStorage.removeItem("biometric_enabled");
+        }
+      }
+
+      // CASO 2: Tiene token pero no biometría → auto-login
+      if (savedToken && savedUid) {
+        fetch(`${BACKEND_URL}/api/auth/me`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ uid: savedUid }),
         })
-        .catch(() => navigate("landing"))
-        .finally(() => setIsInitializing(false));
-    } else {
+          .then((r) => r.json())
+          .then((data) => {
+            if (data.success && data.userData) {
+              const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
+              const safeView = AUTHENTICATED_VIEWS.includes(lastView) ? lastView : "dashboard";
+              useAppStore.setState({
+                user: data.userData as AppUser,
+                isAuthenticated: true,
+                currentView: safeView as any,
+              });
+            } else {
+              localStorage.clear();
+              navigate("landing");
+            }
+          })
+          .catch(() => navigate("landing"))
+          .finally(() => setIsInitializing(false));
+      } else {
+        navigate("landing");
+        setIsInitializing(false);
+      }
+    } catch (err) {
+      console.error("❌ Error en inicialización:", err);
       navigate("landing");
       setIsInitializing(false);
     }
@@ -301,20 +412,26 @@ export default function App() {
 
   // Handler cuando desbloquea con biometría
   const handleBiometricUnlock = (data: any) => {
-    localStorage.setItem("cubax_token",         data.token);
-    localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
-    localStorage.setItem("cubax_uid",           data.uid);
-    localStorage.setItem("cubax_email",         data.email || "");
-    localStorage.setItem("cubax_name",          data.displayName || "");
-    localStorage.setItem("cubax_last_login",    Date.now().toString());
+    try {
+      localStorage.setItem("cubax_token",         data.token);
+      localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
+      localStorage.setItem("cubax_uid",           data.uid);
+      localStorage.setItem("cubax_email",         data.email || "");
+      localStorage.setItem("cubax_name",          data.displayName || "");
+      localStorage.setItem("cubax_last_login",    Date.now().toString());
 
-    useAppStore.setState({
-      user: data.userData as AppUser,
-      isAuthenticated: true,
-      currentView: "dashboard",
-    });
+      useAppStore.setState({
+        user: data.userData as AppUser,
+        isAuthenticated: true,
+        currentView: "dashboard",
+      });
 
-    setShowBiometricLock(false);
+      setShowBiometricLock(false);
+    } catch (err) {
+      console.error("❌ Error en unlock:", err);
+      setShowBiometricLock(false);
+      navigate("landing");
+    }
   };
 
   // Handler cuando cancela / usa otra cuenta
@@ -365,7 +482,7 @@ export default function App() {
     );
   }
 
-  // Mostrar pantalla de bloqueo biométrico
+  // ✅ Mostrar pantalla biométrica con protección extra
   if (showBiometricLock) {
     return (
       <BiometricLockScreen
@@ -376,4 +493,9 @@ export default function App() {
   }
 
   return <AppContent />;
-  }
+}
+
+// =========================================================
+// ✅ EXPORT PRINCIPAL — Con ErrorBoundary
+// =========================================================
+export
