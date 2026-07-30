@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { QRCodeSVG } from "qrcode.react";
 import { X, Copy, CheckCircle2, Clock, ShoppingBag } from "lucide-react";
 
@@ -23,32 +23,38 @@ export function ProductQRCode({
   acceptedCryptos,
   onClose,
 }: ProductQRCodeProps) {
-  const [timeLeft, setTimeLeft] = useState(QR_EXPIRY_MINUTES * 60);
-  const [copied, setCopied]     = useState(false);
+  const [timeLeft, setTimeLeft]       = useState(QR_EXPIRY_MINUTES * 60);
+  const [copied, setCopied]           = useState(false);
   const [regenerated, setRegenerated] = useState(0);
 
-  // Construir el payload del QR
-  const qrPayload = JSON.stringify({
-    type: "CUBAX_PAYMENT",
-    v: 1, // versión
-    productId,
-    productTitle,
-    price,
-    sellerUid,
-    sellerName,
-    acceptedCryptos,
-    timestamp: Date.now() + regenerated,
-    expiresAt: Date.now() + QR_EXPIRY_MINUTES * 60 * 1000,
-  });
+  // ✅ Payload congelado — SOLO cambia cuando se regenera manualmente
+  const qrPayload = useMemo(() => {
+    const now       = Date.now();
+    const expiresAt = now + QR_EXPIRY_MINUTES * 60 * 1000;
 
-  // Countdown
+    return JSON.stringify({
+      type: "CUBAX_PAYMENT",
+      v: 1,
+      productId,
+      productTitle,
+      price,
+      sellerUid,
+      sellerName,
+      acceptedCryptos,
+      timestamp: now,
+      expiresAt,
+    });
+    // 👇 Solo se recalcula cuando cambia `regenerated` o cambian los props del producto
+  }, [regenerated, productId, productTitle, price, sellerUid, sellerName, acceptedCryptos]);
+
+  // Countdown (afecta SOLO el timer visual, NO el QR)
   useEffect(() => {
     if (timeLeft <= 0) return;
     const interval = setInterval(() => {
       setTimeLeft((t) => t - 1);
     }, 1000);
     return () => clearInterval(interval);
-  }, [timeLeft, regenerated]);
+  }, [timeLeft]);
 
   const minutes = Math.floor(timeLeft / 60);
   const seconds = timeLeft % 60;
@@ -56,7 +62,7 @@ export function ProductQRCode({
 
   const handleRegenerate = () => {
     setTimeLeft(QR_EXPIRY_MINUTES * 60);
-    setRegenerated((n) => n + 1);
+    setRegenerated((n) => n + 1); // ✅ Fuerza el recálculo del useMemo
   };
 
   const handleCopyLink = () => {
@@ -98,7 +104,7 @@ export function ProductQRCode({
           </p>
         </div>
 
-        {/* QR */}
+        {/* QR — ✅ Ya no parpadea */}
         <div className={`relative mx-auto w-fit p-5 rounded-2xl bg-white border-4 ${
           expired ? "border-red-500 opacity-40" : "border-brand-500"
         }`}>
@@ -156,7 +162,7 @@ export function ProductQRCode({
           </p>
         </div>
 
-        {/* Debug — copiar payload (útil en desarrollo) */}
+        {/* Debug — copiar payload */}
         <button
           onClick={handleCopyLink}
           className="w-full flex items-center justify-center gap-2 py-2 rounded-lg text-xs text-gray-400 hover:text-gray-600 dark:hover:text-gray-300 transition-colors"
