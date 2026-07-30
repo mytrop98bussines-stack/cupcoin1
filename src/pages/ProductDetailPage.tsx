@@ -5,7 +5,7 @@ import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
 import { CryptoIcon } from "@/components/ui/CryptoIcon";
-import { ProductQRCode } from "@/components/marketplace/ProductQRCode"; // ✅ Añadido
+import { ProductQRCode } from "@/components/ProductQRCode"; // ✅ Añadido
 import { CONDITION_LABELS, CATEGORY_LABELS } from "@/data/data";
 import {
   MapPin, Calendar, Star, MessageCircle,
