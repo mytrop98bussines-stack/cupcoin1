@@ -1,4 +1,5 @@
 import { useAppStore } from "@/store/useAppStore";
+import { useTranslation } from "@/lib/useTranslation"; // ✅ Añadido
 import {
   LayoutDashboard,
   ArrowLeftRight,
@@ -17,31 +18,32 @@ interface NavItem {
 
 export function BottomNav() {
   const { currentView, navigate } = useAppStore();
+  const { t } = useTranslation(); // ✅ Hook mágico
 
   const items: NavItem[] = [
     {
       view: "dashboard",
-      label: "Inicio",
+      label: t("nav.dashboard"), // ES: "Inicio" / EN: "Home"
       icon: <LayoutDashboard className="h-5 w-5" />,
     },
     {
       view: "p2p",
-      label: "P2P",
+      label: t("nav.p2p"), // ES: "P2P" / EN: "P2P"
       icon: <ArrowLeftRight className="h-5 w-5" />,
     },
     {
       view: "marketplace",
-      label: "Tienda",
+      label: t("nav.marketplace"), // ES: "Marketplace" / EN: "Marketplace"
       icon: <ShoppingBag className="h-5 w-5" />,
     },
     {
       view: "wallet",
-      label: "Wallet",
+      label: t("nav.wallet"), // ES: "Wallet" / EN: "Wallet"
       icon: <Wallet className="h-5 w-5" />,
     },
     {
       view: "settings",
-      label: "Perfil",
+      label: t("nav.profile"), // ES: "Perfil" / EN: "Profile"
       icon: <User className="h-5 w-5" />,
     },
   ];
