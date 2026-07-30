@@ -4,14 +4,15 @@ import { Card }   from "@/components/ui/Card";
 import { Badge }  from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Avatar } from "@/components/ui/Avatar";
-import { CryptoIcon } from "@/components/ui/CryptoIcon"; // ✅ Añadido
+import { CryptoIcon } from "@/components/ui/CryptoIcon";
+import { ProductQRCode } from "@/components/marketplace/ProductQRCode"; // ✅ Añadido
 import { CONDITION_LABELS, CATEGORY_LABELS } from "@/data/data";
 import {
   MapPin, Calendar, Star, MessageCircle,
   ShoppingCart, Share2, Heart, Loader2,
   Trash2, AlertTriangle, ChevronLeft, ChevronRight,
   Package, CheckCircle2, X, Send, Truck, CreditCard,
-  Clock, ShoppingBag,
+  Clock, ShoppingBag, QrCode, // ✅ QrCode añadido
 } from "lucide-react";
 import type {
   Product, ChatMessage, DeliveryMethod,
@@ -39,6 +40,9 @@ export function ProductDetailPage() {
   const [orderId, setOrderId]                     = useState<string | null>(null);
   const [shareMsg, setShareMsg]                   = useState(false);
   const [buyError, setBuyError]                   = useState<string | null>(null);
+
+  // 🎯 Estado del QR de cobro (para el vendedor)
+  const [showQRCode, setShowQRCode] = useState(false);
 
   // ─── Estados del chat ─────────────────────────────────────
   const [showChat, setShowChat]                 = useState(false);
@@ -461,7 +465,7 @@ export function ProductDetailPage() {
           </div>
         </div>
 
-        {/* ✅ Criptos con iconos SVG oficiales */}
+        {/* Criptos con iconos SVG oficiales */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <span className="text-xs text-gray-400 mr-1">Acepta:</span>
           {product.acceptedCryptos?.map((c) => (
@@ -736,30 +740,40 @@ export function ProductDetailPage() {
           </div>
         )}
 
-        {/* ═══ BOTONES DE ACCIÓN ═══════════════════════════════ */}
+        {/* ═══ BOTONES DE ACCIÓN (VENDEDOR) ═════════════════════ */}
         {isOwner && (
-          <Button
-            size="lg"
-            fullWidth
-            onClick={() => {
-              useAppStore.getState().setSelectedSalesProductId(product.id);
-              navigate("sales-management");
-            }}
-            icon={<ShoppingBag className="h-4 w-4" />}
-            className="bg-brand-500 hover:bg-brand-600 text-white"
-          >
-            Gestión de ventas
-          </Button>
-        )}
-        
-        {isOwner ? (
           <div className="space-y-2">
+            <Button
+              size="lg"
+              fullWidth
+              onClick={() => {
+                useAppStore.getState().setSelectedSalesProductId(product.id);
+                navigate("sales-management");
+              }}
+              icon={<ShoppingBag className="h-4 w-4" />}
+              className="bg-brand-500 hover:bg-brand-600 text-white"
+            >
+              Gestión de ventas
+            </Button>
+
+            {/* 🎯 Botón QR de cobro */}
+            <Button
+              size="lg"
+              fullWidth
+              onClick={() => setShowQRCode(true)}
+              icon={<QrCode className="h-4 w-4" />}
+              className="bg-gradient-to-r from-emerald-500 to-emerald-600 hover:from-emerald-600 hover:to-emerald-700 text-white shadow-lg shadow-emerald-500/20"
+            >
+              Mostrar QR de cobro
+            </Button>
+
             <div className="flex items-center gap-2 p-3 rounded-xl bg-amber-50 dark:bg-amber-500/5 border border-amber-200 dark:border-amber-500/20">
               <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0" />
               <p className="text-xs text-amber-700 dark:text-amber-400">
                 Esta es tu publicación. Los compradores interesados te contactarán por chat.
               </p>
             </div>
+
             <Button
               size="lg"
               fullWidth
@@ -771,7 +785,10 @@ export function ProductDetailPage() {
               Eliminar publicación
             </Button>
           </div>
-        ) : (
+        )}
+
+        {/* ═══ BOTONES DE ACCIÓN (COMPRADOR) ════════════════════ */}
+        {!isOwner && (
           <div className="space-y-2">
             {!orderCreated ? (
               <Button
@@ -844,7 +861,7 @@ export function ProductDetailPage() {
               </div>
             </div>
 
-            {/* ✅ Cryptos aceptadas en el modal con iconos SVG */}
+            {/* Cryptos aceptadas en el modal con iconos SVG */}
             <div>
               <p className="text-[11px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
                 Pagas con
@@ -1058,6 +1075,19 @@ export function ProductDetailPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* ═══ 🎯 MODAL QR DE COBRO (VENDEDOR) ══════════════════ */}
+      {showQRCode && product && (
+        <ProductQRCode
+          productId={product.id}
+          productTitle={product.title}
+          price={product.priceUSD}
+          sellerUid={product.sellerId}
+          sellerName={product.sellerName}
+          acceptedCryptos={product.acceptedCryptos || []}
+          onClose={() => setShowQRCode(false)}
+        />
       )}
     </div>
   );
