@@ -2,6 +2,61 @@ export type Language = "es" | "en";
 
 const translations = {
   es: {
+    // Añadir a la sección "es"
+landing: {
+  loginBtn:            "Iniciar Sesión",
+  badge:               "En desarrollo activo · Únete a la lista de espera",
+  heroTitle1:          "Cripto para",
+  heroTitle2:          "Cuba",
+  heroTitle3:          ", sin",
+  heroTitle4:          "fronteras",
+  heroDesc:            "Compra, vende e intercambia criptomonedas de forma segura con métodos de pago cubanos. Todo protegido por contratos inteligentes.",
+  trust: {
+    encrypted:  "Transacciones cifradas",
+    escrow:     "Escrow automático",
+    support:    "Soporte 24/7",
+  },
+  cta: {
+    createFree:      "Crear cuenta gratis",
+    haveAccount:     "Ya tengo cuenta",
+  },
+  livePrices:          "Precios en vivo",
+  featuresTitle:       "Todo lo que necesitas",
+  featuresSubtitle:    "Una plataforma completa para el mercado cubano",
+  features: {
+    p2pTitle:        "P2P Sin Límites",
+    p2pDesc:         "Compra y vende cripto con Transfermóvil, EnZona y efectivo",
+    escrowTitle:     "Escrow Seguro",
+    escrowDesc:      "Fondos protegidos en contrato inteligente durante el trade",
+    marketTitle:     "Marketplace",
+    marketDesc:      "Compra productos reales pagando con criptomonedas",
+    fastTitle:       "Ultra Rápido",
+    fastDesc:        "Optimizado para redes 3G/4G del mercado cubano",
+    realTimeTitle:   "Precios en Tiempo Real",
+    realTimeDesc:    "Cotizaciones globales de CoinGecko actualizadas al instante",
+    kycTitle:        "Verificación KYC",
+    kycDesc:         "Sistema de identidad seguro para operar sin restricciones",
+  },
+  community: {
+    badge:        "Fase de desarrollo activo",
+    title:        "¿Quieres ser parte del primer P2P cubano?",
+    desc:         "Creado por un emprendedor cubano que entiende las necesidades reales de la isla.",
+    waitlist:     "Lista de espera",
+    waitlistDesc: "Sé de los primeros en usar la app",
+    investors:    "Inversores ángeles",
+    investorsDesc: "Únete a un proyecto con impacto real",
+    community:    "Comunidad",
+    communityDesc: "Comparte tu feedback y crece con nosotros",
+    writeMe:      "Escríbeme directamente:",
+  },
+  footer: {
+    madeIn:     "Hecho con ❤️ en Cuba, para Cuba 🇨🇺",
+    rights:     "© 2026 CupCoin. Todos los derechos reservados.",
+    terms:      "Términos",
+    privacy:    "Privacidad",
+    support:    "Soporte",
+  },
+},
     // ═══ COMÚN ══════════════════════════════════════════════
     common: {
       save:      "Guardar",
@@ -196,6 +251,61 @@ const translations = {
   },
 
   en: {
+    // Añadir a la sección "en"
+landing: {
+  loginBtn:            "Sign in",
+  badge:               "In active development · Join the waitlist",
+  heroTitle1:          "Crypto for",
+  heroTitle2:          "Cuba",
+  heroTitle3:          ", without",
+  heroTitle4:          "borders",
+  heroDesc:            "Buy, sell and exchange cryptocurrencies safely with Cuban payment methods. All protected by smart contracts.",
+  trust: {
+    encrypted:  "Encrypted transactions",
+    escrow:     "Automatic escrow",
+    support:    "24/7 Support",
+  },
+  cta: {
+    createFree:      "Create free account",
+    haveAccount:     "I already have an account",
+  },
+  livePrices:          "Live prices",
+  featuresTitle:       "Everything you need",
+  featuresSubtitle:    "A complete platform for the Cuban market",
+  features: {
+    p2pTitle:        "Unlimited P2P",
+    p2pDesc:         "Buy and sell crypto with Transfermóvil, EnZona and cash",
+    escrowTitle:     "Secure Escrow",
+    escrowDesc:      "Funds protected by smart contract during the trade",
+    marketTitle:     "Marketplace",
+    marketDesc:      "Buy real products paying with cryptocurrencies",
+    fastTitle:       "Ultra Fast",
+    fastDesc:        "Optimized for 3G/4G networks in the Cuban market",
+    realTimeTitle:   "Real-Time Prices",
+    realTimeDesc:    "Global quotes from CoinGecko updated instantly",
+    kycTitle:        "KYC Verification",
+    kycDesc:         "Secure identity system to operate without restrictions",
+  },
+  community: {
+    badge:        "Active development phase",
+    title:        "Want to be part of the first Cuban P2P?",
+    desc:         "Created by a Cuban entrepreneur who understands the real needs of the island.",
+    waitlist:     "Waitlist",
+    waitlistDesc: "Be among the first to use the app",
+    investors:    "Angel investors",
+    investorsDesc: "Join a project with real impact",
+    community:    "Community",
+    communityDesc: "Share your feedback and grow with us",
+    writeMe:      "Write to me directly:",
+  },
+  footer: {
+    madeIn:     "Made with ❤️ in Cuba, for Cuba 🇨🇺",
+    rights:     "© 2026 CupCoin. All rights reserved.",
+    terms:      "Terms",
+    privacy:    "Privacy",
+    support:    "Support",
+  },
+},
     // ═══ COMMON ═════════════════════════════════════════════
     common: {
       save:      "Save",
