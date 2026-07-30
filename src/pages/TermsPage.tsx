@@ -5,13 +5,13 @@ import { FileText, ChevronDown, ChevronUp } from "lucide-react";
 const SECTIONS = [
   {
     title: "1. Aceptación de los Términos",
-    content: `Al registrarte y usar CubaX, aceptas cumplir con estos Términos de Uso y nuestra Política de Privacidad. Si no estás de acuerdo, no debes usar la plataforma.
+    content: `Al registrarte y usar CUPCOIN, aceptas cumplir con estos Términos de Uso y nuestra Política de Privacidad. Si no estás de acuerdo, no debes usar la plataforma.
 
-CubaX es una plataforma P2P de intercambio de criptomonedas que opera bajo la jurisdicción aplicable. El uso de esta plataforma implica la aceptación completa de estos términos.`,
+CUPCOIN es una plataforma P2P de intercambio de criptomonedas que opera bajo la jurisdicción aplicable. El uso de esta plataforma implica la aceptación completa de estos términos.`,
   },
   {
     title: "2. Elegibilidad",
-    content: `Para usar CubaX debes:
+    content: `Para usar CUPCOIN debes:
 • Tener al menos 18 años de edad.
 • Ser residente o ciudadano de Cuba o tener acceso legal a la plataforma.
 • No estar en ninguna lista de sanciones internacionales.
@@ -19,33 +19,33 @@ CubaX es una plataforma P2P de intercambio de criptomonedas que opera bajo la ju
   },
   {
     title: "3. Descripción del Servicio",
-    content: `CubaX proporciona:
+    content: `CUPCOIN proporciona:
 • Un mercado P2P para compra y venta de criptomonedas.
 • Un sistema de escrow para proteger las transacciones.
 • Un Marketplace para compraventa de productos físicos con cripto.
 • Una wallet de custodia para almacenar activos digitales.
 
-CubaX actúa como intermediario tecnológico y no es responsable de las transacciones entre usuarios.`,
+CUPCOIN actúa como intermediario tecnológico y no es responsable de las transacciones entre usuarios.`,
   },
   {
     title: "4. Sistema de Escrow",
-    content: `El sistema de escrow de CubaX funciona de la siguiente manera:
+    content: `El sistema de escrow de CUPCOIN funciona de la siguiente manera:
 
 • El vendedor deposita las criptomonedas en el escrow antes de que el comprador realice el pago.
 • Los fondos se liberan únicamente cuando el vendedor confirma haber recibido el pago.
-• En caso de disputa, un moderador de CubaX revisará el caso y tomará una decisión vinculante.
-• CubaX no se responsabiliza por pérdidas derivadas del incumplimiento de las partes.`,
+• En caso de disputa, un moderador de CUPCOIN revisará el caso y tomará una decisión vinculante.
+• CUPCOIN no se responsabiliza por pérdidas derivadas del incumplimiento de las partes.`,
   },
   {
     title: "5. Tarifas y Comisiones",
     content: `• Las transacciones P2P internas no tienen comisión de plataforma.
 • Los retiros externos están sujetos a las comisiones de red (gas fees) correspondientes.
-• CubaX se reserva el derecho de modificar las tarifas con previo aviso de 30 días.
+• CUPCOIN se reserva el derecho de modificar las tarifas con previo aviso de 30 días.
 • Las comisiones vigentes siempre estarán disponibles en la sección de tarifas de la app.`,
   },
   {
     title: "6. Prohibiciones",
-    content: `Está estrictamente prohibido usar CubaX para:
+    content: `Está estrictamente prohibido usar CUPCOIN para:
 • Lavado de dinero o financiamiento del terrorismo.
 • Fraude, estafas o engaño a otros usuarios.
 • Evasión de controles de capital o sanciones internacionales.
@@ -64,7 +64,7 @@ El incumplimiento resultará en la suspensión permanente de la cuenta y reporte
   },
   {
     title: "8. Limitación de Responsabilidad",
-    content: `CubaX no será responsable por:
+    content: `CUPCOIN no será responsable por:
 • Pérdidas derivadas de la volatilidad del mercado de criptomonedas.
 • Errores al introducir direcciones de wallet incorrectas.
 • Fallos técnicos fuera de nuestro control (internet, blockchain, etc.).
@@ -73,14 +73,14 @@ El incumplimiento resultará en la suspensión permanente de la cuenta y reporte
   },
   {
     title: "9. Modificaciones",
-    content: `CubaX se reserva el derecho de modificar estos términos en cualquier momento. Los cambios significativos serán notificados con al menos 30 días de antelación. El uso continuado de la plataforma después de los cambios implica la aceptación de los nuevos términos.`,
+    content: `CUPCOIN se reserva el derecho de modificar estos términos en cualquier momento. Los cambios significativos serán notificados con al menos 30 días de antelación. El uso continuado de la plataforma después de los cambios implica la aceptación de los nuevos términos.`,
   },
   {
     title: "10. Contacto",
     content: `Para cualquier consulta legal o relacionada con estos términos, contáctanos en:
 
-📧 legal@cubax.app
-📱 @CubaXSoporte en Telegram
+📧 legal@cupcoin.app
+📱 @CUPCOINSoporte en Telegram
 
 Última actualización: Enero 2026
 Versión: 1.0.0`,
@@ -116,7 +116,7 @@ export function TermsPage() {
         className="border-brand-500/20 bg-brand-500/5"
       >
         <p className="text-xs text-gray-600 dark:text-gray-400 leading-relaxed">
-          Por favor, lee estos términos cuidadosamente antes de usar CubaX.
+          Por favor, lee estos términos cuidadosamente antes de usar CUPCOIN.
           Al usar nuestra plataforma, aceptas estos términos en su totalidad.
         </p>
       </Card>
@@ -162,7 +162,7 @@ export function TermsPage() {
 
       {/* Footer */}
       <p className="text-center text-[10px] text-gray-400 pb-2">
-        © 2026 CubaX. Todos los derechos reservados.
+        © 2026 CUPCOIN. Todos los derechos reservados.
       </p>
     </div>
   );
