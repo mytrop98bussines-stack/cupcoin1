@@ -11,23 +11,42 @@ interface BiometricLoginButtonProps {
 }
 
 export function BiometricLoginButton({ onSuccess }: BiometricLoginButtonProps) {
-  const [loading, setLoading]         = useState(false);
-  const [error, setError]             = useState<string | null>(null);
+  const [loading, setLoading]             = useState(false);
+  const [error, setError]                 = useState<string | null>(null);
   const [biometricType, setBiometricType] = useState("biometría");
-  const [show, setShow]               = useState(false);
+  const [show, setShow]                   = useState(false);
 
   useEffect(() => {
     const check = async () => {
-      if (!isBiometricSupported()) return;
+      try {
+        // ✅ Verificación defensiva
+        if (typeof isBiometricSupported !== "function") return;
+        if (!isBiometricSupported()) return;
 
-      const savedUid = localStorage.getItem("cubax_uid");
-      const hadBio   = localStorage.getItem("biometric_enabled");
+        const savedUid = localStorage.getItem("cubax_uid");
+        const hadBio   = localStorage.getItem("biometric_enabled");
 
-      // Solo mostrar si el usuario ya se logueó antes en este dispositivo Y activó biometría
-      if (savedUid && hadBio === "1") {
-        const type = await getBiometricType();
-        setBiometricType(type);
-        setShow(true);
+        if (savedUid && hadBio === "1") {
+          // ✅ getBiometricType envuelto en try/catch por seguridad
+          let type = "biometría";
+          try {
+            if (typeof getBiometricType === "function") {
+              const result = await getBiometricType();
+              if (result && typeof result === "string") {
+                type = result;
+              }
+            }
+          } catch (err) {
+            console.warn("⚠️ No se pudo obtener tipo de biometría:", err);
+          }
+
+          setBiometricType(type);
+          setShow(true);
+        }
+      } catch (err) {
+        // ✅ Cualquier error en la detección → simplemente no mostramos el botón
+        console.warn("⚠️ Error verificando biometría:", err);
+        setShow(false);
       }
     };
     void check();
@@ -40,20 +59,29 @@ export function BiometricLoginButton({ onSuccess }: BiometricLoginButtonProps) {
     setLoading(true);
     setError(null);
 
-    const result = await authenticateBiometric(uid);
+    try {
+      const result = await authenticateBiometric(uid);
 
-    if (result.success && result.data) {
-      onSuccess(result.data);
-    } else {
-      setError(result.error || "Error autenticando");
-      // Si falla, quitar la opción biométrica
-      if (result.error?.includes("no encontrada") || result.error?.includes("No hay credenciales")) {
-        localStorage.removeItem("biometric_enabled");
-        setShow(false);
+      if (result.success && result.data) {
+        onSuccess(result.data);
+      } else {
+        setError(result.error || "Error autenticando");
+
+        if (
+          result.error?.includes("no encontrada") ||
+          result.error?.includes("No hay credenciales") ||
+          result.error?.includes("not found")
+        ) {
+          localStorage.removeItem("biometric_enabled");
+          setShow(false);
+        }
       }
+    } catch (err: any) {
+      console.error("❌ Error biométrico:", err);
+      setError(err.message || "Error autenticando");
+    } finally {
+      setLoading(false);
     }
-
-    setLoading(false);
   };
 
   if (!show) return null;
@@ -82,4 +110,4 @@ export function BiometricLoginButton({ onSuccess }: BiometricLoginButtonProps) {
       </button>
     </div>
   );
-        }
+}
