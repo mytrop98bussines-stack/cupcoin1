@@ -1,86 +1,91 @@
 // ═══════════════════════════════════════════════════════════
 // 🔔 CUPCOIN — FIREBASE MESSAGING SERVICE WORKER
-// Versión: 2.0 (con notificaciones ricas + deep linking)
+// Versión: 2.1 (con favicon correcto + sin import.meta.env)
 // ═══════════════════════════════════════════════════════════
 
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js');
 importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-compat.js');
 
-// ─── Configuración Firebase ──────────────────────────────
+// ─── Configuración Firebase (HARDCODEADO — el SW no lee env) ──
+// ⚠️ IMPORTANTE: Reemplaza con TUS valores reales del proyecto
 firebase.initializeApp({
-    apiKey:            import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain:        import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId:         import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket:     import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId:             import.meta.env.VITE_FIREBASE_APP_ID,
-};
+  apiKey:            "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+  authDomain:        "cupcoin-b2b4f.firebaseapp.com",
+  projectId:         "cupcoin-b2b4f",
+  storageBucket:     "cupcoin-b2b4f.firebasestorage.app",
+  messagingSenderId: "XXXXXXXXXXXX",
+  appId:             "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXXXXXXXX",
+});
+
 const messaging = firebase.messaging();
 
 // ═══════════════════════════════════════════════════════════
-// 🎨 CONFIGURACIÓN POR TIPO DE NOTIFICACIÓN
+// 🎨 CONFIGURACIÓN — TODAS USAN TU FAVICON
 // ═══════════════════════════════════════════════════════════
+
+// ✅ Un solo icono para todo (tu favicon)
+const APP_ICON = '/favicon.svg';
 
 const NOTIFICATION_CONFIG = {
   trade: {
-    icon:     '/icons/notif-trade.png',
-    badge:    '/icons/badge-trade.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#f59e0b',
     vibrate:  [200, 100, 200],
     tag:      'cupcoin-trade',
     requireInteraction: true,
   },
   payment: {
-    icon:     '/icons/notif-payment.png',
-    badge:    '/icons/badge-payment.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#10b981',
     vibrate:  [300, 100, 300, 100, 300],
     tag:      'cupcoin-payment',
     requireInteraction: true,
   },
   kyc: {
-    icon:     '/icons/notif-kyc.png',
-    badge:    '/icons/badge-kyc.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#3b82f6',
     vibrate:  [200],
     tag:      'cupcoin-kyc',
     requireInteraction: false,
   },
   message: {
-    icon:     '/icons/notif-message.png',
-    badge:    '/icons/badge-message.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#8b5cf6',
     vibrate:  [100, 50, 100],
     tag:      'cupcoin-message',
     requireInteraction: false,
   },
   marketplace: {
-    icon:     '/icons/notif-shop.png',
-    badge:    '/icons/badge-shop.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#ec4899',
     vibrate:  [200, 100, 200],
     tag:      'cupcoin-shop',
     requireInteraction: false,
   },
   security: {
-    icon:     '/icons/notif-security.png',
-    badge:    '/icons/badge-security.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#ef4444',
     vibrate:  [500, 200, 500],
     tag:      'cupcoin-security',
     requireInteraction: true,
   },
   promo: {
-    icon:     '/icons/notif-promo.png',
-    badge:    '/icons/badge-promo.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#f59e0b',
     vibrate:  [100],
     tag:      'cupcoin-promo',
     requireInteraction: false,
   },
   system: {
-    icon:     '/icons/notif-system.png',
-    badge:    '/icons/badge-system.png',
+    icon:     APP_ICON,
+    badge:    APP_ICON,
     color:    '#6b7280',
     vibrate:  [100],
     tag:      'cupcoin-system',
@@ -88,9 +93,8 @@ const NOTIFICATION_CONFIG = {
   },
 };
 
-// Fallback si no hay iconos específicos
-const DEFAULT_ICON = '/favicon.svg';
-const DEFAULT_BADGE = '/favicon.svg';
+const DEFAULT_ICON = APP_ICON;
+const DEFAULT_BADGE = APP_ICON;
 
 // ═══════════════════════════════════════════════════════════
 // 🔔 MANEJADOR DE NOTIFICACIONES EN SEGUNDO PLANO
@@ -99,7 +103,6 @@ const DEFAULT_BADGE = '/favicon.svg';
 messaging.onBackgroundMessage((payload) => {
   console.log('📩 [SW] Push recibido en background:', payload);
 
-  // ─── Extraer datos ────────────────────────────────────
   const type = payload.data?.type || 'system';
   const config = NOTIFICATION_CONFIG[type] || NOTIFICATION_CONFIG.system;
   
@@ -113,11 +116,10 @@ messaging.onBackgroundMessage((payload) => {
     payload.data?.body || 
     'Nueva actualización';
 
-  // ─── Construir opciones ricas ─────────────────────────
   const notificationOptions = {
     body:      notificationBody,
-    icon:      payload.notification?.image || payload.data?.icon || config.icon || DEFAULT_ICON,
-    badge:     payload.data?.badge || config.badge || DEFAULT_BADGE,
+    icon:      APP_ICON,  // ✅ Siempre tu favicon
+    badge:     APP_ICON,  // ✅ Siempre tu favicon
     image:     payload.notification?.image || payload.data?.image,
     tag:       payload.data?.tag || config.tag,
     data:      {
@@ -134,7 +136,6 @@ messaging.onBackgroundMessage((payload) => {
     timestamp: Date.now(),
   };
 
-  // ─── Añadir botones de acción ─────────────────────────
   if (payload.data?.actions) {
     try {
       const actions = JSON.parse(payload.data.actions);
@@ -143,11 +144,9 @@ messaging.onBackgroundMessage((payload) => {
       console.warn('⚠️ Error parseando actions:', e);
     }
   } else {
-    // Acciones por defecto según tipo
     notificationOptions.actions = getDefaultActions(type);
   }
 
-  // ─── Mostrar notificación ─────────────────────────────
   return self.registration.showNotification(
     notificationTitle,
     notificationOptions
@@ -162,17 +161,17 @@ function getDefaultActions(type) {
   switch (type) {
     case 'trade':
       return [
-        { action: 'view',    title: '👀 Ver Trade', icon: '/icons/action-view.png' },
+        { action: 'view',    title: '👀 Ver Trade' },
         { action: 'dismiss', title: '✖ Descartar' },
       ];
     case 'message':
       return [
-        { action: 'reply', title: '💬 Responder', icon: '/icons/action-reply.png' },
+        { action: 'reply', title: '💬 Responder' },
         { action: 'view',  title: '👀 Ver chat' },
       ];
     case 'payment':
       return [
-        { action: 'view',    title: '💵 Ver pago', icon: '/icons/action-money.png' },
+        { action: 'view',    title: '💵 Ver pago' },
         { action: 'dismiss', title: '✖' },
       ];
     case 'security':
@@ -211,29 +210,22 @@ function getUrlByType(type, data) {
       return data.id 
         ? `${baseUrl}/?view=trade&id=${data.id}`
         : `${baseUrl}/?view=trade-history`;
-    
     case 'payment':
       return `${baseUrl}/?view=wallet`;
-    
     case 'message':
       return data.id 
         ? `${baseUrl}/?view=chat&id=${data.id}`
         : `${baseUrl}/?view=notifications`;
-    
     case 'marketplace':
       return data.id 
         ? `${baseUrl}/?view=product-detail&id=${data.id}`
         : `${baseUrl}/?view=marketplace`;
-    
     case 'kyc':
       return `${baseUrl}/?view=kyc`;
-    
     case 'security':
       return `${baseUrl}/?view=security`;
-    
     case 'promo':
       return `${baseUrl}/?view=wallet`;
-    
     default:
       return baseUrl;
   }
@@ -272,63 +264,49 @@ self.addEventListener('notificationclick', (event) => {
   const action = event.action;
   const data = event.notification.data || {};
 
-  // ─── Manejar acciones específicas ─────────────────────
-  if (action === 'dismiss') {
-    return; // Solo cerrar
-  }
+  if (action === 'dismiss') return;
   
   if (action === 'block') {
-    // Enviar solicitud de bloqueo al backend
     event.waitUntil(blockDevice(data));
     return;
   }
   
   if (action === 'confirm') {
-    // Confirmar login legítimo
     event.waitUntil(confirmLogin(data));
     return;
   }
   
   if (action === 'reply') {
-    // Abrir chat en modo respuesta rápida
     event.waitUntil(openWindow(data.url + '&reply=true'));
     return;
   }
 
-  // ─── Acción por defecto: abrir la URL ─────────────────
   const url = data.url || self.location.origin;
-  
   event.waitUntil(openWindow(url));
 });
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 ABRIR VENTANA (o enfocar existente)
+// 🎯 ABRIR VENTANA
 // ═══════════════════════════════════════════════════════════
 
 async function openWindow(url) {
   try {
-    // Buscar si ya hay una ventana abierta
     const allClients = await self.clients.matchAll({
       type: 'window',
       includeUncontrolled: true,
     });
 
-    // Si hay una ventana abierta, enfócala y navega
     for (const client of allClients) {
       if (client.url.startsWith(self.location.origin)) {
         await client.focus();
-        
-        // Enviar mensaje para navegar
         client.postMessage({
           type: 'NAVIGATE_FROM_NOTIFICATION',
           url:  url,
         });
-        
         return client;
       }
     }
 
-    // Si no hay ventana, abrir una nueva
     return await self.clients.openWindow(url);
   } catch (error) {
     console.error('❌ [SW] Error abriendo ventana:', error);
@@ -342,7 +320,7 @@ async function openWindow(url) {
 async function blockDevice(data) {
   try {
     const response = await fetch(
-      `${self.location.origin.replace('web.app', 'onrender.com')}/api/security/block-device`,
+      'https://cubax-backend.onrender.com/api/security/block-device',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -356,7 +334,7 @@ async function blockDevice(data) {
     if (response.ok) {
       self.registration.showNotification('🚨 Dispositivo bloqueado', {
         body: 'El acceso desde ese dispositivo fue bloqueado por seguridad.',
-        icon: DEFAULT_ICON,
+        icon: APP_ICON,
         tag:  'security-blocked',
       });
     }
@@ -368,7 +346,7 @@ async function blockDevice(data) {
 async function confirmLogin(data) {
   try {
     await fetch(
-      `${self.location.origin.replace('web.app', 'onrender.com')}/api/security/confirm-login`,
+      'https://cubax-backend.onrender.com/api/security/confirm-login',
       {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -383,14 +361,11 @@ async function confirmLogin(data) {
 }
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 MANEJADOR DE CIERRE DE NOTIFICACIÓN
+// 🎯 CIERRE DE NOTIFICACIÓN
 // ═══════════════════════════════════════════════════════════
 
 self.addEventListener('notificationclose', (event) => {
   console.log('🚪 [SW] Notificación cerrada:', event.notification.tag);
-  
-  // Opcional: track analytics
-  // trackNotificationDismissal(event.notification.data);
 });
 
 // ═══════════════════════════════════════════════════════════
@@ -408,7 +383,7 @@ self.addEventListener('activate', (event) => {
 });
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 SYNC EN BACKGROUND (opcional, para PWA offline)
+// 🎯 SYNC EN BACKGROUND
 // ═══════════════════════════════════════════════════════════
 
 self.addEventListener('sync', (event) => {
@@ -420,12 +395,11 @@ self.addEventListener('sync', (event) => {
 });
 
 async function syncPendingNotifications() {
-  // Placeholder para sync de notificaciones pendientes
   console.log('🔄 [SW] Sincronizando notificaciones pendientes...');
 }
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 PUSH EVENT — FALLBACK (Web Push nativo)
+// 🎯 PUSH EVENT — FALLBACK
 // ═══════════════════════════════════════════════════════════
 
 self.addEventListener('push', (event) => {
@@ -437,8 +411,8 @@ self.addEventListener('push', (event) => {
     
     const options = {
       body:  data.body || 'Nueva notificación',
-      icon:  data.icon || DEFAULT_ICON,
-      badge: data.badge || DEFAULT_BADGE,
+      icon:  APP_ICON,
+      badge: APP_ICON,
       data:  data.data || {},
     };
     
