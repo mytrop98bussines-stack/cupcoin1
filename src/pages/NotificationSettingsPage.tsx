@@ -221,16 +221,20 @@ export function NotificationSettingsPage() {
   };
 
   // ─── Test notification ───────────────────────────────────
-  const handleTestNotification = () => {
-    if (permission !== "granted") {
-      setError("Primero activa las notificaciones");
-      return;
-    }
+const handleTestNotification = async () => {
+  if (permission !== "granted") {
+    setError("Primero activa las notificaciones");
+    return;
+  }
 
-    sendTestNotification();
+  try {
+    await sendTestNotification();
     setSuccess("🧪 Notificación de prueba enviada");
-    setTimeout(() => setSuccess(null), 2000);
-  };
+    setTimeout(() => setSuccess(null), 3000);
+  } catch (err: any) {
+    setError("Error al enviar test: " + err.message);
+  }
+};
 
   // ─── Eliminar dispositivo ────────────────────────────────
   const handleRemoveDevice = async (token: string) => {
