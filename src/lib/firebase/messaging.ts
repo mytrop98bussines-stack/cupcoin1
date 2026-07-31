@@ -19,11 +19,11 @@ interface EnhancedNotification {
   body:          string;
   type:          NotificationType;
   priority?:     NotificationPriority;
-  image?:        string;      // URL de imagen (opcional)
-  icon?:         string;      // URL de icono
-  badge?:        string;      // Badge para Android
+  image?:        string;
+  icon?:         string;
+  badge?:        string;
   data?:         Record<string, string>;
-  actions?:      NotificationAction[];  // Botones interactivos
+  actions?:      NotificationAction[];
   requireInteraction?: boolean;
   silent?:       boolean;
   vibrate?:      number[];
@@ -149,7 +149,6 @@ export async function requestNotificationPermission(
 
     if (permission !== "granted") {
       console.warn("⚠️ Notificaciones no permitidas:", permission);
-      // Guardar en localStorage para no volver a pedir
       localStorage.setItem("notif_permission_denied", "1");
       return null;
     }
@@ -183,7 +182,7 @@ export async function requestNotificationPermission(
       return null;
     }
 
-    // ✅ Detectar plataforma (útil para el backend)
+    // ✅ Detectar plataforma
     const platform = getPlatform();
     const deviceInfo = getDeviceInfo();
 
@@ -198,9 +197,9 @@ export async function requestNotificationPermission(
       body: JSON.stringify({
         userId,
         fcmToken:   token,
-        platform,           // 'web', 'android', 'ios'
-        deviceInfo,         // Info extra del dispositivo
-        preferences:        getStoredPreferences(),
+        platform,
+        deviceInfo,
+        preferences: getStoredPreferences(),
       }),
     });
 
@@ -330,7 +329,7 @@ async function syncPreferencesToBackend(
 }
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 ESCUCHAR MENSAJES EN PRIMER PLANO (mejorado)
+// 🎯 ESCUCHAR MENSAJES EN PRIMER PLANO
 // ═══════════════════════════════════════════════════════════
 
 export function onForegroundMessage(
@@ -357,8 +356,8 @@ export function onForegroundMessage(
       return;
     }
     
-    // ✅ Mostrar notificación custom
-    showRichNotification(payload, config, prefs);
+    // ✅ Mostrar notificación custom (async pero no bloqueamos)
+    void showRichNotification(payload, config, prefs);
     
     // ✅ Callback custom
     callback(payload);
@@ -376,14 +375,14 @@ export function onForegroundMessage(
 }
 
 // ═══════════════════════════════════════════════════════════
-// 🎯 MOSTRAR NOTIFICACIÓN RICA (foreground)
+// 🎯 MOSTRAR NOTIFICACIÓN RICA (foreground) — FIX Android
 // ═══════════════════════════════════════════════════════════
 
-function showRichNotification(
+async function showRichNotification(
   payload: MessagePayload,
   config: typeof NOTIFICATION_CONFIG[NotificationType],
   prefs: NotificationPreferences
-): void {
+): Promise<void> {
   if (Notification.permission !== "granted") return;
   
   const title = payload.notification?.title || "CupCoin";
@@ -406,16 +405,20 @@ function showRichNotification(
     } catch {}
   }
   
-  const notification = new Notification(title, options);
-  
-  // ✅ Deep linking al hacer click
-  notification.onclick = () => {
-    window.focus();
-    notification.close();
-    
-    // Navegar a la vista correcta según el tipo
-    handleNotificationClick(payload.data);
-  };
+  try {
+    // ✅ FIX: Usar Service Worker en vez de new Notification()
+    // (Requerido en Chrome Android)
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification(title, options);
+    } else {
+      // Fallback para navegadores sin SW (raro)
+      // eslint-disable-next-line no-new
+      new Notification(title, options);
+    }
+  } catch (err) {
+    console.warn("⚠️ Error mostrando notificación:", err);
+  }
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -653,7 +656,6 @@ export async function smartRequestPermission(reason: string): Promise<boolean> {
   if (Notification.permission === "granted") return true;
   if (Notification.permission === "denied") return false;
   
-  // Mostrar modal explicativo antes (idealmente en tu UI)
   console.log(`💡 Solicitando permiso: ${reason}`);
   
   const permission = await Notification.requestPermission();
@@ -669,16 +671,42 @@ export async function closeAllNotifications(): Promise<void> {
   }
 }
 
-// Test notification (útil para debugging)
-export function sendTestNotification(): void {
+// ═══════════════════════════════════════════════════════════
+// 🧪 TEST NOTIFICATION — FIX Android
+// ═══════════════════════════════════════════════════════════
+
+export async function sendTestNotification(): Promise<void> {
   if (Notification.permission !== "granted") {
     alert("Primero activa las notificaciones");
     return;
   }
   
-  new Notification("🧪 CupCoin Test", {
-    body:  "Si ves esto, las notificaciones funcionan perfectamente ✅",
-    icon:  "/icon-192.png",
-    badge: "/badge.png",
-  });
-}
+  const options: NotificationOptions = {
+    body:    "Si ves esto, las notificaciones funcionan perfectamente ✅",
+    icon:    "/favicon.svg",
+    badge:   "/favicon.svg",
+    tag:     "cupcoin-test",
+    vibrate: [200, 100, 200],
+    data: {
+      type: "system",
+      test: "true",
+    },
+  };
+  
+  try {
+    // ✅ FIX: Usar Service Worker en vez de new Notification()
+    // (Requerido en Chrome Android para evitar "Illegal constructor")
+    if ("serviceWorker" in navigator) {
+      const registration = await navigator.serviceWorker.ready;
+      await registration.showNotification("🧪 CupCoin Test", options);
+      console.log("✅ Test notification enviada via SW");
+    } else {
+      // Fallback para navegadores sin SW (raro)
+      // eslint-disable-next-line no-new
+      new Notification("🧪 CupCoin Test", options);
+    }
+  } catch (err) {
+    console.error("❌ Error test notification:", err);
+    alert("Error mostrando la notificación: " + (err as Error).message);
+  }
+      }
