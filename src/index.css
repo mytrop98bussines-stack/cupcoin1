@@ -38,7 +38,6 @@
 
   html {
     height: 100%;
-    /* ✅ Eliminado scroll-behavior: smooth — causa pegado en iOS */
     background-color: #f9fafb;
     overflow-x: hidden;
     padding-top:   env(safe-area-inset-top);
@@ -54,10 +53,8 @@
     background-color:           #f9fafb;
     color:                      #111827;
     overflow-x:                 hidden;
-    /* ✅ Solo bloquea el rebote horizontal */
     overscroll-behavior-x:      none;
     overscroll-behavior-y:      auto;
-    /* ✅ Scroll táctil nativo en iOS */
     -webkit-overflow-scrolling: touch;
   }
 
@@ -159,4 +156,71 @@
 @keyframes pulseGlow {
   0%, 100% { box-shadow: 0 0 4px  rgba(228, 171, 52, 0.15); }
   50%       { box-shadow: 0 0 12px rgba(228, 171, 52, 0.25); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   ✅ FIX PARA ESCÁNER QR (html5-qrcode)
+   Corrige duplicación y rotación en Android
+   ═══════════════════════════════════════════════════════════ */
+
+/* Contenedor principal del video */
+#qr-reader-region {
+  width: 100% !important;
+  height: 100% !important;
+  min-height: 400px !important;
+  position: relative;
+  overflow: hidden;
+  background: #000;
+  border-radius: 0;
+}
+
+/* El video de la cámara */
+#qr-reader-region video {
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: cover !important;
+  border-radius: 0 !important;
+  transform: none !important;
+  display: block !important;
+}
+
+/* Canvas oculto que a veces causa duplicación */
+#qr-reader-region canvas {
+  display: none !important;
+}
+
+/* El recuadro de escaneo */
+#qr-reader-region__scan_region {
+  background: transparent !important;
+  border: none !important;
+  min-height: 300px !important;
+  padding: 0 !important;
+}
+
+/* Ocultar la imagen de "escaneando" que crea la librería */
+#qr-reader-region__scan_region img,
+#qr-reader-region__scan_region > img {
+  display: none !important;
+}
+
+/* Ocultar el dashboard/controles de la librería */
+#qr-reader-region__dashboard,
+#qr-reader-region__dashboard_section,
+#qr-reader-region__dashboard_section_csr,
+#qr-reader-region__dashboard_section_swaplink,
+#qr-reader-region__filescan_input,
+#qr-reader-region__header_message {
+  display: none !important;
+}
+
+/* Ocultar selectores y botones automáticos */
+#qr-reader-region select,
+#qr-reader-region button:not(.qr-scan-btn),
+#qr-reader-region label {
+  display: none !important;
+}
+
+/* Fix para el borde blanco del recuadro */
+#qr-reader-region__scan_region > div {
+  border: none !important;
 }
