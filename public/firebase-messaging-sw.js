@@ -9,12 +9,13 @@ importScripts('https://www.gstatic.com/firebasejs/9.23.0/firebase-messaging-comp
 // ─── Configuración Firebase (HARDCODEADO — el SW no lee env) ──
 // ⚠️ IMPORTANTE: Reemplaza con TUS valores reales del proyecto
 firebase.initializeApp({
-  apiKey:            "AIzaSyXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
-  authDomain:        "cupcoin-b2b4f.firebaseapp.com",
-  projectId:         "cupcoin-b2b4f",
-  storageBucket:     "cupcoin-b2b4f.firebasestorage.app",
-  messagingSenderId: "XXXXXXXXXXXX",
-  appId:             "1:XXXXXXXXXXXX:web:XXXXXXXXXXXXXXXXXXXXXX",
+    apiKey: "AIzaSyAxUOLLm72in2-OM30Ywrxq9-QBuYdH334",
+  authDomain: "cupcoin-b2b4f.firebaseapp.com",
+  projectId: "cupcoin-b2b4f",
+  storageBucket: "cupcoin-b2b4f.firebasestorage.app",
+  messagingSenderId: "502564207166",
+  appId: "1:502564207166:web:ef81ebbebf6e390142ef6f",
+  measurementId: "G-EGNMNRTPND
 });
 
 const messaging = firebase.messaging();
