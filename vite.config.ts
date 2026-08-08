@@ -8,21 +8,37 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  // ✨ Base absoluta para que las rutas del favicon y assets funcionen correctamente
-  base: "/", 
-  
-  // ✂️ Eliminamos viteSingleFile() para que divida el código limpiamente en trozos ligeros para redes 3G/4G
+  base: "/",
   plugins: [react(), tailwindcss()],
-  
+
   resolve: {
     alias: {
       "@": path.resolve(__dirname, "src"),
     },
   },
-  
-  // ⚡ Optimización para que compile sin problemas de memoria en el Runner
+
+  // ✅ Necesario para que ethers funcione en el navegador
+  define: {
+    global: "globalThis",
+  },
+
+  // ✅ Optimizar ethers para que no rompa el build
+  optimizeDeps: {
+    include: ["ethers"],
+  },
+
   build: {
     chunkSizeWarningLimit: 1000,
     assetsDir: "assets",
-  }
+    // ✅ Separar ethers en su propio chunk para no pesar en la carga inicial
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          ethers:    ["ethers"],
+          firebase:  ["firebase/app", "firebase/auth", "firebase/firestore"],
+          react:     ["react", "react-dom"],
+        },
+      },
+    },
+  },
 });
