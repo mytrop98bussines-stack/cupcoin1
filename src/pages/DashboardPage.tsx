@@ -489,4 +489,126 @@ export function DashboardPage() {
                       </p>
                     </div>
                   </div>
-                  <p className="text-sm font-black text-gray-90
+                  <p className="text-sm font-black text-gray-900 dark:text-white font-mono leading-none">
+                    ${coin.current_price >= 1
+                      ? coin.current_price.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })
+                      : coin.current_price.toFixed(4)
+                    }
+                  </p>
+                  <div className={`text-[11px] font-bold flex items-center gap-0.5 mt-1 ${
+                    isUp ? "text-emerald-500" : "text-red-500"
+                  }`}>
+                    {isUp
+                      ? <TrendingUp  className="h-2.5 w-2.5" />
+                      : <TrendingDown className="h-2.5 w-2.5" />
+                    }
+                    {isUp ? "+" : ""}
+                    {(coin.price_change_percentage_24h || 0).toFixed(2)}%
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ─── ACCESO RÁPIDO EXTRA ────────────────────────── */}
+      <div className="grid grid-cols-2 gap-2">
+        <button
+          onClick={() => navigate("trade-history")}
+          className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
+        >
+          <div className="h-9 w-9 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
+            <ArrowLeftRight className="h-4 w-4 text-brand-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-900 dark:text-white">
+              {t("dashboard.myTrades")}
+            </p>
+            <p className="text-[10px] text-gray-400">
+              {user.totalTrades || 0} {t("dashboard.completed")}
+            </p>
+          </div>
+        </button>
+
+        <button
+          onClick={() => navigate("my-orders")}
+          className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
+        >
+          <div className="h-9 w-9 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
+            <Package className="h-4 w-4 text-violet-500" />
+          </div>
+          <div>
+            <p className="text-xs font-bold text-gray-900 dark:text-white">
+              {t("dashboard.myOrders")}
+            </p>
+            <p className="text-[10px] text-gray-400">
+              {t("dashboard.p2pActive")}
+            </p>
+          </div>
+        </button>
+      </div>
+
+      {/* ─── NOTIFICACIONES RECIENTES ───────────────────── */}
+      {unreadNotifs.length > 0 && (
+        <div>
+          <div className="flex items-center justify-between mb-3">
+            <div className="flex items-center gap-2">
+              <h2 className="text-sm font-bold text-gray-900 dark:text-white">
+                {t("nav.notifications")}
+              </h2>
+              <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-brand-500 text-white text-[9px] font-black flex items-center justify-center">
+                {unreadNotifs.length}
+              </span>
+            </div>
+            <button
+              onClick={() => navigate("notifications")}
+              className="text-xs text-brand-500 font-semibold flex items-center gap-0.5 hover:text-brand-400"
+            >
+              {t("dashboard.viewAll")} <ChevronRight className="h-3 w-3" />
+            </button>
+          </div>
+
+          <div className="space-y-2">
+            {unreadNotifs.slice(0, 3).map((notif) => {
+              if (!notif?.id) return null;
+
+              const iconMap: Record<string, JSX.Element> = {
+                trade:   <ArrowLeftRight className="h-4 w-4 text-brand-500"  />,
+                kyc:     <Shield         className="h-4 w-4 text-amber-500"  />,
+                product: <ShoppingBag    className="h-4 w-4 text-violet-500" />,
+                wallet:  <Wallet         className="h-4 w-4 text-purple-500" />,
+                alert:   <AlertTriangle  className="h-4 w-4 text-red-500"    />,
+              };
+
+              return (
+                <button
+                  key={notif.id}
+                  onClick={() => navigate("notifications")}
+                  className="w-full flex items-start gap-3 p-3.5 rounded-2xl bg-brand-500/[0.02] border border-brand-500/10 hover:border-brand-500/20 transition-all text-left active:scale-[0.99]"
+                >
+                  <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {iconMap[notif.type] || <Zap className="h-4 w-4 text-brand-500" />}
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
+                      {notif.title || ""}
+                    </p>
+                    <p className="text-[11px] text-gray-500 dark:text-gray-400 mt-0.5 line-clamp-1">
+                      {(notif as any).message || notif.body || ""}
+                    </p>
+                  </div>
+                  <div className="h-2 w-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5 animate-pulse" />
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
