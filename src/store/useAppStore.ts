@@ -315,48 +315,55 @@ export const useAppStore = create<AppState>((set, get) => ({
   setWalletAddress: (address) => set({ walletAddress: address }),
 
   loadWalletBalances: async () => {
-    const address = getStoredWalletAddress();
-    if (!address) return;
+  const address = getStoredWalletAddress();
+  if (!address) return;
 
-    set({ walletLoading: true });
+  set({ walletLoading: true });
 
-    try {
-      const [tokenBalances, tokenPrices] = await Promise.all([
-        getWalletBalances(address),
-        getTokenPrices(),
-      ]);
+  try {
+    const [tokenBalances, tokenPrices] = await Promise.all([
+      getWalletBalances(address),
+      getTokenPrices(),
+    ]);
 
-      // Enriquecer con precios
-      const enriched = tokenBalances.map((b) => {
-        const price = tokenPrices[b.symbol];
-        return {
-          ...b,
-          usdValue: price ? b.amount * price.usd : b.amount,
-        };
-      });
-
-      // Actualizar también los precios globales del store
-      const updatedPrices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT",  name: "Tether",   priceUSD: tokenPrices.USDT?.usd  || 1,       change24h: tokenPrices.USDT?.usd_24h_change  || 0 },
-        { id: "2", symbol: "USDC",  name: "USD Coin",  priceUSD: tokenPrices.USDC?.usd  || 1,       change24h: tokenPrices.USDC?.usd_24h_change  || 0 },
-        { id: "3", symbol: "BTC",   name: "Bitcoin",   priceUSD: tokenPrices.BTC?.usd   || 67500,   change24h: tokenPrices.BTC?.usd_24h_change   || 0 },
-        { id: "4", symbol: "ETH",   name: "Ethereum",  priceUSD: tokenPrices.ETH?.usd   || 3500,    change24h: tokenPrices.ETH?.usd_24h_change   || 0 },
-        { id: "5", symbol: "MATIC", name: "Polygon",   priceUSD: tokenPrices.MATIC?.usd || 0.7,     change24h: tokenPrices.MATIC?.usd_24h_change || 0 },
-      ];
-
-      set({
-        walletBalances: enriched,
-        walletAddress:  address,
-        prices:         updatedPrices,
-      });
-
-      console.log("✅ [Store] Wallet balances cargados desde blockchain");
-    } catch (err) {
-      console.error("❌ [Store] Error cargando wallet balances:", err);
-    } finally {
-      set({ walletLoading: false });
+    // ✅ Verificar que tokenBalances sea un array válido
+    if (!Array.isArray(tokenBalances)) {
+      console.error("❌ [Store] tokenBalances no es un array");
+      return;
     }
-  },
+
+    // ✅ Verificar que tokenPrices sea un objeto válido
+    const safePrices = tokenPrices || {};
+
+    const enriched = tokenBalances.map((b) => {
+      if (!b || !b.symbol) return null; // ✅ Guard
+      const price = safePrices[b.symbol];
+      return {
+        ...b,
+        usdValue: price ? (b.amount || 0) * price.usd : 0,
+      };
+    }).filter(Boolean); // ✅ Eliminar nulls
+
+    const updatedPrices = [
+      { id: "1", symbol: "USDT",  name: "Tether",  priceUSD: safePrices.USDT?.usd  || 1,     change24h: safePrices.USDT?.usd_24h_change  || 0 },
+      { id: "2", symbol: "USDC",  name: "USD Coin", priceUSD: safePrices.USDC?.usd  || 1,     change24h: safePrices.USDC?.usd_24h_change  || 0 },
+      { id: "3", symbol: "BTC",   name: "Bitcoin",  priceUSD: safePrices.BTC?.usd   || 67500, change24h: safePrices.BTC?.usd_24h_change   || 0 },
+      { id: "4", symbol: "ETH",   name: "Ethereum", priceUSD: safePrices.ETH?.usd   || 3500,  change24h: safePrices.ETH?.usd_24h_change   || 0 },
+      { id: "5", symbol: "MATIC", name: "Polygon",  priceUSD: safePrices.MATIC?.usd || 0.7,   change24h: safePrices.MATIC?.usd_24h_change || 0 },
+    ];
+
+    set({
+      walletBalances: enriched as any,
+      walletAddress:  address,
+      prices:         updatedPrices,
+    });
+
+  } catch (err) {
+    console.error("❌ [Store] Error cargando wallet balances:", err);
+  } finally {
+    set({ walletLoading: false });
+  }
+},
 
   // =========================================================
   // PRECIOS
