@@ -9,9 +9,12 @@ import {
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
 } from "lucide-react";
 import type { User as AppUser } from "@/types";
-import { isBiometricSupported } from "@/lib/biometric";
+import { isBiometricSupported }     from "@/lib/biometric";
 import { BiometricActivationModal } from "@/components/BiometricActivationModal";
-import { BiometricLoginButton } from "@/components/BiometricLoginButton";
+import { BiometricLoginButton }     from "@/components/BiometricLoginButton";
+import { createNewWallet }          from "@/lib/wallet/walletService";
+import { hasStoredWallet }          from "@/lib/wallet/walletStorage";
+import { SeedPhraseModal }          from "@/components/SeedPhraseModal";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
@@ -21,18 +24,18 @@ export function AuthPage() {
   const isLogin = currentView === "login";
 
   // ─── Estados login/registro ───────────────────────────────
-  const [email, setEmail]                   = useState("");
-  const [password, setPassword]             = useState("");
-  const [name, setName]                     = useState("");
-  const [showPassword, setShowPassword]     = useState(false);
-  const [loading, setLoading]               = useState(false);
-  const [errors, setErrors]                 = useState<Record<string, string>>({});
-  const [globalError, setGlobalError]       = useState<string | null>(null);
-  const [resetSent, setResetSent]           = useState(false);
-  const [showReset, setShowReset]           = useState(false);
-  const [resetEmail, setResetEmail]         = useState("");
-  const [resetLoading, setResetLoading]     = useState(false);
-  const [googleLoading, setGoogleLoading]   = useState(false);
+  const [email, setEmail]                 = useState("");
+  const [password, setPassword]           = useState("");
+  const [name, setName]                   = useState("");
+  const [showPassword, setShowPassword]   = useState(false);
+  const [loading, setLoading]             = useState(false);
+  const [errors, setErrors]               = useState<Record<string, string>>({});
+  const [globalError, setGlobalError]     = useState<string | null>(null);
+  const [resetSent, setResetSent]         = useState(false);
+  const [showReset, setShowReset]         = useState(false);
+  const [resetEmail, setResetEmail]       = useState("");
+  const [resetLoading, setResetLoading]   = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
 
   // ─── Estados 2FA ──────────────────────────────────────────
   const [twoFARequired, setTwoFARequired]             = useState(false);
@@ -41,12 +44,68 @@ export function AuthPage() {
   const [twoFALoading, setTwoFALoading]               = useState(false);
   const [twoFAError, setTwoFAError]                   = useState<string | null>(null);
 
-  // ─── Estados Biometría ─────────────────────────────────
+  // ─── Estados Biometría ────────────────────────────────────
   const [showBiometricModal, setShowBiometricModal] = useState(false);
   const [pendingUserData, setPendingUserData]       = useState<any>(null);
 
-  // ─── Helper: completar login ───────────────────────────────
-  const finishLogin = useCallback((data: any) => {
+  // ─── Estados Wallet ───────────────────────────────────────
+  const [showSeedModal, setShowSeedModal]           = useState(false);
+  const [newSeedPhrase, setNewSeedPhrase]           = useState("");
+  const [newWalletAddress, setNewWalletAddress]     = useState("");
+  const [pendingLoginData, setPendingLoginData]     = useState<any>(null);
+
+  // =========================================================
+  // HELPER: Guardar wallet en backend
+  // =========================================================
+  const saveWalletToBackend = async (
+    uid:           string,
+    token:         string,
+    walletAddress: string
+  ): Promise<boolean> => {
+    try {
+      const res  = await fetch(`${BACKEND_URL}/api/auth/update-wallet`, {
+        method:  "POST",
+        headers: {
+          "Content-Type": "application/json",
+          Authorization:  `Bearer ${token}`,
+        },
+        body: JSON.stringify({ uid, walletAddress }),
+      });
+      const data = await res.json();
+
+      if (!data.success && data.code !== "WALLET_ALREADY_EXISTS") {
+        console.error("❌ [Wallet] Error guardando en backend:", data.error);
+        return false;
+      }
+
+      console.log("✅ [Wallet] Dirección guardada en backend");
+      return true;
+    } catch (err) {
+      console.error("❌ [Wallet] Error de conexión:", err);
+      return false;
+    }
+  };
+
+  // =========================================================
+  // HELPER: Flujo post-wallet (biometría o dashboard)
+  // =========================================================
+  const proceedAfterWallet = useCallback((appUser: AppUser, data: any) => {
+    const promptedBefore = localStorage.getItem(`biometric_prompted_${data.uid}`);
+    const alreadyEnabled = localStorage.getItem("biometric_enabled");
+
+    if (isBiometricSupported() && !promptedBefore && !alreadyEnabled) {
+      setPendingUserData({ appUser, data });
+      setShowBiometricModal(true);
+    } else {
+      login(appUser);
+      navigate("dashboard");
+    }
+  }, [login, navigate]);
+
+  // =========================================================
+  // HELPER: Completar login + generar wallet si no tiene
+  // =========================================================
+  const finishLogin = useCallback(async (data: any, pwd?: string) => {
     localStorage.setItem("cubax_token",         data.token);
     localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
     localStorage.setItem("cubax_uid",           data.uid);
@@ -60,33 +119,75 @@ export function AuthPage() {
       uid:           data.uid,
       email:         data.email,
       displayName:   data.displayName,
-      photoURL:      data.photoURL        || null,
-      kycStatus:     u.kycStatus          || "unverified",
-      createdAt:     u.createdAt          || Date.now(),
-      totalTrades:   u.totalTrades        || 0,
-      rating:        u.rating             || 5.0,
-      walletAddress: u.walletAddress      || null,
-      role:          u.role               || "user",
-      emailVerified: u.emailVerified      || false,
+      photoURL:      data.photoURL   || null,
+      kycStatus:     u.kycStatus     || "unverified",
+      createdAt:     u.createdAt     || Date.now(),
+      totalTrades:   u.totalTrades   || 0,
+      rating:        u.rating        || 5.0,
+      walletAddress: u.walletAddress || null,
+      role:          u.role          || "user",
+      emailVerified: u.emailVerified || false,
     } as any;
 
-    const promptedBefore = localStorage.getItem(`biometric_prompted_${data.uid}`);
-    const alreadyEnabled = localStorage.getItem("biometric_enabled");
+    // ✅ Generar wallet solo si no tiene una
+    if (!u.walletAddress && !hasStoredWallet()) {
+      try {
+        console.log("🔑 [Wallet] Generando wallet para:", data.uid);
 
-    if (isBiometricSupported() && !promptedBefore && !alreadyEnabled) {
-      setPendingUserData({ appUser, data });
-      setShowBiometricModal(true);
-    } else {
-      login(appUser);
-      navigate("dashboard");
+        // Password del formulario o uid como fallback para Google
+        const walletPassword = pwd || password || data.uid;
+        const walletData     = await createNewWallet(walletPassword);
+
+        // Enviar SOLO la dirección pública al backend
+        const saved = await saveWalletToBackend(
+          data.uid,
+          data.token,
+          walletData.address
+        );
+
+        if (saved) {
+          appUser.walletAddress = walletData.address;
+
+          // Mostrar modal frase semilla
+          setNewSeedPhrase(walletData.mnemonic);
+          setNewWalletAddress(walletData.address);
+          setPendingLoginData({ appUser, data });
+          setShowSeedModal(true);
+          return; // Esperar confirmación del usuario
+        }
+
+      } catch (err) {
+        console.error("❌ [Wallet] Error generando wallet:", err);
+        // Si falla igual dejamos entrar
+      }
     }
-  }, [login, navigate]);
 
-  // ─── Callbacks del modal biométrico ────────────────────
+    proceedAfterWallet(appUser, data);
+  }, [password, proceedAfterWallet]);
+
+  // =========================================================
+  // HANDLER: Usuario confirma frase semilla
+  // =========================================================
+  const handleSeedConfirmed = useCallback(() => {
+    setShowSeedModal(false);
+    setNewSeedPhrase("");
+    setNewWalletAddress("");
+
+    if (!pendingLoginData) return;
+    const { appUser, data } = pendingLoginData;
+    setPendingLoginData(null);
+    proceedAfterWallet(appUser, data);
+  }, [pendingLoginData, proceedAfterWallet]);
+
+  // =========================================================
+  // HANDLERS: Biometría (sin cambios)
+  // =========================================================
   const handleBiometricActivated = () => {
     localStorage.setItem("biometric_enabled", "1");
     if (pendingUserData) {
-      localStorage.setItem(`biometric_prompted_${pendingUserData.data.uid}`, "1");
+      localStorage.setItem(
+        `biometric_prompted_${pendingUserData.data.uid}`, "1"
+      );
       login(pendingUserData.appUser);
       navigate("dashboard");
       setPendingUserData(null);
@@ -96,7 +197,9 @@ export function AuthPage() {
 
   const handleBiometricSkip = () => {
     if (pendingUserData) {
-      localStorage.setItem(`biometric_prompted_${pendingUserData.data.uid}`, "1");
+      localStorage.setItem(
+        `biometric_prompted_${pendingUserData.data.uid}`, "1"
+      );
       login(pendingUserData.appUser);
       navigate("dashboard");
       setPendingUserData(null);
@@ -104,7 +207,9 @@ export function AuthPage() {
     setShowBiometricModal(false);
   };
 
-  // ─── Procesar callback de Google OAuth ────────────────────
+  // =========================================================
+  // EFFECT: Callback Google OAuth (sin cambios)
+  // =========================================================
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
 
@@ -153,23 +258,25 @@ export function AuthPage() {
             setGlobalError(t("auth.errors.loadUser"));
             return;
           }
-
+          // Para Google usamos uid como password de cifrado
           finishLogin({
             token,
             refreshToken: refreshToken || "",
             uid,
-            email:       me.userData.email,
-            displayName: me.userData.displayName,
-            photoURL:    me.userData.photoURL || null,
-            userData:    me.userData,
-          });
+            email:        me.userData.email,
+            displayName:  me.userData.displayName,
+            photoURL:     me.userData.photoURL || null,
+            userData:     me.userData,
+          }, uid);
         })
         .catch(() => setGlobalError(t("auth.errors.googleSession")))
         .finally(() => setGoogleLoading(false));
     }
   }, [finishLogin, t]);
 
-  // ─── Validación (con traducciones) ────────────────────────
+  // =========================================================
+  // VALIDACIÓN (sin cambios)
+  // =========================================================
   const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
 
@@ -197,14 +304,18 @@ export function AuthPage() {
     return Object.keys(newErrors).length === 0;
   }, [email, password, name, isLogin, t]);
 
-  // ─── Google Login ─────────────────────────────────────────
+  // =========================================================
+  // HANDLER: Google Login (sin cambios)
+  // =========================================================
   const handleGoogleLogin = () => {
     setGoogleLoading(true);
     setGlobalError(null);
     window.location.href = `${BACKEND_URL}/auth/google/start`;
   };
 
-  // ─── Login / Registro ─────────────────────────────────────
+  // =========================================================
+  // HANDLER: Submit login/registro
+  // =========================================================
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -257,7 +368,8 @@ export function AuthPage() {
           return;
         }
 
-        finishLogin(data);
+        // ✅ Pasar password para cifrar wallet
+        await finishLogin(data, password);
 
       } catch (err: any) {
         console.error("❌ Error de autenticación:", err.message);
@@ -269,7 +381,9 @@ export function AuthPage() {
     [email, password, name, isLogin, validate, finishLogin, t]
   );
 
-  // ─── Verificar código 2FA ─────────────────────────────────
+  // =========================================================
+  // HANDLER: Verificar 2FA
+  // =========================================================
   const handleVerify2FA = async () => {
     if (twoFACode.length !== 6) {
       setTwoFAError(t("auth.twoFA.enterCode"));
@@ -297,7 +411,12 @@ export function AuthPage() {
           setTwoFAError(data.error || t("auth.twoFA.incorrect"));
         }
 
-        if (data.error?.includes("expirada") || data.error?.includes("inválida") || data.error?.includes("expired") || data.error?.includes("invalid")) {
+        if (
+          data.error?.includes("expirada") ||
+          data.error?.includes("inválida")  ||
+          data.error?.includes("expired")   ||
+          data.error?.includes("invalid")
+        ) {
           setTimeout(() => {
             setTwoFARequired(false);
             setTwoFACode("");
@@ -308,7 +427,8 @@ export function AuthPage() {
         return;
       }
 
-      finishLogin(data);
+      // ✅ Pasar password para descifrar wallet si existe
+      await finishLogin(data, password);
 
     } catch {
       setTwoFAError(t("auth.errors.connection"));
@@ -317,7 +437,9 @@ export function AuthPage() {
     }
   };
 
-  // ─── Reset de contraseña ──────────────────────────────────
+  // =========================================================
+  // HANDLER: Reset password (sin cambios)
+  // =========================================================
   const handlePasswordReset = useCallback(async () => {
     if (
       !resetEmail.trim() ||
@@ -350,6 +472,9 @@ export function AuthPage() {
     }
   }, [resetEmail, t]);
 
+  // =========================================================
+  // HANDLER: Switch login/registro
+  // =========================================================
   const handleSwitchView = () => {
     setErrors({});
     setGlobalError(null);
@@ -357,7 +482,9 @@ export function AuthPage() {
     setResetSent(false);
     navigate(isLogin ? "register" : "login");
   };
-      // ─── PANTALLA 2FA ─────────────────────────────────────────
+    // =========================================================
+  // RENDER: Pantalla 2FA
+  // =========================================================
   if (twoFARequired) {
     return (
       <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
@@ -460,7 +587,9 @@ export function AuthPage() {
     );
   }
 
-  // ─── PANTALLA RESET ───────────────────────────────────────
+  // =========================================================
+  // RENDER: Pantalla Reset Password
+  // =========================================================
   if (showReset) {
     return (
       <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
@@ -505,7 +634,10 @@ export function AuthPage() {
                 </p>
               </div>
               <button
-                onClick={() => { setShowReset(false); setResetSent(false); }}
+                onClick={() => {
+                  setShowReset(false);
+                  setResetSent(false);
+                }}
                 className="text-sm text-brand-500 font-semibold"
               >
                 {t("auth.reset.backToLogin")}
@@ -516,7 +648,9 @@ export function AuthPage() {
               {globalError && (
                 <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
                   <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                  <p className="text-xs text-red-700 dark:text-red-400">{globalError}</p>
+                  <p className="text-xs text-red-700 dark:text-red-400">
+                    {globalError}
+                  </p>
                 </div>
               )}
               <Input
@@ -541,241 +675,278 @@ export function AuthPage() {
       </div>
     );
   }
-    /// ─── RENDER PRINCIPAL ─────────────────────────────────────
+
+  // =========================================================
+  // RENDER: Principal
+  // =========================================================
   return (
-    <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
+    <>
+      <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
 
-      <div className="px-4 pt-4">
-        <button
-          onClick={() => navigate("landing")}
-          className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-        >
-          <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-        </button>
-      </div>
-
-      <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
-
-        <div className="text-center mb-8">
-          <div className="inline-flex px-5 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
-            <Logo size={36} className="text-black dark:text-white" />
-          </div>
-          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-            {isLogin ? t("auth.welcomeBack") : t("auth.createAccountTitle")}
-          </h1>
-          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-            {isLogin
-              ? t("auth.loginSubtitle")
-              : t("auth.registerSubtitle")}
-          </p>
+        {/* Botón atrás */}
+        <div className="px-4 pt-4">
+          <button
+            onClick={() => navigate("landing")}
+            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
+          >
+            <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
+          </button>
         </div>
 
-        {globalError && (
-          <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
-            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-            <p className="text-xs text-red-700 dark:text-red-400">{globalError}</p>
+        <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
+
+          {/* Logo y título */}
+          <div className="text-center mb-8">
+            <div className="inline-flex px-5 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
+              <Logo size={36} className="text-black dark:text-white" />
+            </div>
+            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
+              {isLogin
+                ? t("auth.welcomeBack")
+                : t("auth.createAccountTitle")}
+            </h1>
+            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
+              {isLogin
+                ? t("auth.loginSubtitle")
+                : t("auth.registerSubtitle")}
+            </p>
           </div>
-        )}
 
-        <form onSubmit={handleSubmit} className="space-y-4">
-
-          {/* 🆕 Botón biométrico arriba del formulario (solo en login) */}
-          {isLogin && (
-            <BiometricLoginButton onSuccess={(data) => finishLogin(data)} />
-          )}
-
-          {!isLogin && (
-            <Input
-              label={t("auth.name")}
-              placeholder={t("auth.namePlaceholder")}
-              icon={<User className="h-4 w-4" />}
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              error={errors.name}
-              autoComplete="name"
-            />
-          )}
-
-          <Input
-            label={t("auth.email")}
-            type="email"
-            placeholder={t("auth.emailPlaceholder")}
-            icon={<Mail className="h-4 w-4" />}
-            value={email}
-            onChange={(e) => {
-              setEmail(e.target.value);
-              if (errors.email) setErrors((p) => ({ ...p, email: "" }));
-            }}
-            error={errors.email}
-            autoComplete="email"
-          />
-
-          <Input
-            label={t("auth.password")}
-            type={showPassword ? "text" : "password"}
-            placeholder={t("auth.passwordPlaceholder")}
-            icon={<Lock className="h-4 w-4" />}
-            value={password}
-            onChange={(e) => {
-              setPassword(e.target.value);
-              if (errors.password) setErrors((p) => ({ ...p, password: "" }));
-            }}
-            error={errors.password}
-            autoComplete={isLogin ? "current-password" : "new-password"}
-            rightElement={
-              <button
-                type="button"
-                onClick={() => setShowPassword(!showPassword)}
-                className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-              >
-                {showPassword
-                  ? <EyeOff className="h-4 w-4" />
-                  : <Eye    className="h-4 w-4" />
-                }
-              </button>
-            }
-          />
-
-          {!isLogin && password.length > 0 && (
-            <div className="space-y-1.5">
-              <div className="flex gap-1">
-                {[1, 2, 3, 4].map((level) => (
-                  <div
-                    key={level}
-                    className={`flex-1 h-1 rounded-full transition-colors ${
-                      password.length >= level * 2
-                        ? password.length >= 8
-                          ? "bg-emerald-500"
-                          : password.length >= 6
-                          ? "bg-amber-500"
-                          : "bg-red-500"
-                        : "bg-gray-200 dark:bg-white/10"
-                    }`}
-                  />
-                ))}
-              </div>
-              <p className="text-[10px] text-gray-400">
-                {password.length < 6
-                  ? t("auth.password.veryWeak")
-                  : password.length < 8
-                  ? t("auth.password.weak")
-                  : password.length < 12
-                  ? t("auth.password.good")
-                  : t("auth.password.strong")}
+          {/* Error global */}
+          {globalError && (
+            <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
+              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+              <p className="text-xs text-red-700 dark:text-red-400">
+                {globalError}
               </p>
             </div>
           )}
 
-          {isLogin && (
-            <div className="text-right">
-              <button
-                type="button"
-                onClick={() => {
-                  setResetEmail(email);
-                  setShowReset(true);
-                  setGlobalError(null);
-                }}
-                className="text-xs text-brand-500 hover:text-brand-400 font-semibold"
-              >
-                {t("auth.forgotPassword")}
-              </button>
+          <form onSubmit={handleSubmit} className="space-y-4">
+
+            {/* Biometría (solo login) */}
+            {isLogin && (
+              <BiometricLoginButton
+                onSuccess={(data) => finishLogin(data)}
+              />
+            )}
+
+            {/* Nombre (solo registro) */}
+            {!isLogin && (
+              <Input
+                label={t("auth.name")}
+                placeholder={t("auth.namePlaceholder")}
+                icon={<User className="h-4 w-4" />}
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                error={errors.name}
+                autoComplete="name"
+              />
+            )}
+
+            {/* Email */}
+            <Input
+              label={t("auth.email")}
+              type="email"
+              placeholder={t("auth.emailPlaceholder")}
+              icon={<Mail className="h-4 w-4" />}
+              value={email}
+              onChange={(e) => {
+                setEmail(e.target.value);
+                if (errors.email) setErrors((p) => ({ ...p, email: "" }));
+              }}
+              error={errors.email}
+              autoComplete="email"
+            />
+
+            {/* Password */}
+            <Input
+              label={t("auth.password")}
+              type={showPassword ? "text" : "password"}
+              placeholder={t("auth.passwordPlaceholder")}
+              icon={<Lock className="h-4 w-4" />}
+              value={password}
+              onChange={(e) => {
+                setPassword(e.target.value);
+                if (errors.password) setErrors((p) => ({ ...p, password: "" }));
+              }}
+              error={errors.password}
+              autoComplete={isLogin ? "current-password" : "new-password"}
+              rightElement={
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
+                >
+                  {showPassword
+                    ? <EyeOff className="h-4 w-4" />
+                    : <Eye    className="h-4 w-4" />
+                  }
+                </button>
+              }
+            />
+
+            {/* Indicador fortaleza password */}
+            {!isLogin && password.length > 0 && (
+              <div className="space-y-1.5">
+                <div className="flex gap-1">
+                  {[1, 2, 3, 4].map((level) => (
+                    <div
+                      key={level}
+                      className={`flex-1 h-1 rounded-full transition-colors ${
+                        password.length >= level * 2
+                          ? password.length >= 8
+                            ? "bg-emerald-500"
+                            : password.length >= 6
+                            ? "bg-amber-500"
+                            : "bg-red-500"
+                          : "bg-gray-200 dark:bg-white/10"
+                      }`}
+                    />
+                  ))}
+                </div>
+                <p className="text-[10px] text-gray-400">
+                  {password.length < 6
+                    ? t("auth.password.veryWeak")
+                    : password.length < 8
+                    ? t("auth.password.weak")
+                    : password.length < 12
+                    ? t("auth.password.good")
+                    : t("auth.password.strong")}
+                </p>
+              </div>
+            )}
+
+            {/* Forgot password */}
+            {isLogin && (
+              <div className="text-right">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setResetEmail(email);
+                    setShowReset(true);
+                    setGlobalError(null);
+                  }}
+                  className="text-xs text-brand-500 hover:text-brand-400 font-semibold"
+                >
+                  {t("auth.forgotPassword")}
+                </button>
+              </div>
+            )}
+
+            {/* Términos */}
+            {!isLogin && (
+              <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
+                {t("auth.terms.accept")}{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("terms")}
+                  className="text-brand-500 font-semibold"
+                >
+                  {t("auth.terms.tos")}
+                </button>{" "}
+                {t("auth.terms.and")}{" "}
+                <button
+                  type="button"
+                  onClick={() => navigate("terms")}
+                  className="text-brand-500 font-semibold"
+                >
+                  {t("auth.terms.privacy")}
+                </button>.
+              </p>
+            )}
+
+            {/* Botón principal */}
+            <Button
+              type="submit"
+              size="lg"
+              fullWidth
+              loading={loading}
+              className="shadow-lg shadow-brand-500/20"
+            >
+              {isLogin ? t("auth.login") : t("auth.createAccount")}
+            </Button>
+
+            {/* Separador */}
+            <div className="flex items-center gap-3">
+              <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
+              <span className="text-xs text-gray-400 font-medium">
+                {t("auth.orContinueWith")}
+              </span>
+              <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
             </div>
-          )}
 
-          {!isLogin && (
-            <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-              {t("auth.terms.accept")}{" "}
-              <button
-                type="button"
-                onClick={() => navigate("terms")}
-                className="text-brand-500 font-semibold"
+            {/* Google */}
+            <button
+              type="button"
+              onClick={handleGoogleLogin}
+              disabled={googleLoading}
+              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
+            >
+              {googleLoading ? (
+                <div className="h-5 w-5 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin" />
+              ) : (
+                <svg className="h-5 w-5" viewBox="0 0 24 24">
+                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
+                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
+                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
+                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
+                </svg>
+              )}
+              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
+                {googleLoading
+                  ? t("auth.connecting")
+                  : t("auth.continueGoogle")}
+              </span>
+            </button>
+          </form>
+
+          {/* Badges de confianza */}
+          <div className="flex items-center justify-center gap-4 mt-5">
+            {[
+              t("auth.trust.noVpn"),
+              t("auth.trust.ssl"),
+              t("auth.trust.noFees"),
+            ].map((badge) => (
+              <div
+                key={badge}
+                className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
               >
-                {t("auth.terms.tos")}
-              </button>{" "}
-              {t("auth.terms.and")}{" "}
-              <button
-                type="button"
-                onClick={() => navigate("terms")}
-                className="text-brand-500 font-semibold"
-              >
-                {t("auth.terms.privacy")}
-              </button>.
-            </p>
-          )}
-
-          <Button
-            type="submit"
-            size="lg"
-            fullWidth
-            loading={loading}
-            className="shadow-lg shadow-brand-500/20"
-          >
-            {isLogin ? t("auth.login") : t("auth.createAccount")}
-          </Button>
-
-          <div className="flex items-center gap-3">
-            <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-            <span className="text-xs text-gray-400 font-medium">{t("auth.orContinueWith")}</span>
-            <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
+                <Shield className="h-3 w-3 text-emerald-500" />
+                {badge}
+              </div>
+            ))}
           </div>
 
-          <button
-            type="button"
-            onClick={handleGoogleLogin}
-            disabled={googleLoading}
-            className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-          >
-            {googleLoading ? (
-              <div className="h-5 w-5 border-2 border-gray-300 border-t-brand-500 rounded-full animate-spin" />
-            ) : (
-              <svg className="h-5 w-5" viewBox="0 0 24 24">
-                <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-              </svg>
-            )}
-            <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-              {googleLoading ? t("auth.connecting") : t("auth.continueGoogle")}
-            </span>
-          </button>
-        </form>
-
-        <div className="flex items-center justify-center gap-4 mt-5">
-          {[
-            t("auth.trust.noVpn"),
-            t("auth.trust.ssl"),
-            t("auth.trust.noFees"),
-          ].map((badge) => (
-            <div
-              key={badge}
-              className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
+          {/* Switch login/registro */}
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
+            {isLogin ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
+            <button
+              onClick={handleSwitchView}
+              className="text-brand-500 hover:text-brand-400 font-bold"
             >
-              <Shield className="h-3 w-3 text-emerald-500" />
-              {badge}
-            </div>
-          ))}
+              {isLogin ? t("auth.registerFree") : t("auth.signIn")}
+            </button>
+          </p>
         </div>
-
-        <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
-          {isLogin ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
-          <button
-            onClick={handleSwitchView}
-            className="text-brand-500 hover:text-brand-400 font-bold"
-          >
-            {isLogin ? t("auth.registerFree") : t("auth.signIn")}
-          </button>
-        </p>
       </div>
 
-      {/* 🆕 Modal de activación biométrica */}
+      {/* ✅ Modal frase semilla */}
+      {showSeedModal && newSeedPhrase && (
+        <SeedPhraseModal
+          seedPhrase={newSeedPhrase}
+          address={newWalletAddress}
+          onConfirmed={handleSeedConfirmed}
+        />
+      )}
+
+      {/* Modal biométrico */}
       {showBiometricModal && (
         <BiometricActivationModal
           onClose={handleBiometricSkip}
           onActivated={handleBiometricActivated}
         />
       )}
-    </div>
+    </>
   );
 }
-  
