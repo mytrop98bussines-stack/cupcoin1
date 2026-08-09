@@ -3,6 +3,16 @@ import { createRoot } from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+// Al principio del archivo, antes de todo
+window.onerror = (msg, src, line, col, error) => {
+  console.error("🚨 Error global:", { msg, src, line, col, stack: error?.stack });
+  alert(`Error: ${msg}\n\nStack: ${error?.stack?.slice(0, 200)}`);
+};
+
+window.onunhandledrejection = (event) => {
+  console.error("🚨 Promise rechazada:", event.reason);
+  alert(`Promise Error: ${event.reason}`);
+};
 
 // 🛡️ CAPTURADOR GLOBAL DE ERRORES (Pinta el error en pantalla si React se rompe)
 window.addEventListener('error', function(e) {
