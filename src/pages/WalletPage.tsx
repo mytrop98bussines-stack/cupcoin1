@@ -66,41 +66,52 @@ export function WalletPage() {
   // =========================================================
   // CARGAR WALLET Y SALDOS
   // =========================================================
-  const loadWalletData = useCallback(async () => {
-    const address = getStoredWalletAddress();
-    if (!address) {
-      setLoadingBalances(false);
+  // ✅ Y en loadWalletData agregar guard
+const loadWalletData = useCallback(async () => {
+  const address = getStoredWalletAddress();
+  if (!address) {
+    setLoadingBalances(false);
+    return;
+  }
+
+  setWalletAddress(address);
+  setLoadingBalances(true);
+
+  try {
+    const [tokenBalances, tokenPrices] = await Promise.all([
+      getWalletBalances(address),
+      getTokenPrices(),
+    ]);
+
+    // ✅ Guards
+    if (!Array.isArray(tokenBalances)) {
+      setBalances([]);
       return;
     }
 
-    setWalletAddress(address);
-    setLoadingBalances(true);
+    const safePrices = tokenPrices || {};
 
-    try {
-      const [tokenBalances, tokenPrices] = await Promise.all([
-        getWalletBalances(address),
-        getTokenPrices(),
-      ]);
-
-      // Combinar saldos con precios
-      const enriched = tokenBalances.map((b) => {
-        const price = tokenPrices[b.symbol];
+    const enriched = tokenBalances
+      .filter((b) => b && b.symbol) // ✅ Filtrar items inválidos
+      .map((b) => {
+        const price = safePrices[b.symbol];
         return {
           ...b,
-          usdValue: price ? b.amount * price.usd : b.amount,
+          usdValue: price ? (b.amount || 0) * price.usd : 0,
         };
       });
 
-      setBalances(enriched);
-      setPrices(tokenPrices);
-      console.log("✅ [Wallet] Saldos cargados desde blockchain");
-    } catch (err) {
-      console.error("❌ [Wallet] Error cargando saldos:", err);
-    } finally {
-      setLoadingBalances(false);
-    }
-  }, []);
+    setBalances(enriched);
+    setPrices(safePrices);
 
+  } catch (err) {
+    console.error("❌ [Wallet] Error:", err);
+    setBalances([]); // ✅ Siempre dejar array vacío, nunca undefined
+  } finally {
+    setLoadingBalances(false);
+  }
+}, []);
+  
   // ─── Cargar al montar ─────────────────────────────────────
   useEffect(() => {
     loadWalletData();
