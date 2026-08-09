@@ -26,7 +26,13 @@ export type TradeStatus =
   | "disputed"
   | "cancelled";
 
-export type CryptoAsset = "BTC" | "ETH" | "USDT" | "USDC" | "XLM";
+// ✅ ACTUALIZADO: Agregado MATIC para Polygon
+export type CryptoAsset =
+  | "BTC"
+  | "ETH"
+  | "USDT"
+  | "USDC"
+  | "MATIC";
 
 export type ProductCategory =
   | "electronics"
@@ -40,6 +46,7 @@ export type ProductCategory =
 
 export type ThemeMode = "light" | "dark";
 
+// ✅ ACTUALIZADO: Eliminado "stellar", agregado "wallet-history"
 export type AppView =
   | "landing"
   | "login"
@@ -48,7 +55,7 @@ export type AppView =
   | "p2p"
   | "trade"
   | "wallet"
-  | "stellar"
+  | "wallet-history"
   | "marketplace"
   | "product-detail"
   | "create-product"
@@ -66,7 +73,9 @@ export type AppView =
   | "kyc"
   | "admin-kyc"
   | "admin-disputes"
-  | "membership";
+  | "membership"
+  | "public-profile"
+  | "sales-management";
 
 export type MembershipStatus =
   | "free_trial"
@@ -81,38 +90,44 @@ export type MembershipPaymentMethod =
   | "enzona"
   | "manual_admin";
 
-// ✅ Tipos de entrega
 export type DeliveryMethod = "pickup" | "delivery";
 
-// ✅ Tipos de pago del producto
 export type ProductPaymentTiming = "before" | "on_delivery" | "flexible";
 
-// ✅ Estado de orden de marketplace
 export type MarketplaceOrderStatus =
-  | "pending"        // orden creada, esperando coordinación
-  | "paid"           // comprador pagó
-  | "shipped"        // vendedor envió
-  | "delivered"      // producto entregado
-  | "completed"      // ambos confirman
-  | "cancelled"      // cancelada
-  | "disputed";      // en disputa
+  | "pending"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "completed"
+  | "cancelled"
+  | "disputed";
 
 // ─── Entidades ────────────────────────────────────────────
 
 export interface User {
-  uid:               string;
-  email:             string;
-  displayName:       string;
-  photoURL:          string | null;
-  kycStatus:         KYCStatus;
-  createdAt:         number;
-  totalTrades:       number;
-  rating:            number;
-  walletAddress:     string | null;
-  role?:             "user" | "admin";
-  fcmToken?:         string;
-  balances?:         Record<string, number>;
-  depositAddresses?: Record<string, string>;
+  uid:           string;
+  email:         string;
+  displayName:   string;
+  photoURL:      string | null;
+  kycStatus:     KYCStatus;
+  createdAt:     number;
+  totalTrades:   number;
+  rating:        number;
+
+  // ✅ ACTUALIZADO: Solo dirección pública
+  // La private key y mnemonic NUNCA van aquí
+  // Se guardan cifradas en localStorage del dispositivo
+  walletAddress:    string | null;
+  walletCreatedAt?: number;
+
+  role?:         "user" | "admin";
+  fcmToken?:     string;
+
+  // ✅ ELIMINADO: balances y depositAddresses custodios
+  // balances?:         Record<string, number>;
+  // depositAddresses?: Record<string, string>;
+
   membership?: {
     status:       MembershipStatus;
     startedAt:    number;
@@ -122,10 +137,16 @@ export interface User {
   };
 }
 
+// ✅ ACTUALIZADO: CryptoBalance ahora refleja
+// tokens reales de Polygon
 export interface CryptoBalance {
   asset:    CryptoAsset;
   amount:   number;
   usdValue: number;
+  // Información adicional de blockchain
+  contract?: string | null;
+  decimals?: number;
+  network?:  "polygon";
 }
 
 export interface CryptoPrice {
@@ -176,6 +197,8 @@ export interface Trade {
   currency:        string;
   paymentMethod:   PaymentMethod;
   status:          TradeStatus;
+
+  // ✅ ACTUALIZADO: Hashes apuntan a Polygon
   escrowTxHash:    string | null;
   releaseTxHash:   string | null;
   escrowAmount?:   number;
@@ -190,6 +213,9 @@ export interface Trade {
   createdAt:       number;
   updatedAt:       number;
   paymentDetails:  PaymentDetails | null;
+
+  // ✅ NUEVO: Red de la transacción
+  network?:        "polygon";
 }
 
 export interface ChatMessage {
@@ -202,7 +228,6 @@ export interface ChatMessage {
   type:       "text" | "system" | "image";
 }
 
-// ✅ Producto actualizado — no desaparece al venderse
 export interface Product {
   id:              string;
   sellerId:        string;
@@ -215,23 +240,20 @@ export interface Product {
   category:        ProductCategory;
   condition:       "new" | "used" | "refurbished";
   location:        string;
-  status:          "active" | "paused" | "cancelled";  // ✅ eliminado "sold"
+  status:          "active" | "paused" | "cancelled";
   createdAt:       number;
-  totalSold?:      number;                              // ✅ contador de ventas
+  totalSold?:      number;
 
-  // ✅ Opciones de entrega
   delivery: {
-    pickup:        boolean;     // recogida en persona
-    homeDelivery:  boolean;     // envío a domicilio
-    deliveryFee?:  number;      // costo de envío en USD
-    deliveryInfo?: string;      // zona de cobertura, tiempo estimado, etc
+    pickup:        boolean;
+    homeDelivery:  boolean;
+    deliveryFee?:  number;
+    deliveryInfo?: string;
   };
 
-  // ✅ Opciones de pago
-  paymentTiming: ProductPaymentTiming;  // antes, al recibir, o flexible
+  paymentTiming: ProductPaymentTiming;
 }
 
-// ✅ Orden de compra en el marketplace
 export interface MarketplaceOrder {
   id:             string;
   productId:      string;
@@ -243,27 +265,24 @@ export interface MarketplaceOrder {
   sellerId:       string;
   sellerName:     string;
   status:         MarketplaceOrderStatus;
-  chatRoomId:     string;     // ✅ ID del chat para navegar directo
+  chatRoomId:     string;
 
-  // ✅ Entrega
-  deliveryMethod:  DeliveryMethod;
+  deliveryMethod:   DeliveryMethod;
   deliveryAddress?: string;
-  deliveryFee?:    number;
+  deliveryFee?:     number;
 
-  // ✅ Pago
-  paymentTiming:   ProductPaymentTiming;
-  paidAt?:         number;
-  paidAmount?:     number;
+  paymentTiming: ProductPaymentTiming;
+  paidAt?:       number;
+  paidAmount?:   number;
 
-  // ✅ Seguimiento
-  shippedAt?:      number;
-  deliveredAt?:    number;
-  completedAt?:    number;
-  cancelledAt?:    number;
-  cancelledBy?:    string;
+  shippedAt?:    number;
+  deliveredAt?:  number;
+  completedAt?:  number;
+  cancelledAt?:  number;
+  cancelledBy?:  string;
 
-  createdAt:       number;
-  updatedAt:       number;
+  createdAt:     number;
+  updatedAt:     number;
 }
 
 export interface Notification {
@@ -271,7 +290,17 @@ export interface Notification {
   userId:    string;
   title:     string;
   body:      string;
-  type:      "trade" | "kyc" | "system" | "product" | "new_trade" | "payment_sent" | "trade_completed" | "membership" | "marketplace_order";
+  type:
+    | "trade"
+    | "kyc"
+    | "system"
+    | "product"
+    | "new_trade"
+    | "payment_sent"
+    | "trade_completed"
+    | "membership"
+    | "marketplace_order"
+    | "wallet";           // ✅ NUEVO: notificaciones de wallet
   read:      boolean;
   createdAt: number;
   data?:     Record<string, string>;
@@ -315,14 +344,18 @@ export interface Dispute {
   amount:      number;
   initiatedBy: string;
   reason?:     string;
-  status:      "open" | "reviewing" | "resolved_buyer" | "resolved_seller" | "cancelled";
+  status:
+    | "open"
+    | "reviewing"
+    | "resolved_buyer"
+    | "resolved_seller"
+    | "cancelled";
   resolution?: string;
   createdAt:   number;
   resolvedAt?: number;
   resolvedBy?: string;
 }
 
-// ✅ Chat de producto
 export interface ProductChat {
   id:             string;
   productId:      string;
@@ -334,4 +367,26 @@ export interface ProductChat {
   lastMessage?:   string;
   lastMessageAt?: number;
   createdAt:      number;
+}
+
+// ✅ NUEVO: Tipos para wallet no custodia
+export interface WalletTransaction {
+  hash:        string;
+  from:        string;
+  to:          string;
+  value:       string;
+  asset:       string;
+  timestamp:   number;
+  status:      "confirmed" | "pending" | "failed";
+  network:     "polygon";
+  explorerUrl: string;
+}
+
+// ✅ NUEVO: Tipo para el estado de la wallet en el store
+export interface WalletInfo {
+  address:      string;
+  balances:     CryptoBalance[];
+  totalUSD:     number;
+  lastUpdated:  number;
+  network:      "polygon";
 }
