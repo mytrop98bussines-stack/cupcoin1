@@ -12,16 +12,20 @@ import type {
   AppView,
 } from "@/types";
 import { setCache, getCache } from "@/lib/cache";
+import { getWalletBalances, getTokenPrices } from "@/lib/wallet/walletService";
+import { getStoredWalletAddress }             from "@/lib/wallet/walletStorage";
+import type { TokenBalance }                  from "@/lib/wallet/walletTypes";
 
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
-// ─── Helper para obtener el token ────────────────────────
-const getToken = (): string | null => localStorage.getItem("cubax_token");
+// ─── Helper token ─────────────────────────────────────────
+const getToken = (): string | null =>
+  localStorage.getItem("cubax_token");
 
 // ─── Headers autenticados ─────────────────────────────────
 const authHeaders = () => ({
   "Content-Type": "application/json",
-  Authorization: `Bearer ${getToken()}`,
+  Authorization:  `Bearer ${getToken()}`,
 });
 
 interface AppState {
@@ -30,14 +34,22 @@ interface AppState {
   previousView:             AppView | null;
   user:                     User | null;
   isAuthenticated:          boolean;
-  balances:                 CryptoBalance[];
+
+  // ✅ NUEVO: Wallet no custodia
+  walletAddress:            string | null;
+  walletBalances:           TokenBalance[];
+  walletLoading:            boolean;
+
+  // ✅ ELIMINADO: balances custodios (ya no se usan)
+  // balances:              CryptoBalance[];
+  // depositAddresses:      Record<string, string>;
+
   prices:                   CryptoPrice[];
   orders:                   P2POrder[];
   activeTrade:              Trade | null;
   tradeMessages:            ChatMessage[];
   products:                 Product[];
   notifications:            Notification[];
-  depositAddresses:         Record<string, string>;
   selectedTradeId:          string | null;
   selectedProductId:        string | null;
   selectedPublicUserId:     string | null;
@@ -58,33 +70,17 @@ interface AppState {
   navigateToProfile: (userId: string) => void;
 
   // ─── Usuario ─────────────────────────────────────────────
-  setUser: (user: User | null) => void;
-  login:   (user: User) => void;
-  logout:  () => void;
+  setUser:  (user: User | null) => void;
+  login:    (user: User) => void;
+  logout:   () => void;
 
-  // ─── Wallet ──────────────────────────────────────────────
-  setWalletData: (
-    firestoreBalances: Record<string, number>,
-    depositAddresses?: Record<string, string>
-  ) => void;
+  // ✅ NUEVO: Wallet no custodia
+  loadWalletBalances: () => Promise<void>;
+  setWalletAddress:   (address: string | null) => void;
 
   // ─── Precios ─────────────────────────────────────────────
   setPrices:   (prices: CryptoPrice[]) => void;
   fetchPrices: () => Promise<void>;
-
-  // ─── Depósitos y Retiros ─────────────────────────────────
-  fetchDepositAddress: (asset: string, chain: string) => Promise<void>;
-  requestDeposit: (asset: string) => Promise<{
-    success:  boolean;
-    address?: string;
-    message:  string;
-  }>;
-  requestWithdrawal: (
-    asset:     string,
-    amount:    number,
-    toAddress: string,
-    chain:     string
-  ) => Promise<{ success: boolean; txId?: string; message: string }>;
 
   // ─── Órdenes P2P ─────────────────────────────────────────
   setOrders:     (orders: P2POrder[]) => void;
@@ -148,19 +144,15 @@ const getInitialView = (): AppView => {
     const params = new URLSearchParams(window.location.search);
 
     const hasOAuthCallback =
-      params.has("token") ||
-      params.has("requires2FA") ||
+      params.has("token")        ||
+      params.has("requires2FA")  ||
       params.has("challengeToken") ||
       params.has("error");
 
-    if (hasOAuthCallback) {
-      return "login";
-    }
+    if (hasOAuthCallback) return "login";
 
     const token = localStorage.getItem("cubax_token");
-    if (token) {
-      return "dashboard";
-    }
+    if (token) return "dashboard";
 
     const stored = localStorage.getItem("cubax_last_view") as AppView | null;
 
@@ -175,40 +167,47 @@ const getInitialView = (): AppView => {
 
     if (stored && validViews.includes(stored)) return stored;
   }
-
   return "landing";
 };
 
+// =========================================================
+// STORE
+// =========================================================
 export const useAppStore = create<AppState>((set, get) => ({
   theme:                  getInitialTheme(),
   currentView:            getInitialView(),
   previousView:           null,
   user:                   null,
   isAuthenticated:        false,
-  balances:               [],
-  depositAddresses:       {},
-  modalOpen:              false,
-  selectedPublicUserId:   null,
-  selectedSalesProductId: null,
-  language:               (localStorage.getItem("cubax_language") as "es" | "en") || "es",
+
+  // ✅ Wallet no custodia
+  walletAddress:          getStoredWalletAddress(),
+  walletBalances:         [],
+  walletLoading:          false,
+
+  language: (localStorage.getItem("cubax_language") as "es" | "en") || "es",
 
   prices: [
-    { id: "1", symbol: "USDT", name: "Tether",   priceUSD: 1.00,     change24h: 0 },
-    { id: "2", symbol: "USDC", name: "USD Coin",  priceUSD: 1.00,     change24h: 0 },
-    { id: "3", symbol: "BTC",  name: "Bitcoin",   priceUSD: 67500.00, change24h: 0 },
-    { id: "4", symbol: "ETH",  name: "Ethereum",  priceUSD: 3500.00,  change24h: 0 },
+    { id: "1", symbol: "USDT",  name: "Tether",   priceUSD: 1.00,     change24h: 0 },
+    { id: "2", symbol: "USDC",  name: "USD Coin",  priceUSD: 1.00,     change24h: 0 },
+    { id: "3", symbol: "BTC",   name: "Bitcoin",   priceUSD: 67500.00, change24h: 0 },
+    { id: "4", symbol: "ETH",   name: "Ethereum",  priceUSD: 3500.00,  change24h: 0 },
+    { id: "5", symbol: "MATIC", name: "Polygon",   priceUSD: 0.70,     change24h: 0 },
   ],
 
-  orders:            [],
-  activeTrade:       null,
-  tradeMessages:     [],
-  products:          [],
-  notifications:     [],
-  selectedTradeId:   null,
-  selectedProductId: null,
-  isLoading:         false,
-  mobileMenuOpen:    false,
-  loadingPrices:     false,
+  orders:                  [],
+  activeTrade:             null,
+  tradeMessages:           [],
+  products:                [],
+  notifications:           [],
+  selectedTradeId:         null,
+  selectedProductId:       null,
+  selectedPublicUserId:    null,
+  selectedSalesProductId:  null,
+  isLoading:               false,
+  mobileMenuOpen:          false,
+  loadingPrices:           false,
+  modalOpen:               false,
 
   // =========================================================
   // TEMA
@@ -256,81 +255,107 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   login: (user) => {
     localStorage.setItem("cubax_last_view", "dashboard");
-    set({ user, isAuthenticated: true, currentView: "dashboard" });
+
+    // ✅ Cargar wallet address del localStorage
+    const walletAddress = getStoredWalletAddress();
+
+    set({
+      user,
+      isAuthenticated: true,
+      currentView:     "dashboard",
+      walletAddress,
+    });
+
+    // ✅ Cargar saldos de blockchain automáticamente
+    if (walletAddress) {
+      void get().loadWalletBalances();
+    }
   },
 
-  // 🆕 LOGOUT MODIFICADO — Preserva datos de biometría
   logout: () => {
-    // Guardar datos importantes ANTES de limpiar
     const savedUid         = localStorage.getItem("cubax_uid");
     const savedEmail       = localStorage.getItem("cubax_email");
     const biometricEnabled = localStorage.getItem("biometric_enabled");
 
-    // Limpiar tokens de sesión (esto SÍ se debe borrar)
     localStorage.removeItem("cubax_token");
     localStorage.removeItem("cubax_refresh_token");
     localStorage.removeItem("cubax_last_view");
     localStorage.removeItem("cubax_name");
 
-    // 🔐 Preservar UID y email SOLO si tiene biometría activada
     if (biometricEnabled === "1" && savedUid) {
-      // Mantener cubax_uid y cubax_email para que aparezca el botón biométrico
       if (savedEmail) localStorage.setItem("cubax_email", savedEmail);
-      localStorage.setItem("cubax_uid", savedUid);
+      localStorage.setItem("cubax_uid",        savedUid);
       localStorage.setItem("biometric_enabled", "1");
-      console.log("🔐 [Logout] Biometría preservada para próximo login");
     } else {
-      // Si NO tiene biometría, limpiar todo
       localStorage.removeItem("cubax_uid");
       localStorage.removeItem("cubax_email");
     }
 
+    // ✅ NOTA: NO borramos la wallet del localStorage
+    // La wallet cifrada permanece en el dispositivo
+    // El usuario la necesita para volver a entrar
+
     set({
-      user:             null,
-      isAuthenticated:  false,
-      currentView:      "landing",
-      balances:         [],
-      depositAddresses: {},
-      notifications:    [],
-      activeTrade:      null,
-      tradeMessages:    [],
-      products:         [],
-      modalOpen:        false,
+      user:            null,
+      isAuthenticated: false,
+      currentView:     "landing",
+      walletBalances:  [],
+      walletAddress:   null,
+      notifications:   [],
+      activeTrade:     null,
+      tradeMessages:   [],
+      products:        [],
+      modalOpen:       false,
     });
   },
 
   // =========================================================
-  // WALLET
+  // ✅ WALLET NO CUSTODIA
   // =========================================================
-  setWalletData: (firestoreBalances, depositAddresses = {}) => {
-    const currentPrices = get().prices;
-    const currentUser   = get().user;
+  setWalletAddress: (address) => set({ walletAddress: address }),
 
-    const updatedBalances: CryptoBalance[] = Object.entries(firestoreBalances).map(
-      ([asset, amount]) => {
-        const cryptoPriceInfo = currentPrices.find(
-          (p) => p.symbol.toUpperCase() === asset.toUpperCase()
-        );
-        const priceUSD = cryptoPriceInfo ? cryptoPriceInfo.priceUSD : 1.0;
+  loadWalletBalances: async () => {
+    const address = getStoredWalletAddress();
+    if (!address) return;
+
+    set({ walletLoading: true });
+
+    try {
+      const [tokenBalances, tokenPrices] = await Promise.all([
+        getWalletBalances(address),
+        getTokenPrices(),
+      ]);
+
+      // Enriquecer con precios
+      const enriched = tokenBalances.map((b) => {
+        const price = tokenPrices[b.symbol];
         return {
-          asset:    asset.toUpperCase() as any,
-          amount,
-          usdValue: amount * priceUSD,
+          ...b,
+          usdValue: price ? b.amount * price.usd : b.amount,
         };
-      }
-    );
+      });
 
-    set({
-      balances:         updatedBalances,
-      depositAddresses: { ...get().depositAddresses, ...depositAddresses },
-      user: currentUser
-        ? {
-            ...currentUser,
-            balances:         firestoreBalances,
-            depositAddresses: { ...currentUser.depositAddresses, ...depositAddresses },
-          }
-        : null,
-    });
+      // Actualizar también los precios globales del store
+      const updatedPrices: CryptoPrice[] = [
+        { id: "1", symbol: "USDT",  name: "Tether",   priceUSD: tokenPrices.USDT?.usd  || 1,       change24h: tokenPrices.USDT?.usd_24h_change  || 0 },
+        { id: "2", symbol: "USDC",  name: "USD Coin",  priceUSD: tokenPrices.USDC?.usd  || 1,       change24h: tokenPrices.USDC?.usd_24h_change  || 0 },
+        { id: "3", symbol: "BTC",   name: "Bitcoin",   priceUSD: tokenPrices.BTC?.usd   || 67500,   change24h: tokenPrices.BTC?.usd_24h_change   || 0 },
+        { id: "4", symbol: "ETH",   name: "Ethereum",  priceUSD: tokenPrices.ETH?.usd   || 3500,    change24h: tokenPrices.ETH?.usd_24h_change   || 0 },
+        { id: "5", symbol: "MATIC", name: "Polygon",   priceUSD: tokenPrices.MATIC?.usd || 0.7,     change24h: tokenPrices.MATIC?.usd_24h_change || 0 },
+      ];
+
+      set({
+        walletBalances: enriched,
+        walletAddress:  address,
+        prices:         updatedPrices,
+      });
+
+      console.log("✅ [Store] Wallet balances cargados desde blockchain");
+    } catch (err) {
+      console.error("❌ [Store] Error cargando wallet balances:", err);
+    } finally {
+      set({ walletLoading: false });
+    }
   },
 
   // =========================================================
@@ -343,18 +368,21 @@ export const useAppStore = create<AppState>((set, get) => ({
     try {
       const response = await fetch(
         "https://api.coingecko.com/api/v3/simple/price" +
-        "?ids=bitcoin,ethereum,tether,usd-coin" +
+        "?ids=bitcoin,ethereum,tether,usd-coin,matic-network" +
         "&vs_currencies=usd" +
         "&include_24hr_change=true"
       );
       if (!response.ok) throw new Error("Error CoinGecko");
       const data = await response.json();
+
       const prices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT", name: "Tether",   priceUSD: data.tether?.usd          ?? 1.00,  change24h: data.tether?.usd_24h_change          ?? 0 },
-        { id: "2", symbol: "USDC", name: "USD Coin", priceUSD: data["usd-coin"]?.usd      ?? 1.00,  change24h: data["usd-coin"]?.usd_24h_change      ?? 0 },
-        { id: "3", symbol: "BTC",  name: "Bitcoin",  priceUSD: data.bitcoin?.usd          ?? 67500, change24h: data.bitcoin?.usd_24h_change          ?? 0 },
-        { id: "4", symbol: "ETH",  name: "Ethereum", priceUSD: data.ethereum?.usd         ?? 3500,  change24h: data.ethereum?.usd_24h_change         ?? 0 },
+        { id: "1", symbol: "USDT",  name: "Tether",   priceUSD: data.tether?.usd               ?? 1,       change24h: data.tether?.usd_24h_change               ?? 0 },
+        { id: "2", symbol: "USDC",  name: "USD Coin",  priceUSD: data["usd-coin"]?.usd           ?? 1,       change24h: data["usd-coin"]?.usd_24h_change           ?? 0 },
+        { id: "3", symbol: "BTC",   name: "Bitcoin",   priceUSD: data.bitcoin?.usd               ?? 67500,   change24h: data.bitcoin?.usd_24h_change               ?? 0 },
+        { id: "4", symbol: "ETH",   name: "Ethereum",  priceUSD: data.ethereum?.usd              ?? 3500,    change24h: data.ethereum?.usd_24h_change              ?? 0 },
+        { id: "5", symbol: "MATIC", name: "Polygon",   priceUSD: data["matic-network"]?.usd      ?? 0.7,     change24h: data["matic-network"]?.usd_24h_change      ?? 0 },
       ];
+
       set({ prices, loadingPrices: false });
       console.log("✅ [Prices] Actualizados desde CoinGecko");
     } catch (error) {
@@ -363,87 +391,6 @@ export const useAppStore = create<AppState>((set, get) => ({
     }
   },
     // =========================================================
-  // DEPÓSITOS Y RETIROS
-  // =========================================================
-  fetchDepositAddress: async (asset, _chain) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") return;
-    const assetKey = asset.toUpperCase();
-    if (assetKey !== "USDT") return;
-    if (get().depositAddresses[assetKey]) return;
-    try {
-      const response = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ uid: currentUser.uid }),
-      });
-      const data = await response.json();
-      if (data?.success && data?.coin_address) {
-        set({ depositAddresses: { ...get().depositAddresses, [assetKey]: data.coin_address } });
-      }
-    } catch (error) {
-      console.error("❌ [fetchDepositAddress] Error:", error);
-    }
-  },
-
-  requestDeposit: async (asset) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") {
-      return { success: false, message: "No hay un usuario autenticado." };
-    }
-    const assetKey = asset.toUpperCase();
-    if (assetKey !== "USDT") {
-      return { success: false, message: "Solo USDT/TRC20 está disponible actualmente." };
-    }
-    const cached = get().depositAddresses[assetKey];
-    if (cached) return { success: true, address: cached, message: "Dirección desde cache." };
-    try {
-      const response = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ uid: currentUser.uid }),
-      });
-      const resData = await response.json();
-      if (resData?.success && resData?.coin_address) {
-        const updatedAddresses = { ...get().depositAddresses, [assetKey]: resData.coin_address };
-        set({
-          depositAddresses: updatedAddresses,
-          user: currentUser ? { ...currentUser, depositAddresses: updatedAddresses } : null,
-        });
-        return { success: true, address: resData.coin_address, message: "Dirección obtenida." };
-      }
-      return { success: false, message: resData?.error || "Error obteniendo dirección." };
-    } catch {
-      return { success: false, message: "Error de conexión con backend." };
-    }
-  },
-
-  requestWithdrawal: async (asset, amount, toAddress, _chain) => {
-    const currentUser = get().user;
-    if (!currentUser?.uid || currentUser.uid === "invitado") {
-      return { success: false, message: "Operación no válida." };
-    }
-    if (asset.toUpperCase() !== "USDT") {
-      return { success: false, message: "Solo retiros de USDT/TRC20 están disponibles actualmente." };
-    }
-    if (!toAddress.startsWith("T")) {
-      return { success: false, message: "La dirección debe ser TRC20 y empezar con T." };
-    }
-    try {
-      const response = await fetch(`${RENDER_API_URL}/tron/withdraw`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ uid: currentUser.uid, toAddress, amount }),
-      });
-      const data = await response.json();
-      if (data.success) return { success: true, txId: data.txHash, message: "Retiro procesado exitosamente." };
-      return { success: false, message: data.error || "Error procesando el retiro." };
-    } catch (error: any) {
-      return { success: false, message: error.message || "Error de conexión con backend." };
-    }
-  },
-
-  // =========================================================
   // ÓRDENES P2P
   // =========================================================
   setOrders: (orders) => set({ orders }),
@@ -535,7 +482,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   updateTradeStatus: async (tradeId, status) => {
     if (!tradeId) return;
     try {
-      const res = await fetch(`${RENDER_API_URL}/trades/${tradeId}/status`, {
+      const res  = await fetch(`${RENDER_API_URL}/trades/${tradeId}/status`, {
         method:  "POST",
         headers: authHeaders(),
         body:    JSON.stringify({ status }),
