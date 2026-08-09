@@ -1,23 +1,22 @@
-// ─── Tipos para el sistema de wallet no custodia ──────────
-
 export interface WalletData {
-  address:    string;   // Dirección pública (se guarda en Firebase)
-  privateKey: string;   // Clave privada (NUNCA sale del dispositivo)
-  mnemonic:   string;   // 12 palabras (el usuario las anota)
+  address:    string;
+  privateKey: string;
+  mnemonic:   string;
 }
 
 export interface StoredWallet {
-  address:          string;   // Pública - ok guardar
-  encryptedPrivKey: string;   // Cifrada con password del usuario
-  iv:               string;   // Vector de inicialización del cifrado
+  address:          string;
+  encryptedPrivKey: string;
+  iv:               string;
 }
 
 export interface TokenBalance {
   symbol:   string;
   name:     string;
   balance:  string;
+  amount:   number;
   usdValue: number;
-  contract: string | null;  // null = moneda nativa
+  contract: string | null;
   decimals: number;
   logoUrl:  string;
 }
@@ -25,20 +24,20 @@ export interface TokenBalance {
 export interface SendTokenParams {
   toAddress: string;
   amount:    string;
-  symbol:    "MATIC" | "USDT" | "USDC";
-  password:  string;   // Para descifrar la private key
+  symbol:    string;
+  password:  string;
 }
 
 export interface TransactionResult {
-  success:  boolean;
-  txHash?:  string;
+  success:   boolean;
+  txHash?:   string;
   explorer?: string;
-  error?:   string;
+  error?:    string;
 }
 
 export interface WalletState {
-  address:       string | null;
-  isUnlocked:    boolean;   // Si el usuario ingresó su password en esta sesión
-  balances:      TokenBalance[];
-  isLoadingBal:  boolean;
+  address:      string | null;
+  isUnlocked:   boolean;
+  balances:     TokenBalance[];
+  isLoadingBal: boolean;
 }
