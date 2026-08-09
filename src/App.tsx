@@ -1,10 +1,10 @@
 import { useEffect, useState, Component, ReactNode } from "react";
 import { useAppStore } from "@/store/useAppStore";
-import { Header }     from "@/components/layout/Header";
-import { BottomNav }  from "@/components/layout/BottomNav";
-import { WifiOff, AlertTriangle, RefreshCw }    from "lucide-react";
-import { requestNotificationPermission } from "@/lib/firebase/messaging";
-import { Logo }       from "@/components/Logo";
+import { Header }      from "@/components/layout/Header";
+import { BottomNav }   from "@/components/layout/BottomNav";
+import { WifiOff, AlertTriangle, RefreshCw } from "lucide-react";
+import { requestNotificationPermission }     from "@/lib/firebase/messaging";
+import { Logo }                from "@/components/Logo";
 import { BiometricLockScreen } from "@/components/BiometricLockScreen";
 
 // ─── Páginas públicas ─────────────────────────────────────
@@ -21,12 +21,10 @@ import { MarketplacePage }    from "@/pages/MarketplacePage";
 import { ProductDetailPage }  from "@/pages/ProductDetailPage";
 import { CreateProductPage }  from "@/pages/CreateProductPage";
 import { WalletPage }         from "@/pages/WalletPage";
-import { StellarWalletPage }  from "@/pages/StellarWalletPage";
 import { SettingsPage }       from "@/pages/SettingsPage";
 import { NotificationsPage }  from "@/pages/NotificationsPage";
 import { MembershipPage }     from "@/pages/MembershipPage";
 import { PublicProfilePage }  from "@/pages/PublicProfilePage";
-import { SwapPage }           from "@/pages/SwapPage";
 import { HistoryPage }        from "@/pages/HistoryPage";
 import { SalesManagementPage } from "@/pages/SalesManagementPage";
 import { AdminPromosPage }    from "@/pages/AdminPromosPage";
@@ -46,19 +44,25 @@ import { AdminKYCPage }      from "@/pages/AdminKYCPage";
 import { AdminUsersPage }    from "@/pages/AdminUsersPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
+// ✅ NUEVO: Wallet imports
+import { getStoredWalletAddress } from "@/lib/wallet/walletStorage";
+
 import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
 
 // =========================================================
-// ✅ ERROR BOUNDARY — Captura errores y evita pantalla blanca
+// ERROR BOUNDARY
 // =========================================================
 interface ErrorBoundaryState {
   hasError: boolean;
   error:    Error | null;
 }
 
-class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryState> {
+class ErrorBoundary extends Component<
+  { children: ReactNode },
+  ErrorBoundaryState
+> {
   constructor(props: { children: ReactNode }) {
     super(props);
     this.state = { hasError: false, error: null };
@@ -69,20 +73,21 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
     console.error("🚨 ErrorBoundary capturó un error:");
     console.error("Mensaje:", error.message);
     console.error("Stack:", error.stack);
     console.error("Componente:", errorInfo.componentStack);
-    console.error("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━");
   }
 
-  handleReload = () => {
-    window.location.reload();
-  };
+  handleReload = () => window.location.reload();
 
   handleClearAndReload = () => {
+    // ✅ IMPORTANTE: No borrar la wallet cifrada
+    const walletKey = localStorage.getItem("cubax_wallet_enc");
     localStorage.clear();
+    if (walletKey) {
+      localStorage.setItem("cubax_wallet_enc", walletKey);
+    }
     window.location.reload();
   };
 
@@ -100,7 +105,8 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
                 Algo salió mal
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
-                Ocurrió un error inesperado. Puedes recargar la página o limpiar los datos guardados.
+                Ocurrió un error inesperado. Puedes recargar
+                la página o limpiar los datos guardados.
               </p>
             </div>
 
@@ -146,38 +152,52 @@ class ErrorBoundary extends Component<{ children: ReactNode }, ErrorBoundaryStat
 // CONFIG DE VISTAS
 // =========================================================
 const VIEW_TITLES: Record<string, string> = {
-  dashboard: "", p2p: "", marketplace: "",
-  "create-order": "Nueva oferta P2P", trade: "Trade en curso",
-  kyc: "Verificación KYC", "product-detail": "Detalle del producto",
-  "sales-management": "Gestión de Ventas", "create-product": "Publicar producto",
-  wallet: "Mi Wallet", swap: "Swap Stellar", stellar: "Stellar Wallet",
-  settings: "Ajustes", notifications: "Notificaciones",
-  "wallet-history": "Historial de Wallet", "admin-kyc": "Panel KYC Admin",
-  "admin-users": "Gestión Usuarios", "admin-disputes": "Panel Disputas Admin",
-  "admin-promos": "Promociones", profile: "Mi Perfil", security: "Seguridad",
-  help: "Centro de ayuda", terms: "Términos y Privacidad", language: "Idioma",
-  "notification-settings": "Notificaciones", "trade-history": "Historial de Trades",
-  "my-orders": "Mis Anuncios P2P", membership: "Membresía CupCoin",
-  "public-profile": "Perfil",
+  dashboard:              "",
+  p2p:                    "",
+  marketplace:            "",
+  "create-order":         "Nueva oferta P2P",
+  trade:                  "Trade en curso",
+  kyc:                    "Verificación KYC",
+  "product-detail":       "Detalle del producto",
+  "sales-management":     "Gestión de Ventas",
+  "create-product":       "Publicar producto",
+  wallet:                 "Mi Wallet",
+  "wallet-history":       "Historial de Wallet",
+  settings:               "Ajustes",
+  notifications:          "Notificaciones",
+  "admin-kyc":            "Panel KYC Admin",
+  "admin-users":          "Gestión Usuarios",
+  "admin-disputes":       "Panel Disputas Admin",
+  "admin-promos":         "Promociones",
+  profile:                "Mi Perfil",
+  security:               "Seguridad",
+  help:                   "Centro de ayuda",
+  terms:                  "Términos y Privacidad",
+  language:               "Idioma",
+  "notification-settings": "Notificaciones",
+  "trade-history":        "Historial de Trades",
+  "my-orders":            "Mis Anuncios P2P",
+  membership:             "Membresía CupCoin",
+  "public-profile":       "Perfil",
 };
 
 const SHOW_BACK_VIEWS = [
   "create-order", "trade", "kyc", "product-detail",
-  "create-product", "sales-management", "notifications", "admin-kyc", "admin-users",
-  "admin-disputes", "admin-promos", "profile", "security", "help",
-  "terms", "wallet-history", "language", "notification-settings",
-  "trade-history", "my-orders", "membership",
-  "public-profile", "stellar", "swap",
+  "create-product", "sales-management", "notifications",
+  "admin-kyc", "admin-users", "admin-disputes", "admin-promos",
+  "profile", "security", "help", "terms", "wallet-history",
+  "language", "notification-settings", "trade-history",
+  "my-orders", "membership", "public-profile",
 ];
 
 const AUTHENTICATED_VIEWS = [
   "dashboard", "p2p", "marketplace", "create-order",
-  "trade", "kyc", "product-detail", "sales-management", "create-product",
-  "wallet", "stellar", "swap", "settings", "notifications",
-  "admin-kyc", "admin-users", "admin-promos", "admin-disputes", "profile", "security",
-  "help", "terms", "wallet-history", "language", "notification-settings",
-  "trade-history", "my-orders", "membership",
-  "public-profile",
+  "trade", "kyc", "product-detail", "sales-management",
+  "create-product", "wallet", "wallet-history", "settings",
+  "notifications", "admin-kyc", "admin-users", "admin-promos",
+  "admin-disputes", "profile", "security", "help", "terms",
+  "language", "notification-settings", "trade-history",
+  "my-orders", "membership", "public-profile",
 ];
 
 // =========================================================
@@ -185,12 +205,20 @@ const AUTHENTICATED_VIEWS = [
 // =========================================================
 function AppContent() {
   const {
-    currentView, user, navigate, modalOpen, setWalletData,
-    theme, fetchOrders, fetchProducts, subscribeToNotifications,
+    currentView,
+    user,
+    navigate,
+    modalOpen,
+    theme,
+    fetchOrders,
+    fetchProducts,
+    subscribeToNotifications,
+    loadWalletBalances,   // ✅ NUEVO
   } = useAppStore();
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
 
+  // ─── Offline detection ────────────────────────────────
   useEffect(() => {
     const goOffline = () => setIsOffline(true);
     const goOnline  = () => setIsOffline(false);
@@ -202,13 +230,16 @@ function AppContent() {
     };
   }, []);
 
+  // ─── Tema ─────────────────────────────────────────────
   useEffect(() => {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
+  // ─── Sincronizar usuario desde backend ────────────────
   useEffect(() => {
     if (!user?.uid) return;
     let stopped = false;
+
     const syncUser = async () => {
       if (stopped) return;
       try {
@@ -218,25 +249,34 @@ function AppContent() {
           body:    JSON.stringify({ uid: user.uid }),
         });
         const data = await res.json();
+
         if (data.success && data.userData && !stopped) {
           const fullUserData = data.userData as AppUser;
+
+          // ✅ ACTUALIZADO: Ya no sincronizamos balances custodios
+          // Solo actualizamos el perfil del usuario
           useAppStore.setState({ user: fullUserData });
-          const balances = (fullUserData as any).balances || { USDT: 0, BTC: 0, ETH: 0, USDC: 0 };
-          const depositAddresses = (fullUserData as any).depositAddresses || {};
-          setWalletData(balances, depositAddresses);
+
+          // ✅ Si el usuario ahora tiene walletAddress y no la teníamos
+          const storedAddress = getStoredWalletAddress();
+          if (fullUserData.walletAddress && storedAddress) {
+            void loadWalletBalances();
+          }
         }
       } catch (err) {
         console.warn("⚠️ Error sincronizando usuario:", err);
       }
     };
+
     void syncUser();
     const intervalId = window.setInterval(syncUser, 30000);
     return () => {
       stopped = true;
       window.clearInterval(intervalId);
     };
-  }, [user?.uid, setWalletData]);
+  }, [user?.uid, loadWalletBalances]);
 
+  // ─── Cargar datos iniciales ───────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
     void fetchOrders();
@@ -245,6 +285,28 @@ function AppContent() {
     return () => { unsubNotifs(); };
   }, [user?.uid, fetchOrders, fetchProducts, subscribeToNotifications]);
 
+  // ✅ NUEVO: Cargar saldos de blockchain al entrar
+  useEffect(() => {
+    if (!user?.uid) return;
+    const address = getStoredWalletAddress();
+    if (!address) return;
+    void loadWalletBalances();
+  }, [user?.uid, loadWalletBalances]);
+
+  // ✅ NUEVO: Refrescar saldos cada 2 minutos
+  useEffect(() => {
+    if (!user?.uid) return;
+    const address = getStoredWalletAddress();
+    if (!address) return;
+
+    const interval = window.setInterval(() => {
+      void loadWalletBalances();
+    }, 2 * 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, [user?.uid, loadWalletBalances]);
+
+  // ─── Notificaciones push ──────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
     if (typeof Notification === "undefined") return;
@@ -253,6 +315,7 @@ function AppContent() {
     }
   }, [user?.uid]);
 
+  // ─── Proteger vistas admin ────────────────────────────
   useEffect(() => {
     if (
       (currentView === "admin-kyc" || currentView === "admin-disputes") &&
@@ -262,6 +325,7 @@ function AppContent() {
     }
   }, [currentView, user, navigate]);
 
+  // ─── Proteger vistas autenticadas ─────────────────────
   if (AUTHENTICATED_VIEWS.includes(currentView) && !user) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
@@ -281,48 +345,64 @@ function AppContent() {
 
   return (
     <div className="flex flex-col h-screen overflow-hidden bg-gray-50 dark:bg-black">
+
+      {/* Banner offline */}
       {isOffline && (
         <div className="w-full bg-amber-500 text-white text-xs font-bold text-center py-2 px-4 flex items-center justify-center gap-2">
           <WifiOff className="h-3.5 w-3.5 flex-shrink-0" />
           Sin conexión — mostrando datos guardados
         </div>
       )}
-      <Header title={VIEW_TITLES[currentView] || ""} showBack={SHOW_BACK_VIEWS.includes(currentView)} />
-      <main className="flex-1 min-h-0 overflow-y-auto pb-16" style={{
-        WebkitOverflowScrolling: "touch",
-        overscrollBehaviorY: "auto",
-        overscrollBehaviorX: "none",
-      }}>
-        {currentView === "dashboard"       && <DashboardPage />}
-        {currentView === "p2p"             && <P2PPage />}
-        {currentView === "create-order"    && <CreateOrderPage />}
-        {currentView === "trade"           && <TradePage />}
-        {currentView === "kyc"             && <KYCPage />}
-        {currentView === "marketplace"     && <MarketplacePage />}
-        {currentView === "product-detail"  && <ProductDetailPage />}
-        {currentView === "create-product"  && <CreateProductPage />}
-        {currentView === "wallet"          && <WalletPage />}
-        {currentView === "stellar"         && <StellarWalletPage />}
-        {currentView === "swap"            && <SwapPage />}
-        {currentView === "settings"        && <SettingsPage />}
-        {currentView === "notifications"   && <NotificationsPage />}
-        {currentView === "membership"      && <MembershipPage />}
-        {currentView === "profile"         && <ProfilePage />}
-        {currentView === "security"        && <SecurityPage />}
-        {currentView === "help"            && <HelpPage />}
-        {currentView === "terms"           && <TermsPage />}
-        {currentView === "language"        && <LanguagePage />}
+
+      <Header
+        title={VIEW_TITLES[currentView] || ""}
+        showBack={SHOW_BACK_VIEWS.includes(currentView)}
+      />
+
+      <main
+        className="flex-1 min-h-0 overflow-y-auto pb-16"
+        style={{
+          WebkitOverflowScrolling: "touch",
+          overscrollBehaviorY:     "auto",
+          overscrollBehaviorX:     "none",
+        }}
+      >
+        {/* ─── Vistas principales ─────────────────────── */}
+        {currentView === "dashboard"        && <DashboardPage />}
+        {currentView === "p2p"              && <P2PPage />}
+        {currentView === "create-order"     && <CreateOrderPage />}
+        {currentView === "trade"            && <TradePage />}
+        {currentView === "kyc"              && <KYCPage />}
+        {currentView === "marketplace"      && <MarketplacePage />}
+        {currentView === "product-detail"   && <ProductDetailPage />}
+        {currentView === "create-product"   && <CreateProductPage />}
+
+        {/* ✅ ACTUALIZADO: WalletPage ahora es no custodia */}
+        {currentView === "wallet"           && <WalletPage />}
+        {currentView === "wallet-history"   && <HistoryPage />}
+
+        {/* ─── Settings ───────────────────────────────── */}
+        {currentView === "settings"         && <SettingsPage />}
+        {currentView === "notifications"    && <NotificationsPage />}
+        {currentView === "membership"       && <MembershipPage />}
+        {currentView === "profile"          && <ProfilePage />}
+        {currentView === "security"         && <SecurityPage />}
+        {currentView === "help"             && <HelpPage />}
+        {currentView === "terms"            && <TermsPage />}
+        {currentView === "language"         && <LanguagePage />}
         {currentView === "notification-settings" && <NotificationSettingsPage />}
-        {currentView === "trade-history"   && <TradeHistoryPage />}
+        {currentView === "trade-history"    && <TradeHistoryPage />}
+        {currentView === "my-orders"        && <MyOrdersPage />}
         {currentView === "sales-management" && <SalesManagementPage />}
-        {currentView === "wallet-history"  && <HistoryPage />}
-        {currentView === "my-orders"       && <MyOrdersPage />}
-        {currentView === "public-profile"  && <PublicProfilePage />}
+        {currentView === "public-profile"   && <PublicProfilePage />}
+
+        {/* ─── Admin ──────────────────────────────────── */}
         {currentView === "admin-kyc"       && user?.role === "admin" && <AdminKYCPage />}
         {currentView === "admin-users"     && user?.role === "admin" && <AdminUsersPage />}
         {currentView === "admin-disputes"  && user?.role === "admin" && <AdminDisputesPage />}
         {currentView === "admin-promos"    && user?.role === "admin" && <AdminPromosPage />}
       </main>
+
       {showBottomNav && !modalOpen && <BottomNav />}
     </div>
   );
@@ -332,9 +412,9 @@ function AppContent() {
 // APP ROOT
 // =========================================================
 function AppRoot() {
-  const [isInitializing, setIsInitializing] = useState(true);
+  const [isInitializing, setIsInitializing]     = useState(true);
   const [showBiometricLock, setShowBiometricLock] = useState(false);
-  const { navigate } = useAppStore();
+  const { navigate, loadWalletBalances } = useAppStore();
 
   useEffect(() => {
     try {
@@ -355,13 +435,12 @@ function AppRoot() {
       const savedUid         = localStorage.getItem("cubax_uid");
       const biometricEnabled = localStorage.getItem("biometric_enabled");
 
-      // ✅ CASO 1: Tiene biometría activa — verificar soporte antes
+      // ─── CASO 1: Biometría activa ────────────────────
       if (biometricEnabled === "1" && savedUid) {
-        // Verificar que el navegador realmente soporte biometría
         const supportsBiometric =
-          typeof window !== "undefined" &&
-          !!window.PublicKeyCredential &&
-          !!navigator.credentials &&
+          typeof window !== "undefined"                          &&
+          !!window.PublicKeyCredential                           &&
+          !!navigator.credentials                               &&
           typeof navigator.credentials.create === "function";
 
         if (supportsBiometric) {
@@ -369,13 +448,12 @@ function AppRoot() {
           setIsInitializing(false);
           return;
         } else {
-          // ⚠️ Biometría activa pero navegador no la soporta → quitar flag
-          console.warn("⚠️ Biometría activa pero navegador no soportado. Removiendo flag.");
+          console.warn("⚠️ Biometría no soportada. Removiendo flag.");
           localStorage.removeItem("biometric_enabled");
         }
       }
 
-      // CASO 2: Tiene token pero no biometría → auto-login
+      // ─── CASO 2: Token guardado → auto-login ─────────
       if (savedToken && savedUid) {
         fetch(`${BACKEND_URL}/api/auth/me`, {
           method:  "POST",
@@ -386,14 +464,31 @@ function AppRoot() {
           .then((data) => {
             if (data.success && data.userData) {
               const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
-              const safeView = AUTHENTICATED_VIEWS.includes(lastView) ? lastView : "dashboard";
+              const safeView = AUTHENTICATED_VIEWS.includes(lastView)
+                ? lastView
+                : "dashboard";
+
+              // ✅ Cargar wallet address del localStorage
+              const walletAddress = getStoredWalletAddress();
+
               useAppStore.setState({
-                user: data.userData as AppUser,
+                user:            data.userData as AppUser,
                 isAuthenticated: true,
-                currentView: safeView as any,
+                currentView:     safeView as any,
+                walletAddress,
               });
+
+              // ✅ Cargar saldos de blockchain si tiene wallet
+              if (walletAddress) {
+                void loadWalletBalances();
+              }
             } else {
+              // ✅ IMPORTANTE: No borrar wallet al limpiar sesión
+              const walletData = localStorage.getItem("cubax_wallet_enc");
               localStorage.clear();
+              if (walletData) {
+                localStorage.setItem("cubax_wallet_enc", walletData);
+              }
               navigate("landing");
             }
           })
@@ -408,9 +503,9 @@ function AppRoot() {
       navigate("landing");
       setIsInitializing(false);
     }
-  }, [navigate]);
+  }, [navigate, loadWalletBalances]);
 
-  // Handler cuando desbloquea con biometría
+  // ─── Biometric unlock ─────────────────────────────────
   const handleBiometricUnlock = (data: any) => {
     try {
       localStorage.setItem("cubax_token",         data.token);
@@ -420,11 +515,20 @@ function AppRoot() {
       localStorage.setItem("cubax_name",          data.displayName || "");
       localStorage.setItem("cubax_last_login",    Date.now().toString());
 
+      // ✅ Cargar wallet al desbloquear con biometría
+      const walletAddress = getStoredWalletAddress();
+
       useAppStore.setState({
-        user: data.userData as AppUser,
+        user:            data.userData as AppUser,
         isAuthenticated: true,
-        currentView: "dashboard",
+        currentView:     "dashboard",
+        walletAddress,
       });
+
+      // ✅ Cargar saldos de blockchain
+      if (walletAddress) {
+        void loadWalletBalances();
+      }
 
       setShowBiometricLock(false);
     } catch (err) {
@@ -434,19 +538,18 @@ function AppRoot() {
     }
   };
 
-  // Handler cuando cancela / usa otra cuenta
   const handleBiometricCancel = () => {
     setShowBiometricLock(false);
     navigate("landing");
   };
 
-  // Refresh token cada 50 min
+  // ─── Refresh token cada 50 min ────────────────────────
   useEffect(() => {
     const interval = window.setInterval(async () => {
       const refreshToken = localStorage.getItem("cubax_refresh_token");
       if (!refreshToken) return;
       try {
-        const res = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+        const res  = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
           method:  "POST",
           headers: { "Content-Type": "application/json" },
           body:    JSON.stringify({ refreshToken }),
@@ -461,9 +564,11 @@ function AppRoot() {
         }
       } catch {}
     }, 50 * 60 * 1000);
+
     return () => window.clearInterval(interval);
   }, [navigate]);
 
+  // ─── Guardar vista actual ─────────────────────────────
   const { currentView } = useAppStore();
 
   useEffect(() => {
@@ -472,6 +577,7 @@ function AppRoot() {
     }
   }, [currentView]);
 
+  // ─── Loading screen ───────────────────────────────────
   if (isInitializing) {
     return (
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
@@ -482,7 +588,6 @@ function AppRoot() {
     );
   }
 
-  // ✅ Mostrar pantalla biométrica con protección extra
   if (showBiometricLock) {
     return (
       <BiometricLockScreen
@@ -496,7 +601,7 @@ function AppRoot() {
 }
 
 // =========================================================
-// ✅ EXPORT PRINCIPAL — Con ErrorBoundary
+// EXPORT PRINCIPAL
 // =========================================================
 export default function App() {
   return (
