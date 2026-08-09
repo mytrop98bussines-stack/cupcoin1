@@ -134,16 +134,23 @@ export async function restoreWalletFromMnemonic(
 export async function getWalletBalances(
   address: string
 ): Promise<TokenBalance[]> {
+  // ✅ Validar dirección antes de hacer cualquier llamada
+  if (!address || !address.startsWith("0x") || address.length !== 42) {
+    console.error("❌ [Wallet] Dirección inválida:", address);
+    return [];
+  }
+
   const provider = getProvider();
   const balances: TokenBalance[] = [];
 
   for (const [symbol, token] of Object.entries(TOKENS)) {
     try {
-      let rawBalance: bigint;
+      let rawBalance: bigint = 0n; // ✅ Valor por defecto
 
       if (!token.contract) {
-        // Token nativo (MATIC)
-        rawBalance = await provider.getBalance(address);
+        // Token nativo MATIC
+        const result = await provider.getBalance(address);
+        rawBalance = result ?? 0n; // ✅ Fallback si es undefined
       } else {
         // Token ERC20
         const contract = new ethers.Contract(
@@ -151,43 +158,50 @@ export async function getWalletBalances(
           ERC20_ABI,
           provider
         );
-        rawBalance = await contract.balanceOf(address);
+        const result = await contract.balanceOf(address);
+        rawBalance = result ?? 0n; // ✅ Fallback si es undefined
       }
 
-      const formatted = ethers.formatUnits(rawBalance, token.decimals);
-      const amount = parseFloat(formatted);
+      // ✅ Verificar que rawBalance sea válido antes de formatear
+      const safeBalance = typeof rawBalance === "bigint"
+        ? rawBalance
+        : BigInt(rawBalance ?? 0);
+
+      const formatted = ethers.formatUnits(safeBalance, token.decimals);
+      const amount    = parseFloat(formatted) || 0; // ✅ Fallback a 0
 
       balances.push({
         symbol,
-        name: token.name,
-        balance: formatted,
+        name:     token.name,
+        balance:  formatted,
         amount,
-        usdValue: 0, // Se actualiza con precios
-        contract: token.contract,
-        decimals: token.decimals,
-        logoUrl: token.logoUrl,
-      });
-    } catch (err) {
-      console.error(`❌ Error obteniendo ${symbol}:`, err);
-
-      // Si falla, rotar RPC e insertar balance 0
-      rotateProvider();
-      balances.push({
-        symbol,
-        name: token.name,
-        balance: "0",
-        amount: 0,
         usdValue: 0,
         contract: token.contract,
         decimals: token.decimals,
-        logoUrl: token.logoUrl,
+        logoUrl:  token.logoUrl,
+      });
+
+    } catch (err) {
+      console.error(`❌ Error obteniendo ${symbol}:`, err);
+      rotateProvider();
+
+      // ✅ Siempre agregar el token con balance 0
+      // para que el array nunca esté incompleto
+      balances.push({
+        symbol,
+        name:     token.name,
+        balance:  "0",
+        amount:   0,
+        usdValue: 0,
+        contract: token.contract,
+        decimals: token.decimals,
+        logoUrl:  token.logoUrl,
       });
     }
   }
 
   return balances;
 }
-
 // ─── OBTENER PRECIOS ───────────────────────────────────────
 export async function getTokenPrices(): Promise<
   Record<string, { usd: number; usd_24h_change: number }>
