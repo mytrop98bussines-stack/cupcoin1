@@ -106,65 +106,115 @@ export function AuthPage() {
   // HELPER: Completar login + generar wallet si no tiene
   // =========================================================
   const finishLogin = useCallback(async (data: any, pwd?: string) => {
-    localStorage.setItem("cubax_token",         data.token);
-    localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
-    localStorage.setItem("cubax_uid",           data.uid);
-    localStorage.setItem("cubax_email",         data.email || "");
-    localStorage.setItem("cubax_name",          data.displayName || "");
-    localStorage.setItem("cubax_last_login",    Date.now().toString());
+  localStorage.setItem("cubax_token",         data.token);
+  localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
+  localStorage.setItem("cubax_uid",           data.uid);
+  localStorage.setItem("cubax_email",         data.email || "");
+  localStorage.setItem("cubax_name",          data.displayName || "");
+  localStorage.setItem("cubax_last_login",    Date.now().toString());
 
-    const u = data.userData || {};
+  const u = data.userData || {};
 
-    const appUser: AppUser = {
-      uid:           data.uid,
-      email:         data.email,
-      displayName:   data.displayName,
-      photoURL:      data.photoURL   || null,
-      kycStatus:     u.kycStatus     || "unverified",
-      createdAt:     u.createdAt     || Date.now(),
-      totalTrades:   u.totalTrades   || 0,
-      rating:        u.rating        || 5.0,
-      walletAddress: u.walletAddress || null,
-      role:          u.role          || "user",
-      emailVerified: u.emailVerified || false,
-    } as any;
+  const appUser: AppUser = {
+    uid:           data.uid,
+    email:         data.email,
+    displayName:   data.displayName,
+    photoURL:      data.photoURL   || null,
+    kycStatus:     u.kycStatus     || "unverified",
+    createdAt:     u.createdAt     || Date.now(),
+    totalTrades:   u.totalTrades   || 0,
+    rating:        u.rating        || 5.0,
+    walletAddress: u.walletAddress || null,
+    role:          u.role          || "user",
+    emailVerified: u.emailVerified || false,
+  } as any;
 
-    // ✅ Generar wallet solo si no tiene una
-    if (!u.walletAddress && !hasStoredWallet()) {
-      try {
-        console.log("🔑 [Wallet] Generando wallet para:", data.uid);
+  const walletPassword = pwd || password || data.uid;
 
-        // Password del formulario o uid como fallback para Google
-        const walletPassword = pwd || password || data.uid;
-        const walletData     = await createNewWallet(walletPassword);
+  // ─── CASO 1: No tiene wallet en ningún lado ────────────
+  // Usuario completamente nuevo
+  if (!u.walletAddress && !hasStoredWallet()) {
+    try {
+      console.log("🔑 [Wallet] Generando wallet NUEVA para:", data.uid);
+      const walletData = await createNewWallet(walletPassword);
 
-        // Enviar SOLO la dirección pública al backend
-        const saved = await saveWalletToBackend(
-          data.uid,
-          data.token,
-          walletData.address
-        );
+      const saved = await saveWalletToBackend(
+        data.uid,
+        data.token,
+        walletData.address
+      );
 
-        if (saved) {
-          appUser.walletAddress = walletData.address;
-
-          // Mostrar modal frase semilla
-          setNewSeedPhrase(walletData.mnemonic);
-          setNewWalletAddress(walletData.address);
-          setPendingLoginData({ appUser, data });
-          setShowSeedModal(true);
-          return; // Esperar confirmación del usuario
-        }
-
-      } catch (err) {
-        console.error("❌ [Wallet] Error generando wallet:", err);
-        // Si falla igual dejamos entrar
+      if (saved) {
+        appUser.walletAddress = walletData.address;
+        setNewSeedPhrase(walletData.mnemonic);
+        setNewWalletAddress(walletData.address);
+        setPendingLoginData({ appUser, data });
+        setShowSeedModal(true);
+        return;
       }
+    } catch (err) {
+      console.error("❌ [Wallet] Error generando wallet:", err);
     }
+  }
 
-    proceedAfterWallet(appUser, data);
-  }, [password, proceedAfterWallet]);
+  // ─── CASO 2: Tiene wallet en Firestore pero NO en localStorage ──
+  // Usuario que cambió de dispositivo o limpió caché
+  if (u.walletAddress && !hasStoredWallet()) {
+    console.warn("⚠️ [Wallet] Wallet en Firestore pero no en dispositivo");
+    console.warn("⚠️ Dirección en Firestore:", u.walletAddress);
 
+    // Mostrar pantalla de recuperación con frase semilla
+    setNewWalletAddress(u.walletAddress);
+    setPendingLoginData({ appUser, data });
+    setShowRecoveryModal(true); // ← Modal nuevo
+    return;
+  }
+
+  // ─── CASO 3: Tiene wallet en localStorage ─────────────
+  // Todo normal, verificar que coincide con Firestore
+  if (hasStoredWallet()) {
+    const storedAddress = getStoredWalletAddress();
+    if (u.walletAddress && storedAddress !== u.walletAddress) {
+      console.error("❌ [Wallet] MISMATCH: localStorage vs Firestore");
+      console.error("localStorage:", storedAddress);
+      console.error("Firestore:", u.walletAddress);
+      // La de Firestore es la oficial
+      appUser.walletAddress = u.walletAddress;
+    }
+  }
+
+  proceedAfterWallet(appUser, data);
+}, [password, proceedAfterWallet]);
+  
+  // ─── Agregar estos estados ────────────────────────────────
+const [showRecoveryModal, setShowRecoveryModal] = useState(false);
+
+// ─── Handler cuando recupera la wallet ───────────────────
+const handleWalletRecovered = useCallback(() => {
+  setShowRecoveryModal(false);
+
+  if (!pendingLoginData) return;
+  const { appUser, data } = pendingLoginData;
+
+  // Actualizar con la dirección correcta del localStorage
+  const recoveredAddress = getStoredWalletAddress();
+  if (recoveredAddress) {
+    appUser.walletAddress = recoveredAddress;
+  }
+
+  setPendingLoginData(null);
+  proceedAfterWallet(appUser, data);
+}, [pendingLoginData, proceedAfterWallet]);
+
+// ─── Handler si salta la recuperación ────────────────────
+const handleRecoverySkip = useCallback(() => {
+  setShowRecoveryModal(false);
+
+  if (!pendingLoginData) return;
+  const { appUser, data } = pendingLoginData;
+  setPendingLoginData(null);
+  proceedAfterWallet(appUser, data);
+}, [pendingLoginData, proceedAfterWallet]);
   // =========================================================
   // HANDLER: Usuario confirma frase semilla
   // =========================================================
@@ -939,6 +989,15 @@ export function AuthPage() {
           onConfirmed={handleSeedConfirmed}
         />
       )}
+      
+      {/* Modal recuperación de wallet */}
+{showRecoveryModal && newWalletAddress && (
+  <WalletRecoveryModal
+    expectedAddress={newWalletAddress}
+    onRecovered={handleWalletRecovered}
+    onSkip={handleRecoverySkip}
+  />
+)}
 
       {/* Modal biométrico */}
       {showBiometricModal && (
