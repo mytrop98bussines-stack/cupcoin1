@@ -673,3 +673,128 @@ export function WalletPage() {
                       const isExpanded  = expandedKey === expandKey;
 
                       return (
+                        <div
+                          key={expandKey}
+                          className={`rounded-2xl border transition-all ${
+                            isExpanded
+                              ? `${netColors.border} bg-gradient-to-r ${netColors.gradient}`
+                              : "border-gray-100 dark:border-white/[0.05] bg-white dark:bg-white/[0.02]"
+                          }`}
+                        >
+                          <button
+                            onClick={() =>
+                              setExpandedKey(isExpanded ? null : expandKey)
+                            }
+                            className="w-full flex items-center justify-between p-4"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className={`h-10 w-10 rounded-xl ${tokenColors.bg} flex items-center justify-center overflow-hidden`}>
+                                <img
+                                  src={getAssetIcon(balance.symbol)}
+                                  alt={balance.symbol}
+                                  className="h-6 w-6 object-contain"
+                                  onError={(e) => {
+                                    e.currentTarget.src = "/crypto/usd.svg";
+                                  }}
+                                />
+                              </div>
+                              <div className="text-left">
+                                <div className="flex items-center gap-1.5">
+                                  <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                    {balance.symbol}
+                                  </p>
+                                  <span className={`text-[9px] px-1.5 py-0.5 rounded-full font-semibold ${netColors.bg} ${netColors.text}`}>
+                                    {netInfo.shortName}
+                                  </span>
+                                </div>
+                                <p className="text-[11px] text-gray-400">
+                                  {hideBalances
+                                    ? "••••"
+                                    : `${(balance.amount || 0).toFixed(
+                                        balance.symbol === "BTC" || balance.symbol === "WBTC" ? 6 :
+                                        ["ETH", "MATIC", "BNB", "TRX"].includes(balance.symbol) ? 4 : 2
+                                      )} ${balance.symbol}`
+                                  }
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                              <div className="text-right">
+                                <p className="text-sm font-bold text-gray-900 dark:text-white">
+                                  {hideBalances
+                                    ? "••••"
+                                    : `$${(balance.usdValue || 0).toLocaleString("en-US", {
+                                        minimumFractionDigits: 2,
+                                        maximumFractionDigits: 2,
+                                      })}`
+                                  }
+                                </p>
+                                <div className={`flex items-center justify-end gap-0.5 text-[10px] font-semibold ${
+                                  isUp ? "text-emerald-500" : "text-red-500"
+                                }`}>
+                                  {isUp
+                                    ? <TrendingUp   className="h-2.5 w-2.5" />
+                                    : <TrendingDown className="h-2.5 w-2.5" />
+                                  }
+                                  {Math.abs(change24h).toFixed(2)}%
+                                </div>
+                              </div>
+                              {isExpanded
+                                ? <ChevronUp   className="h-4 w-4 text-gray-400" />
+                                : <ChevronDown className="h-4 w-4 text-gray-400" />
+                              }
+                            </div>
+                          </button>
+
+                          {isExpanded && (
+                            <div className="px-4 pb-4 pt-0 flex gap-2 animate-fade-in">
+                              <button
+                                onClick={() => handleOpenDeposit(
+                                  balance.symbol,
+                                  balance.networkId as NetworkId
+                                )}
+                                className={`flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold ${tokenColors.bg} ${tokenColors.text}`}
+                              >
+                                <ArrowDownLeft className="h-3.5 w-3.5" />
+                                Depositar
+                              </button>
+                              <button
+                                onClick={() => handleOpenWithdraw(
+                                  balance.symbol,
+                                  balance.networkId as NetworkId
+                                )}
+                                className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl text-[11px] font-bold bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300"
+                              >
+                                <ArrowUpRight className="h-3.5 w-3.5" />
+                                Retirar
+                              </button>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                );
+              })
+            }
+          </div>
+        )}
+      </div>
+
+      {/* ─── INFO BANNER ────────────────────────────────── */}
+      <div className="flex items-start gap-3 bg-gray-50 dark:bg-white/[0.03] border border-gray-100 dark:border-white/[0.06] rounded-2xl p-4">
+        <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center flex-shrink-0">
+          <Info className="h-4 w-4 text-brand-500" />
+        </div>
+        <div>
+          <p className="text-[11px] font-bold text-gray-900 dark:text-white mb-0.5">
+            Wallet No Custodia · Multi-red
+          </p>
+          <p className="text-[10px] text-gray-400 leading-relaxed">
+            Polygon · Ethereum · BSC · Tron · Bitcoin.
+            Solo tú controlas tus fondos. Las llaves privadas
+            están cifradas en tu dispositivo.
+          </p>
+        </div>
+      </div>
