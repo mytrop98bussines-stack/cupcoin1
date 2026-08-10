@@ -1,62 +1,39 @@
-import path           from "path";
+import path from "path";
 import { fileURLToPath } from "url";
-import tailwindcss    from "@tailwindcss/vite";
-import react          from "@vitejs/plugin-react";
+import tailwindcss from "@tailwindcss/vite";
+import react from "@vitejs/plugin-react";
 import { defineConfig } from "vite";
+import wasm from "vite-plugin-wasm";
 
 const __filename = fileURLToPath(import.meta.url);
-const __dirname  = path.dirname(__filename);
+const __dirname = path.dirname(__filename);
 
 export default defineConfig({
-  base:    "/",
-  plugins: [react(), tailwindcss()],
+  base: "/",
+  plugins: [wasm(), react(), tailwindcss()],
 
   resolve: {
     alias: {
-      "@":     path.resolve(__dirname, "src"),
-      // ✅ Polyfills para bitcoinjs-lib y tronweb
-      buffer:  "buffer",
-      process: "process/browser",
-      stream:  "stream-browserify",
-      crypto:  "crypto-browserify",
-      events:  "events",
+      "@": path.resolve(__dirname, "src"),
     },
   },
 
-  // ✅ Variables globales necesarias
   define: {
-    global:              "globalThis",
-    "process.env":       "{}",
-    "process.version":   '"v18.0.0"',
-    "process.browser":   "true",
+    global: "globalThis",
   },
 
   optimizeDeps: {
-    include: [
-      "ethers",
-      "bip39",
-      "bip32",
-      "tiny-secp256k1",
-      "bitcoinjs-lib",
-      "buffer",
-      "tronweb",
-    ],
-    esbuildOptions: {
-      // ✅ Necesario para módulos CommonJS
-      target: "es2020",
-    },
+    include: ["ethers", "tronweb", "tiny-secp256k1"],
   },
 
   build: {
-    target:               "es2020",
-    chunkSizeWarningLimit: 2000,
-    assetsDir:            "assets",
+    chunkSizeWarningLimit: 1000,
+    assetsDir: "assets",
     rollupOptions: {
       output: {
         manualChunks: {
           ethers:    ["ethers"],
-          bitcoin:   ["bitcoinjs-lib", "bip32", "bip39", "tiny-secp256k1"],
-          tron:      ["tronweb"],
+          tronweb:   ["tronweb"],
           firebase:  ["firebase/app", "firebase/auth", "firebase/firestore"],
           react:     ["react", "react-dom"],
         },
