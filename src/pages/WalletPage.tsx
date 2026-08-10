@@ -798,3 +798,407 @@ export function WalletPage() {
           </p>
         </div>
       </div>
+            {/* ═══ MODAL DEPÓSITO ══════════════════════════════ */}
+      {activeAction.type === "deposit" && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center">
+                  <ArrowDownLeft className="h-4 w-4 text-brand-500" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Depositar Cripto
+                  </h3>
+                  <p className="text-[10px] text-gray-400">
+                    Recibe en tu wallet no custodia
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseAction}
+                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5"
+              >
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Selector de red */}
+            <div>
+              <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2">
+                Selecciona la Red
+              </label>
+              <div className="grid grid-cols-5 gap-1.5">
+                {Object.entries(NETWORKS).map(([netId, net]) => {
+                  const colors   = NETWORK_COLORS[netId];
+                  const selected = depositNetwork === netId;
+                  return (
+                    <button
+                      key={netId}
+                      onClick={() => setDepositNetwork(netId as NetworkId)}
+                      className={`flex flex-col items-center gap-1 py-2 rounded-xl text-[9px] font-bold transition-all ${
+                        selected
+                          ? `${colors.bg} ${colors.text} ring-2 ring-current`
+                          : "bg-gray-50 dark:bg-white/5 text-gray-400"
+                      }`}
+                    >
+                      <span className="text-base">
+                        {netId === "polygon"  ? "🟣"
+                         : netId === "ethereum" ? "🔵"
+                         : netId === "bsc"      ? "🟡"
+                         : netId === "tron"     ? "🔴"
+                         : "🟠"}
+                      </span>
+                      {net.shortName}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+
+            {/* Dirección de depósito */}
+            {addresses && (
+              <>
+                {/* Info de red */}
+                <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${
+                  NETWORK_COLORS[depositNetwork]?.border
+                } ${NETWORK_COLORS[depositNetwork]?.bg}`}>
+                  <span className="text-lg">
+                    {depositNetwork === "polygon"  ? "🟣"
+                     : depositNetwork === "ethereum" ? "🔵"
+                     : depositNetwork === "bsc"      ? "🟡"
+                     : depositNetwork === "tron"     ? "🔴"
+                     : "🟠"}
+                  </span>
+                  <div>
+                    <p className={`text-xs font-bold ${NETWORK_COLORS[depositNetwork]?.text}`}>
+                      {NETWORKS[depositNetwork]?.name}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {depositNetwork === "bitcoin"
+                        ? "Comisión variable · ~30 min"
+                        : depositNetwork === "tron"
+                        ? "Comisión ~1 USDT · ~1 min"
+                        : depositNetwork === "ethereum"
+                        ? "Comisión variable · ~3 min"
+                        : "Comisión < $0.01 · ~2 min"
+                      }
+                    </p>
+                  </div>
+                </div>
+
+                {/* Advertencia */}
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
+                  <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-red-600 dark:text-red-400 leading-relaxed">
+                    <strong>Solo envía desde {NETWORKS[depositNetwork]?.name}.</strong>{" "}
+                    Enviar desde otra red puede resultar en pérdida permanente de fondos.
+                  </p>
+                </div>
+
+                {/* QR y dirección */}
+                {(() => {
+                  const addr = depositNetwork === "tron"
+                    ? addresses.tron
+                    : depositNetwork === "bitcoin"
+                    ? addresses.bitcoin
+                    : addresses.evm;
+
+                  if (!addr) return (
+                    <div className="py-6 text-center">
+                      <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
+                      <p className="text-xs text-gray-400">
+                        Dirección no disponible para esta red.
+                        Cierra sesión y vuelve a entrar.
+                      </p>
+                    </div>
+                  );
+
+                  return (
+                    <div className="space-y-4">
+                      {/* QR */}
+                      <div className="flex justify-center">
+                        <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}&format=svg`}
+                            alt="QR"
+                            className="w-44 h-44"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Dirección */}
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Tu dirección {NETWORKS[depositNetwork]?.name}
+                        </p>
+                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
+                          <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 break-all select-all">
+                            {addr}
+                          </span>
+                          <button
+                            onClick={() => handleCopy(addr, "deposit")}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-shrink-0 ${
+                              copied === "deposit"
+                                ? "bg-emerald-500 text-white"
+                                : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+                            }`}
+                          >
+                            {copied === "deposit"
+                              ? <><Check className="h-3 w-3" /> Copiada</>
+                              : <><Copy  className="h-3 w-3" /> Copiar</>
+                            }
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* Explorer link */}
+                      <a
+                        href={
+                          depositNetwork === "bitcoin"
+                            ? `https://mempool.space/address/${addr}`
+                            : depositNetwork === "tron"
+                            ? `https://tronscan.org/#/address/${addr}`
+                            : `${NETWORKS[depositNetwork]?.explorerUrl}/address/${addr}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`block text-center text-[11px] font-bold hover:opacity-80 transition-opacity ${
+                          NETWORK_COLORS[depositNetwork]?.text
+                        }`}
+                      >
+                        Ver en explorador →
+                      </a>
+
+                      {/* Stats */}
+                      <div className="grid grid-cols-3 gap-2">
+                        {[
+                          {
+                            label: "Comisión",
+                            value: depositNetwork === "bitcoin"   ? "Variable"
+                                 : depositNetwork === "tron"      ? "~1 USDT"
+                                 : depositNetwork === "ethereum"  ? "Variable"
+                                 : "< $0.01",
+                          },
+                          {
+                            label: "Tiempo",
+                            value: depositNetwork === "bitcoin"   ? "~30 min"
+                                 : depositNetwork === "tron"      ? "~1 min"
+                                 : depositNetwork === "ethereum"  ? "~3 min"
+                                 : "~2 min",
+                          },
+                          {
+                            label: "Red",
+                            value: NETWORKS[depositNetwork]?.shortName,
+                          },
+                        ].map((item) => (
+                          <div
+                            key={item.label}
+                            className="text-center p-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10"
+                          >
+                            <p className="text-[10px] text-gray-400 mb-0.5">
+                              {item.label}
+                            </p>
+                            <p className="text-[11px] font-bold text-gray-900 dark:text-white">
+                              {item.value}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ═══ MODAL RETIRO ════════════════════════════════ */}
+      {activeAction.type === "withdraw" && activeAction.asset && activeAction.networkId && (
+        <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
+
+            {/* Header */}
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <div className={`h-8 w-8 rounded-lg ${
+                  NETWORK_COLORS[activeAction.networkId]?.bg
+                } flex items-center justify-center`}>
+                  <ArrowUpRight className={`h-4 w-4 ${
+                    NETWORK_COLORS[activeAction.networkId]?.text
+                  }`} />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-gray-900 dark:text-white">
+                    Retirar {activeAction.asset}
+                  </h3>
+                  <p className="text-[10px] text-gray-400">
+                    {NETWORKS[activeAction.networkId]?.name}
+                  </p>
+                </div>
+              </div>
+              <button
+                onClick={handleCloseAction}
+                className="p-2 rounded-xl hover:bg-gray-100 dark:hover:bg-white/5"
+              >
+                <X className="h-4 w-4 text-gray-400" />
+              </button>
+            </div>
+
+            {/* Steps */}
+            {!withdrawSuccess && (
+              <div className="flex items-center gap-2">
+                {[
+                  { step: 1, label: "Dirección" },
+                  { step: 2, label: "Monto" },
+                  { step: 3, label: "Confirmar" },
+                ].map(({ step, label }, idx) => (
+                  <div key={step} className="flex items-center gap-1.5 flex-1">
+                    <div className={`h-7 w-7 rounded-full flex items-center justify-center text-[10px] font-bold flex-shrink-0 transition-all ${
+                      withdrawStep >= step
+                        ? `${NETWORK_COLORS[activeAction.networkId!]?.bg} ${NETWORK_COLORS[activeAction.networkId!]?.text} ring-2 ring-current`
+                        : "bg-gray-100 dark:bg-white/5 text-gray-400"
+                    }`}>
+                      {step}
+                    </div>
+                    <span className={`text-[10px] font-semibold ${
+                      withdrawStep >= step
+                        ? "text-gray-900 dark:text-white"
+                        : "text-gray-400"
+                    }`}>
+                      {label}
+                    </span>
+                    {idx < 2 && (
+                      <div className={`flex-1 h-0.5 rounded-full ${
+                        withdrawStep > step
+                          ? NETWORK_COLORS[activeAction.networkId!]?.bg || "bg-brand-500"
+                          : "bg-gray-200 dark:bg-white/10"
+                      }`} />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* ── STEP 1: Dirección ── */}
+            {withdrawStep === 1 && (
+              <div className="space-y-4">
+                <div className={`flex items-center gap-3 p-3 rounded-xl border ${
+                  NETWORK_COLORS[activeAction.networkId]?.border
+                } ${NETWORK_COLORS[activeAction.networkId]?.bg}`}>
+                  <span className="text-xl">
+                    {activeAction.networkId === "polygon"  ? "🟣"
+                     : activeAction.networkId === "ethereum" ? "🔵"
+                     : activeAction.networkId === "bsc"      ? "🟡"
+                     : activeAction.networkId === "tron"     ? "🔴"
+                     : "🟠"}
+                  </span>
+                  <div className="flex-1">
+                    <p className="text-xs font-bold text-gray-900 dark:text-white">
+                      {NETWORKS[activeAction.networkId]?.name}
+                    </p>
+                    <p className="text-[10px] text-gray-400">
+                      {activeAction.networkId === "bitcoin"  ? "Variable · ~30 min"
+                       : activeAction.networkId === "tron"    ? "~1 USDT · ~1 min"
+                       : activeAction.networkId === "ethereum" ? "Variable · ~3 min"
+                       : "< $0.01 · ~2 min"
+                      }
+                    </p>
+                  </div>
+                  <CheckCircle2 className={`h-4 w-4 ${NETWORK_COLORS[activeAction.networkId]?.text}`} />
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                    Dirección destino
+                  </label>
+                  <input
+                    type="text"
+                    value={withdrawAddress}
+                    onChange={(e) => setWithdrawAddress(e.target.value)}
+                    placeholder={getAddressPlaceholder(activeAction.networkId)}
+                    className="w-full text-xs bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 font-mono transition-all"
+                  />
+                  {withdrawAddress.length > 0 && (
+                    <div className={`flex items-center gap-1 mt-1.5 text-[10px] font-semibold ${
+                      validateAddress(withdrawAddress, activeAction.networkId)
+                        ? "text-emerald-500"
+                        : "text-red-500"
+                    }`}>
+                      {validateAddress(withdrawAddress, activeAction.networkId)
+                        ? <><CheckCircle2 className="h-3 w-3" /> Dirección válida</>
+                        : <><AlertTriangle className="h-3 w-3" /> Dirección inválida para {NETWORKS[activeAction.networkId]?.name}</>
+                      }
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex items-start gap-2 p-3 rounded-xl bg-amber-500/10 border border-amber-500/20">
+                  <AlertTriangle className="h-4 w-4 text-amber-500 flex-shrink-0 mt-0.5" />
+                  <p className="text-[10px] text-amber-700 dark:text-amber-400 leading-relaxed">
+                    Solo envía a direcciones de <strong>{NETWORKS[activeAction.networkId]?.name}</strong>.
+                    Enviar a otra red puede resultar en pérdida permanente.
+                  </p>
+                </div>
+
+                <button
+                  disabled={!validateAddress(withdrawAddress, activeAction.networkId)}
+                  onClick={() => setWithdrawStep(2)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold disabled:opacity-40 transition-all"
+                >
+                  Continuar <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* ── STEP 2: Monto ── */}
+            {withdrawStep === 2 && (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl p-3 border border-gray-200 dark:border-white/10">
+                  <span className="text-lg">
+                    {activeAction.networkId === "polygon"  ? "🟣"
+                     : activeAction.networkId === "ethereum" ? "🔵"
+                     : activeAction.networkId === "bsc"      ? "🟡"
+                     : activeAction.networkId === "tron"     ? "🔴"
+                     : "🟠"}
+                  </span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-[11px] font-bold text-gray-900 dark:text-white">
+                      {NETWORKS[activeAction.networkId]?.name}
+                    </p>
+                    <p className="text-[10px] text-gray-400 font-mono truncate">
+                      {withdrawAddress}
+                    </p>
+                  </div>
+                  <button
+                    onClick={() => setWithdrawStep(1)}
+                    className="text-[10px] text-brand-500 font-bold flex-shrink-0"
+                  >
+                    Editar
+                  </button>
+                </div>
+
+                <div>
+                  <div className="flex justify-between items-center mb-1.5">
+                    <label className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Monto a enviar
+                    </label>
+                    <button
+                      onClick={handleSetMaxAmount}
+                      className={`text-[10px] font-bold ${
+                        NETWORK_COLORS[activeAction.networkId]?.text
+                      }`}
+                    >
+                      MAX: {(() => {
+                        const token = balances.find(
+                          (b) => b.symbol    === activeAction.asset &&
+                                 b.networkId === activeAction.networkId
+                        );
+                        const nativeCoins = ["MATIC", "ETH", "BNB", "TRX"];
+                        if (!token) return "0";
+                        if (nativeCoins.includes(activeAction.asset!)) {
+                          return
