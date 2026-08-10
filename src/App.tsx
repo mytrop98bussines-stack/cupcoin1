@@ -509,4 +509,115 @@ function AppRoot() {
     }
   }, [navigate, loadWalletBalances, setWalletAddresses]);
 
-  /
+  // ─── Biometric unlock ─────────────────────────────────
+  const handleBiometricUnlock = (data: any) => {
+    try {
+      localStorage.setItem("cubax_token",         data.token);
+      localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
+      localStorage.setItem("cubax_uid",           data.uid);
+      localStorage.setItem("cubax_email",         data.email || "");
+      localStorage.setItem("cubax_name",          data.displayName || "");
+      localStorage.setItem("cubax_last_login",    Date.now().toString());
+
+      // ✅ Cargar direcciones multi-red
+      const walletAddresses = getWalletAddresses();
+      const walletAddress   = walletAddresses?.evm || getStoredWalletAddress();
+
+      useAppStore.setState({
+        user:            data.userData as AppUser,
+        isAuthenticated: true,
+        currentView:     "dashboard",
+        walletAddresses: walletAddresses || null,
+        walletAddress:   walletAddress   || null,
+      });
+
+      // ✅ Cargar saldos multi-red
+      if (walletAddresses?.evm) {
+        void loadWalletBalances();
+      }
+
+      setShowBiometricLock(false);
+    } catch (err) {
+      console.error("❌ Error en unlock:", err);
+      setShowBiometricLock(false);
+      navigate("landing");
+    }
+  };
+
+  const handleBiometricCancel = () => {
+    setShowBiometricLock(false);
+    navigate("landing");
+  };
+
+  // ─── Refresh token cada 50 min ────────────────────────
+  useEffect(() => {
+    const interval = window.setInterval(async () => {
+      const refreshToken = localStorage.getItem("cubax_refresh_token");
+      if (!refreshToken) return;
+      try {
+        const res  = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
+          method:  "POST",
+          headers: { "Content-Type": "application/json" },
+          body:    JSON.stringify({ refreshToken }),
+        });
+        const data = await res.json();
+        if (data.success) {
+          localStorage.setItem("cubax_token",         data.token);
+          localStorage.setItem("cubax_refresh_token", data.refreshToken);
+        } else {
+          // ✅ Preservar wallet al cerrar sesión por token expirado
+          const walletEnc       = localStorage.getItem("cubax_wallet_enc");
+          const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
+          useAppStore.getState().logout();
+          if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
+          if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
+          navigate("landing");
+        }
+      } catch {}
+    }, 50 * 60 * 1000);
+
+    return () => window.clearInterval(interval);
+  }, [navigate]);
+
+  // ─── Guardar vista actual ─────────────────────────────
+  const { currentView } = useAppStore();
+
+  useEffect(() => {
+    if (AUTHENTICATED_VIEWS.includes(currentView)) {
+      localStorage.setItem("cubax_last_view", currentView);
+    }
+  }, [currentView]);
+
+  // ─── Loading screen ───────────────────────────────────
+  if (isInitializing) {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
+        <div className="flex flex-col items-center gap-3 animate-pulse">
+          <Logo size={56} className="text-black dark:text-white" />
+        </div>
+      </div>
+    );
+  }
+
+  if (showBiometricLock) {
+    return (
+      <BiometricLockScreen
+        onUnlock={handleBiometricUnlock}
+        onCancel={handleBiometricCancel}
+      />
+    );
+  }
+
+  return <AppContent />;
+}
+
+// =========================================================
+// EXPORT PRINCIPAL
+// =========================================================
+export default function App() {
+  return (
+    <ErrorBoundary>
+      <AppRoot />
+    </ErrorBoundary>
+  );
+}
