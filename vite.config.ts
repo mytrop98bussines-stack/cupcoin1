@@ -2,6 +2,7 @@ import path           from "path";
 import { fileURLToPath } from "url";
 import tailwindcss    from "@tailwindcss/vite";
 import react          from "@vitejs/plugin-react";
+import wasm           from "vite-plugin-wasm";
 import { defineConfig } from "vite";
 
 const __filename = fileURLToPath(import.meta.url);
