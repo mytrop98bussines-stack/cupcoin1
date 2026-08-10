@@ -1201,4 +1201,128 @@ export function WalletPage() {
                         const nativeCoins = ["MATIC", "ETH", "BNB", "TRX"];
                         if (!token) return "0";
                         if (nativeCoins.includes(activeAction.asset!)) {
-                          return
+                          return Math.max(0, token.amount - 0.05).toFixed(4);
+                        }
+                        return token.amount.toFixed(
+                          ["BTC", "WBTC"].includes(activeAction.asset!) ? 6 : 2
+                        );
+                      })()} {activeAction.asset}
+                    </button>
+                  </div>
+                  <div className="relative">
+                    <input
+                      type="number"
+                      value={withdrawAmount}
+                      onChange={(e) => setWithdrawAmount(e.target.value)}
+                      placeholder="0.00"
+                      className="w-full text-2xl font-bold bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl px-4 py-4 pr-20 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all"
+                    />
+                    <span className="absolute right-4 top-1/2 -translate-y-1/2 text-sm font-bold text-gray-400">
+                      {activeAction.asset}
+                    </span>
+                  </div>
+                  {withdrawAmount && parseFloat(withdrawAmount) > 0 && (
+                    <p className="text-[10px] text-gray-400 mt-1">
+                      ≈ ${(
+                        parseFloat(withdrawAmount) *
+                        (prices[activeAction.asset!]?.usd || 1)
+                      ).toFixed(2)} USD
+                    </p>
+                  )}
+                </div>
+
+                {gasEstimate && (
+                  <div className={`flex items-center gap-2 p-3 rounded-xl border ${
+                    NETWORK_COLORS[activeAction.networkId]?.border
+                  } ${NETWORK_COLORS[activeAction.networkId]?.bg}`}>
+                    <Info className={`h-4 w-4 flex-shrink-0 ${NETWORK_COLORS[activeAction.networkId]?.text}`} />
+                    <div>
+                      <p className={`text-[10px] font-bold ${NETWORK_COLORS[activeAction.networkId]?.text}`}>
+                        Gas estimado
+                      </p>
+                      <p className="text-[10px] text-gray-400">
+                        {gasEstimate.gasEstimate} · {gasEstimate.gasCostUSD}
+                      </p>
+                    </div>
+                  </div>
+                )}
+
+                <button
+                  disabled={!withdrawAmount || parseFloat(withdrawAmount) <= 0}
+                  onClick={() => setWithdrawStep(3)}
+                  className="w-full flex items-center justify-center gap-2 py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold disabled:opacity-40 transition-all"
+                >
+                  Continuar <ArrowRight className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
+            {/* ── STEP 3: Confirmar ── */}
+            {withdrawStep === 3 && !withdrawSuccess && (
+              <div className="space-y-4">
+                <div className="p-4 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 space-y-3">
+                  <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                    Resumen de transacción
+                  </p>
+                  {[
+                    { label: "Activo",   value: `${activeAction.asset}` },
+                    { label: "Red",      value: NETWORKS[activeAction.networkId]?.name },
+                    { label: "Monto",    value: `${withdrawAmount} ${activeAction.asset}` },
+                    {
+                      label: "Valor USD",
+                      value: `$${(parseFloat(withdrawAmount || "0") * (prices[activeAction.asset!]?.usd || 1)).toFixed(2)}`
+                    },
+                    {
+                      label: "Comisión",
+                      value: gasEstimate?.gasCostUSD || (
+                        activeAction.networkId === "bitcoin"  ? "Variable" :
+                        activeAction.networkId === "tron"     ? "~1 USDT"  :
+                        "< $0.01"
+                      )
+                    },
+                    {
+                      label: "Destino",
+                      value: `${withdrawAddress.slice(0, 8)}...${withdrawAddress.slice(-6)}`
+                    },
+                  ].map(({ label, value }) => (
+                    <div key={label} className="flex justify-between items-center">
+                      <span className="text-[11px] text-gray-400">{label}</span>
+                      <span className="text-[11px] font-bold text-gray-900 dark:text-white">
+                        {value}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                <div>
+                  <label className="block text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-1.5">
+                    Confirma tu contraseña
+                  </label>
+                  <div className="relative">
+                    <div className="absolute left-3 top-1/2 -translate-y-1/2">
+                      <Lock className="h-4 w-4 text-gray-400" />
+                    </div>
+                    <input
+                      type={showWithdrawPwd ? "text" : "password"}
+                      value={withdrawPassword}
+                      onChange={(e) => {
+                        setWithdrawPassword(e.target.value);
+                        if (withdrawError) setWithdrawError(null);
+                      }}
+                      placeholder="Tu contraseña de CubaX"
+                      className="w-full text-sm bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10 rounded-xl pl-10 pr-12 py-3 text-gray-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-purple-500/30 transition-all"
+                    />
+                    <button
+                      type="button"
+                      onClick={() => setShowWithdrawPwd(!showWithdrawPwd)}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400"
+                    >
+                      {showWithdrawPwd
+                        ? <EyeOff className="h-4 w-4" />
+                        : <Eye    className="h-4 w-4" />
+                      }
+                    </button>
+                  </div>
+                  <p className="text-[10px] text-gray-400 mt-1">
+                    Necesaria para descifrar tu llave privada y firmar la transacción
+                  </p>
