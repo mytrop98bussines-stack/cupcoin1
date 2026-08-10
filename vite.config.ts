@@ -24,17 +24,17 @@ export default defineConfig({
 
   // ✅ Optimizar ethers para que no rompa el build
   optimizeDeps: {
-    include: ["ethers"],
+    include: ["ethers", "tronweb"],
   },
 
   build: {
     chunkSizeWarningLimit: 1000,
     assetsDir: "assets",
-    // ✅ Separar ethers en su propio chunk para no pesar en la carga inicial
     rollupOptions: {
       output: {
         manualChunks: {
           ethers:    ["ethers"],
+          tronweb:   ["tronweb"],
           firebase:  ["firebase/app", "firebase/auth", "firebase/firestore"],
           react:     ["react", "react-dom"],
         },
