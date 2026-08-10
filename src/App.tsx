@@ -44,8 +44,11 @@ import { AdminKYCPage }      from "@/pages/AdminKYCPage";
 import { AdminUsersPage }    from "@/pages/AdminUsersPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
-// ✅ NUEVO: Wallet imports
-import { getStoredWalletAddress } from "@/lib/wallet/walletStorage";
+// ✅ Wallet multi-red
+import {
+  getWalletAddresses,
+  getStoredWalletAddress,
+} from "@/lib/wallet/walletStorage";
 
 import type { User as AppUser } from "@/types";
 
@@ -73,21 +76,19 @@ class ErrorBoundary extends Component<
   }
 
   componentDidCatch(error: Error, errorInfo: any) {
-    console.error("🚨 ErrorBoundary capturó un error:");
-    console.error("Mensaje:", error.message);
-    console.error("Stack:", error.stack);
+    console.error("🚨 ErrorBoundary:", error.message);
     console.error("Componente:", errorInfo.componentStack);
   }
 
   handleReload = () => window.location.reload();
 
+  // ✅ Preservar wallet al limpiar datos
   handleClearAndReload = () => {
-    // ✅ IMPORTANTE: No borrar la wallet cifrada
-    const walletKey = localStorage.getItem("cubax_wallet_enc");
+    const walletEnc       = localStorage.getItem("cubax_wallet_enc");
+    const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
     localStorage.clear();
-    if (walletKey) {
-      localStorage.setItem("cubax_wallet_enc", walletKey);
-    }
+    if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
+    if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
     window.location.reload();
   };
 
@@ -99,7 +100,6 @@ class ErrorBoundary extends Component<
             <div className="h-16 w-16 rounded-full bg-red-500/10 flex items-center justify-center mx-auto">
               <AlertTriangle className="h-8 w-8 text-red-500" />
             </div>
-
             <div>
               <h1 className="text-xl font-bold text-gray-900 dark:text-white mb-2">
                 Algo salió mal
@@ -131,7 +131,6 @@ class ErrorBoundary extends Component<
                 <RefreshCw className="h-4 w-4" />
                 Recargar página
               </button>
-
               <button
                 onClick={this.handleClearAndReload}
                 className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-gray-100 dark:bg-white/5 hover:bg-gray-200 dark:hover:bg-white/10 text-gray-700 dark:text-gray-300 font-bold transition-colors"
@@ -143,7 +142,6 @@ class ErrorBoundary extends Component<
         </div>
       );
     }
-
     return this.props.children;
   }
 }
@@ -152,33 +150,33 @@ class ErrorBoundary extends Component<
 // CONFIG DE VISTAS
 // =========================================================
 const VIEW_TITLES: Record<string, string> = {
-  dashboard:              "",
-  p2p:                    "",
-  marketplace:            "",
-  "create-order":         "Nueva oferta P2P",
-  trade:                  "Trade en curso",
-  kyc:                    "Verificación KYC",
-  "product-detail":       "Detalle del producto",
-  "sales-management":     "Gestión de Ventas",
-  "create-product":       "Publicar producto",
-  wallet:                 "Mi Wallet",
-  "wallet-history":       "Historial de Wallet",
-  settings:               "Ajustes",
-  notifications:          "Notificaciones",
-  "admin-kyc":            "Panel KYC Admin",
-  "admin-users":          "Gestión Usuarios",
-  "admin-disputes":       "Panel Disputas Admin",
-  "admin-promos":         "Promociones",
-  profile:                "Mi Perfil",
-  security:               "Seguridad",
-  help:                   "Centro de ayuda",
-  terms:                  "Términos y Privacidad",
-  language:               "Idioma",
+  dashboard:               "",
+  p2p:                     "",
+  marketplace:             "",
+  "create-order":          "Nueva oferta P2P",
+  trade:                   "Trade en curso",
+  kyc:                     "Verificación KYC",
+  "product-detail":        "Detalle del producto",
+  "sales-management":      "Gestión de Ventas",
+  "create-product":        "Publicar producto",
+  wallet:                  "Mi Wallet",
+  "wallet-history":        "Historial de Wallet",
+  settings:                "Ajustes",
+  notifications:           "Notificaciones",
+  "admin-kyc":             "Panel KYC Admin",
+  "admin-users":           "Gestión Usuarios",
+  "admin-disputes":        "Panel Disputas Admin",
+  "admin-promos":          "Promociones",
+  profile:                 "Mi Perfil",
+  security:                "Seguridad",
+  help:                    "Centro de ayuda",
+  terms:                   "Términos y Privacidad",
+  language:                "Idioma",
   "notification-settings": "Notificaciones",
-  "trade-history":        "Historial de Trades",
-  "my-orders":            "Mis Anuncios P2P",
-  membership:             "Membresía CupCoin",
-  "public-profile":       "Perfil",
+  "trade-history":         "Historial de Trades",
+  "my-orders":             "Mis Anuncios P2P",
+  membership:              "Membresía CupCoin",
+  "public-profile":        "Perfil",
 };
 
 const SHOW_BACK_VIEWS = [
@@ -213,7 +211,8 @@ function AppContent() {
     fetchOrders,
     fetchProducts,
     subscribeToNotifications,
-    loadWalletBalances,   // ✅ NUEVO
+    loadWalletBalances,
+    refreshWalletPrices,
   } = useAppStore();
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -235,7 +234,7 @@ function AppContent() {
     document.documentElement.classList.toggle("dark", theme === "dark");
   }, [theme]);
 
-  // ─── Sincronizar usuario desde backend ────────────────
+  // ─── Sincronizar usuario ──────────────────────────────
   useEffect(() => {
     if (!user?.uid) return;
     let stopped = false;
@@ -251,15 +250,11 @@ function AppContent() {
         const data = await res.json();
 
         if (data.success && data.userData && !stopped) {
-          const fullUserData = data.userData as AppUser;
+          useAppStore.setState({ user: data.userData as AppUser });
 
-          // ✅ ACTUALIZADO: Ya no sincronizamos balances custodios
-          // Solo actualizamos el perfil del usuario
-          useAppStore.setState({ user: fullUserData });
-
-          // ✅ Si el usuario ahora tiene walletAddress y no la teníamos
-          const storedAddress = getStoredWalletAddress();
-          if (fullUserData.walletAddress && storedAddress) {
+          // ✅ Recargar wallet si tiene direcciones
+          const addresses = getWalletAddresses();
+          if (addresses?.evm && !stopped) {
             void loadWalletBalances();
           }
         }
@@ -285,23 +280,32 @@ function AppContent() {
     return () => { unsubNotifs(); };
   }, [user?.uid, fetchOrders, fetchProducts, subscribeToNotifications]);
 
-  // ✅ NUEVO: Cargar saldos de blockchain al entrar
+  // ✅ Cargar saldos multi-red al entrar
   useEffect(() => {
     if (!user?.uid) return;
-    const address = getStoredWalletAddress();
-    if (!address) return;
+    const addresses = getWalletAddresses();
+    if (!addresses?.evm) return;
     void loadWalletBalances();
   }, [user?.uid, loadWalletBalances]);
 
-  // ✅ NUEVO: Refrescar saldos cada 2 minutos
+  // ✅ Refrescar precios cada 60s (sin llamar blockchain)
   useEffect(() => {
     if (!user?.uid) return;
-    const address = getStoredWalletAddress();
-    if (!address) return;
+    const interval = window.setInterval(() => {
+      void refreshWalletPrices();
+    }, 60 * 1000);
+    return () => window.clearInterval(interval);
+  }, [user?.uid, refreshWalletPrices]);
+
+  // ✅ Refrescar saldos completos cada 5 minutos
+  useEffect(() => {
+    if (!user?.uid) return;
+    const addresses = getWalletAddresses();
+    if (!addresses?.evm) return;
 
     const interval = window.setInterval(() => {
       void loadWalletBalances();
-    }, 2 * 60 * 1000);
+    }, 5 * 60 * 1000);
 
     return () => window.clearInterval(interval);
   }, [user?.uid, loadWalletBalances]);
@@ -376,8 +380,6 @@ function AppContent() {
         {currentView === "marketplace"      && <MarketplacePage />}
         {currentView === "product-detail"   && <ProductDetailPage />}
         {currentView === "create-product"   && <CreateProductPage />}
-
-        {/* ✅ ACTUALIZADO: WalletPage ahora es no custodia */}
         {currentView === "wallet"           && <WalletPage />}
         {currentView === "wallet-history"   && <HistoryPage />}
 
@@ -412,9 +414,9 @@ function AppContent() {
 // APP ROOT
 // =========================================================
 function AppRoot() {
-  const [isInitializing, setIsInitializing]     = useState(true);
+  const [isInitializing, setIsInitializing]       = useState(true);
   const [showBiometricLock, setShowBiometricLock] = useState(false);
-  const { navigate, loadWalletBalances } = useAppStore();
+  const { navigate, loadWalletBalances, setWalletAddresses } = useAppStore();
 
   useEffect(() => {
     try {
@@ -438,9 +440,9 @@ function AppRoot() {
       // ─── CASO 1: Biometría activa ────────────────────
       if (biometricEnabled === "1" && savedUid) {
         const supportsBiometric =
-          typeof window !== "undefined"                          &&
-          !!window.PublicKeyCredential                           &&
-          !!navigator.credentials                               &&
+          typeof window !== "undefined"                        &&
+          !!window.PublicKeyCredential                         &&
+          !!navigator.credentials                             &&
           typeof navigator.credentials.create === "function";
 
         if (supportsBiometric) {
@@ -468,27 +470,29 @@ function AppRoot() {
                 ? lastView
                 : "dashboard";
 
-              // ✅ Cargar wallet address del localStorage
-              const walletAddress = getStoredWalletAddress();
+              // ✅ Cargar direcciones multi-red
+              const walletAddresses = getWalletAddresses();
+              const walletAddress   = walletAddresses?.evm || getStoredWalletAddress();
 
               useAppStore.setState({
                 user:            data.userData as AppUser,
                 isAuthenticated: true,
                 currentView:     safeView as any,
-                walletAddress,
+                walletAddresses: walletAddresses || null,
+                walletAddress:   walletAddress   || null,
               });
 
-              // ✅ Cargar saldos de blockchain si tiene wallet
-              if (walletAddress) {
+              // ✅ Cargar saldos multi-red si tiene wallet
+              if (walletAddresses?.evm) {
                 void loadWalletBalances();
               }
             } else {
-              // ✅ IMPORTANTE: No borrar wallet al limpiar sesión
-              const walletData = localStorage.getItem("cubax_wallet_enc");
+              // ✅ Preservar wallet al limpiar sesión
+              const walletEnc       = localStorage.getItem("cubax_wallet_enc");
+              const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
               localStorage.clear();
-              if (walletData) {
-                localStorage.setItem("cubax_wallet_enc", walletData);
-              }
+              if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
+              if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
               navigate("landing");
             }
           })
@@ -503,110 +507,6 @@ function AppRoot() {
       navigate("landing");
       setIsInitializing(false);
     }
-  }, [navigate, loadWalletBalances]);
+  }, [navigate, loadWalletBalances, setWalletAddresses]);
 
-  // ─── Biometric unlock ─────────────────────────────────
-  const handleBiometricUnlock = (data: any) => {
-    try {
-      localStorage.setItem("cubax_token",         data.token);
-      localStorage.setItem("cubax_refresh_token", data.refreshToken || "");
-      localStorage.setItem("cubax_uid",           data.uid);
-      localStorage.setItem("cubax_email",         data.email || "");
-      localStorage.setItem("cubax_name",          data.displayName || "");
-      localStorage.setItem("cubax_last_login",    Date.now().toString());
-
-      // ✅ Cargar wallet al desbloquear con biometría
-      const walletAddress = getStoredWalletAddress();
-
-      useAppStore.setState({
-        user:            data.userData as AppUser,
-        isAuthenticated: true,
-        currentView:     "dashboard",
-        walletAddress,
-      });
-
-      // ✅ Cargar saldos de blockchain
-      if (walletAddress) {
-        void loadWalletBalances();
-      }
-
-      setShowBiometricLock(false);
-    } catch (err) {
-      console.error("❌ Error en unlock:", err);
-      setShowBiometricLock(false);
-      navigate("landing");
-    }
-  };
-
-  const handleBiometricCancel = () => {
-    setShowBiometricLock(false);
-    navigate("landing");
-  };
-
-  // ─── Refresh token cada 50 min ────────────────────────
-  useEffect(() => {
-    const interval = window.setInterval(async () => {
-      const refreshToken = localStorage.getItem("cubax_refresh_token");
-      if (!refreshToken) return;
-      try {
-        const res  = await fetch(`${BACKEND_URL}/api/auth/refresh`, {
-          method:  "POST",
-          headers: { "Content-Type": "application/json" },
-          body:    JSON.stringify({ refreshToken }),
-        });
-        const data = await res.json();
-        if (data.success) {
-          localStorage.setItem("cubax_token",         data.token);
-          localStorage.setItem("cubax_refresh_token", data.refreshToken);
-        } else {
-          useAppStore.getState().logout();
-          navigate("landing");
-        }
-      } catch {}
-    }, 50 * 60 * 1000);
-
-    return () => window.clearInterval(interval);
-  }, [navigate]);
-
-  // ─── Guardar vista actual ─────────────────────────────
-  const { currentView } = useAppStore();
-
-  useEffect(() => {
-    if (AUTHENTICATED_VIEWS.includes(currentView)) {
-      localStorage.setItem("cubax_last_view", currentView);
-    }
-  }, [currentView]);
-
-  // ─── Loading screen ───────────────────────────────────
-  if (isInitializing) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
-        <div className="flex flex-col items-center gap-3 animate-pulse">
-          <Logo size={56} className="text-black dark:text-white" />
-        </div>
-      </div>
-    );
-  }
-
-  if (showBiometricLock) {
-    return (
-      <BiometricLockScreen
-        onUnlock={handleBiometricUnlock}
-        onCancel={handleBiometricCancel}
-      />
-    );
-  }
-
-  return <AppContent />;
-}
-
-// =========================================================
-// EXPORT PRINCIPAL
-// =========================================================
-export default function App() {
-  return (
-    <ErrorBoundary>
-      <AppRoot />
-    </ErrorBoundary>
-  );
-}
+  /
