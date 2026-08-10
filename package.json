@@ -12,6 +12,10 @@
     "@emailjs/browser": "^4.4.1",
     "@simplewebauthn/browser": "^13.1.0",
     "@tanstack/react-query": "^5.62.0",
+    "bip32": "^4.0.0",
+    "bip39": "^3.1.0",
+    "bitcoinjs-lib": "^6.1.6",
+    "buffer": "^6.0.3",
     "clsx": "2.1.1",
     "ethers": "^6.13.4",
     "firebase": "^11.0.0",
@@ -22,7 +26,8 @@
     "react-dom": "19.2.6",
     "react-router-dom": "^7.16.0",
     "tailwind-merge": "3.4.0",
-    "tronweb": "1.0.0",
+    "tiny-secp256k1": "^2.2.3",
+    "tronweb": "^6.0.0",
     "zustand": "^5.0.14"
   },
   "devDependencies": {
