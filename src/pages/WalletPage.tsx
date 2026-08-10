@@ -900,122 +900,119 @@ export function WalletPage() {
                 </div>
 
                 {/* QR y dirección */}
-                {(() => {
-                  const addr = depositNetwork === "tron"
-                    ? addresses.tron
-                    : depositNetwork === "bitcoin"
-                    ? addresses.bitcoin
-                    : addresses.evm;
+            {(() => {
+              const addr = depositNetwork === "tron"
+                ? addresses.tron
+                : depositNetwork === "bitcoin"
+                ? addresses.bitcoin
+                : addresses.evm;
 
-                  if (!addr) return (
-                    <div className="py-6 text-center">
-                      <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
-                      <p className="text-xs text-gray-400">
-                        Dirección no disponible para esta red.
-                        Cierra sesión y vuelve a entrar.
-                      </p>
+              if (!addr) return (
+                <div className="py-6 text-center">
+                  <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
+                  <p className="text-xs text-gray-400">
+                    Dirección no disponible para esta red.
+                    Cierra sesión y vuelve a entrar.
+                  </p>
+                </div>
+              );
+
+              return (
+                <div className="space-y-4">
+
+                  {/* QR */}
+                  <div className="flex justify-center">
+                    <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
+                      <img
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}&format=svg`}
+                        alt="QR"
+                        className="w-44 h-44"
+                      />
                     </div>
-                  );
+                  </div>
 
-                  return (
-                    <div className="space-y-4">
-                      {/* QR */}
-                      <div className="flex justify-center">
-                        <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
-                          <img
-                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}&format=svg`}
-                            alt="QR"
-                            className="w-44 h-44"
-                          />
-                        </div>
-                      </div>
-
-                      {/* Dirección */}
-                      <div className="space-y-2">
-                        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                          Tu dirección {NETWORKS[depositNetwork]?.name}
-                        </p>
-                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
-                          <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 break-all select-all">
-                            {addr}
-                          </span>
-                          <button
-                            onClick={() => handleCopy(addr, "deposit")}
-                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-shrink-0 ${
-                              copied === "deposit"
-                                ? "bg-emerald-500 text-white"
-                                : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300"
-                            }`}
-                          >
-                            {copied === "deposit"
-                              ? <><Check className="h-3 w-3" /> Copiada</>
-                              : <><Copy  className="h-3 w-3" /> Copiar</>
-                            }
-                          </button>
-                        </div>
-                      </div>
-
-                      {/* Explorer link */}
-                      <a
-                        href={
-                          depositNetwork === "bitcoin"
-                            ? `https://mempool.space/address/${addr}`
-                            : depositNetwork === "tron"
-                            ? `https://tronscan.org/#/address/${addr}`
-                            : `${NETWORKS[depositNetwork]?.explorerUrl}/address/${addr}`
-                        }
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className={`block text-center text-[11px] font-bold hover:opacity-80 transition-opacity ${
-                          NETWORK_COLORS[depositNetwork]?.text
+                  {/* Dirección */}
+                  <div className="space-y-2">
+                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                      Tu dirección {NETWORKS[depositNetwork]?.name}
+                    </p>
+                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
+                      <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 break-all select-all">
+                        {addr}
+                      </span>
+                      <button
+                        onClick={() => handleCopy(addr, "deposit")}
+                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-shrink-0 ${
+                          copied === "deposit"
+                            ? "bg-emerald-500 text-white"
+                            : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300"
                         }`}
                       >
-                        Ver en explorador →
-                      </a>
-
-                      {/* Stats */}
-                      <div className="grid grid-cols-3 gap-2">
-                        {[
-                          {
-                            label: "Comisión",
-                            value: depositNetwork === "bitcoin"   ? "Variable"
-                                 : depositNetwork === "tron"      ? "~1 USDT"
-                                 : depositNetwork === "ethereum"  ? "Variable"
-                                 : "< $0.01",
-                          },
-                          {
-                            label: "Tiempo",
-                            value: depositNetwork === "bitcoin"   ? "~30 min"
-                                 : depositNetwork === "tron"      ? "~1 min"
-                                 : depositNetwork === "ethereum"  ? "~3 min"
-                                 : "~2 min",
-                          },
-                          {
-                            label: "Red",
-                            value: NETWORKS[depositNetwork]?.shortName,
-                          },
-                        ].map((item) => (
-                          <div
-                            key={item.label}
-                            className="text-center p-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10"
-                          >
-                            <p className="text-[10px] text-gray-400 mb-0.5">
-                              {item.label}
-                            </p>
-                            <p className="text-[11px] font-bold text-gray-900 dark:text-white">
-                              {item.value}
-                            </p>
-                          </div>
-                        ))}
-                      </div>
+                        {copied === "deposit"
+                          ? <><Check className="h-3 w-3" /> Copiada</>
+                          : <><Copy  className="h-3 w-3" /> Copiar</>
+                        }
+                      </button>
                     </div>
-                  );
-                })()}
-              </>
-            )}
-          </div>
-        </div>
-      )}
+                  </div>
+
+                  {/* Explorer */}
+                  <a
+                    href={
+                      depositNetwork === "bitcoin"
+                        ? `https://mempool.space/address/${addr}`
+                        : depositNetwork === "tron"
+                        ? `https://tronscan.org/#/address/${addr}`
+                        : `${NETWORKS[depositNetwork]?.explorerUrl}/address/${addr}`
+                    }
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={`block text-center text-[11px] font-bold hover:opacity-80 transition-opacity ${
+                      NETWORK_COLORS[depositNetwork]?.text
+                    }`}
+                  >
+                    Ver en explorador →
+                  </a>
+
+                  {/* Stats */}
+                  <div className="grid grid-cols-3 gap-2">
+                    {[
+                      {
+                        label: "Comisión",
+                        value: depositNetwork === "bitcoin"  ? "Variable"
+                             : depositNetwork === "tron"     ? "~1 USDT"
+                             : depositNetwork === "ethereum" ? "Variable"
+                             : "< $0.01",
+                      },
+                      {
+                        label: "Tiempo",
+                        value: depositNetwork === "bitcoin"  ? "~30 min"
+                             : depositNetwork === "tron"     ? "~1 min"
+                             : depositNetwork === "ethereum" ? "~3 min"
+                             : "~2 min",
+                      },
+                      {
+                        label: "Red",
+                        value: NETWORKS[depositNetwork]?.shortName,
+                      },
+                    ].map((item) => (
+                      <div
+                        key={item.label}
+                        className="text-center p-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10"
+                      >
+                        <p className="text-[10px] text-gray-400 mb-0.5">
+                          {item.label}
+                        </p>
+                        <p className="text-[11px] font-bold text-gray-900 dark:text-white">
+                          {item.value}
+                        </p>
+                      </div>
+                    ))}
+                  </div>
+
+                </div>
+              );
+            })()}  {/* ✅ CORRECTO: })() seguido de } */}
 
       {/* ═══ MODAL RETIRO ════════════════════════════════ */}
       {activeAction.type === "withdraw" && activeAction.asset && activeAction.networkId && (
