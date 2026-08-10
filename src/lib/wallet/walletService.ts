@@ -634,9 +634,9 @@ async function sendBitcoin(
     let totalInput  = 0;
 
     for (const utxo of utxos) {
-      const txRes  = await fetch(
-        https://blockstream.info/api/tx/${utxo.txid}/hex`
-      );
+  const txRes  = await fetch(
+    `https://blockstream.info/api/tx/${utxo.txid}/hex`
+  );
       const txHex  = await txRes.text();
 
       psbt.addInput({
