@@ -86,7 +86,7 @@ const translations = {
       },
 
       // Password strength
-      password: {
+      passwordStrength: {
         veryWeak:  "Contraseña muy débil",
         weak:      "Contraseña débil",
         good:      "Contraseña buena",
