@@ -1,12 +1,16 @@
-// ─── Guardar y recuperar wallet cifrada en localStorage ───
-// La private key NUNCA va a Firebase, solo al dispositivo del usuario
+// ─── Claves de localStorage ───────────────────────────────
+const WALLET_KEY    = "cubax_wallet_enc";
+const ADDRESSES_KEY = "cubax_wallet_addresses";
 
-const WALLET_KEY = "cubax_wallet_enc";
-
-// ─── Cifrar con AES-GCM (nativo del navegador, gratis) ────
-async function encrypt(text: string, password: string): Promise<{ encrypted: string; iv: string }> {
-  const encoder    = new TextEncoder();
-  const salt       = crypto.getRandomValues(new Uint8Array(16));
+// =========================================================
+// CIFRADO AES-GCM (nativo del navegador)
+// =========================================================
+async function encrypt(
+  text:     string,
+  password: string
+): Promise<{ encrypted: string; iv: string }> {
+  const encoder     = new TextEncoder();
+  const salt        = crypto.getRandomValues(new Uint8Array(16));
   const keyMaterial = await crypto.subtle.importKey(
     "raw",
     encoder.encode(password),
@@ -28,7 +32,6 @@ async function encrypt(text: string, password: string): Promise<{ encrypted: str
     encoder.encode(text)
   );
 
-  // Combinamos salt + iv + encrypted en base64
   const combined = new Uint8Array([
     ...salt,
     ...iv,
@@ -41,10 +44,15 @@ async function encrypt(text: string, password: string): Promise<{ encrypted: str
   };
 }
 
-// ─── Descifrar ─────────────────────────────────────────────
-async function decrypt(encryptedData: string, password: string): Promise<string> {
+async function decrypt(
+  encryptedData: string,
+  password:      string
+): Promise<string> {
   const encoder  = new TextEncoder();
-  const combined = Uint8Array.from(atob(encryptedData), (c) => c.charCodeAt(0));
+  const combined = Uint8Array.from(
+    atob(encryptedData),
+    (c) => c.charCodeAt(0)
+  );
 
   const salt      = combined.slice(0, 16);
   const iv        = combined.slice(16, 28);
@@ -74,17 +82,17 @@ async function decrypt(encryptedData: string, password: string): Promise<string>
   return new TextDecoder().decode(decrypted);
 }
 
-// ─── API Pública ───────────────────────────────────────────
-
-// Guardar wallet cifrada en localStorage
+// =========================================================
+// WALLET CIFRADA
+// =========================================================
 export async function saveWalletEncrypted(
   address:    string,
   privateKey: string,
   mnemonic:   string,
   password:   string
 ): Promise<void> {
-  const payload         = JSON.stringify({ privateKey, mnemonic });
-  const { encrypted }   = await encrypt(payload, password);
+  const payload       = JSON.stringify({ privateKey, mnemonic });
+  const { encrypted } = await encrypt(payload, password);
 
   const stored = {
     address,
@@ -96,7 +104,6 @@ export async function saveWalletEncrypted(
   console.log("✅ [Wallet] Guardada cifrada en dispositivo");
 }
 
-// Recuperar private key (requiere password)
 export async function loadWalletPrivateKey(password: string): Promise<{
   address:    string;
   privateKey: string;
@@ -106,8 +113,8 @@ export async function loadWalletPrivateKey(password: string): Promise<{
     const raw = localStorage.getItem(WALLET_KEY);
     if (!raw) return null;
 
-    const stored        = JSON.parse(raw);
-    const decrypted     = await decrypt(stored.encryptedData, password);
+    const stored            = JSON.parse(raw);
+    const decrypted         = await decrypt(stored.encryptedData, password);
     const { privateKey, mnemonic } = JSON.parse(decrypted);
 
     return { address: stored.address, privateKey, mnemonic };
@@ -117,7 +124,6 @@ export async function loadWalletPrivateKey(password: string): Promise<{
   }
 }
 
-// Ver si hay wallet guardada (sin descifrar)
 export function getStoredWalletAddress(): string | null {
   try {
     const raw = localStorage.getItem(WALLET_KEY);
@@ -129,13 +135,53 @@ export function getStoredWalletAddress(): string | null {
   }
 }
 
-// Borrar wallet del dispositivo
-export function clearStoredWallet(): void {
-  localStorage.removeItem(WALLET_KEY);
-  console.log("🗑️ [Wallet] Eliminada del dispositivo");
-}
-
-// ¿Tiene wallet guardada?
 export function hasStoredWallet(): boolean {
   return !!localStorage.getItem(WALLET_KEY);
 }
+
+export function clearStoredWallet(): void {
+  localStorage.removeItem(WALLET_KEY);
+  localStorage.removeItem(ADDRESSES_KEY);
+  console.log("🗑️ [Wallet] Eliminada del dispositivo");
+}
+
+// =========================================================
+// DIRECCIONES MULTI-RED (públicas, sin cifrado)
+// =========================================================
+export interface StoredAddresses {
+  evm:       string;   // Polygon, ETH, BSC (0x...)
+  tron:      string;   // Tron (T...)
+  bitcoin:   string;   // Bitcoin (bc1...)
+  savedAt:   number;
+}
+
+export function saveWalletAddresses(addresses: {
+  evm:     string;
+  tron:    string;
+  bitcoin: string;
+}): void {
+  const data: StoredAddresses = {
+    ...addresses,
+    savedAt: Date.now(),
+  };
+  localStorage.setItem(ADDRESSES_KEY, JSON.stringify(data));
+  console.log("✅ [Wallet] Direcciones multi-red guardadas");
+}
+
+export function getWalletAddresses(): StoredAddresses | null {
+  try {
+    const raw = localStorage.getItem(ADDRESSES_KEY);
+    if (!raw) return null;
+    return JSON.parse(raw);
+  } catch {
+    return null;
+  }
+}
+
+export function hasWalletAddresses(): boolean {
+  return !!localStorage.getItem(ADDRESSES_KEY);
+}
+
+export function clearWalletAddresses(): void {
+  localStorage.removeItem(ADDRESSES_KEY);
+  }
