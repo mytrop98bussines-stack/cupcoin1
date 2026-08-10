@@ -43,13 +43,13 @@ export default defineConfig({
       "tronweb",
     ],
     esbuildOptions: {
-      // ✅ Necesario para módulos CommonJS
-      target: "es2020",
+      // ✅ Necesario para módulos CommonJS y top-level await
+      target: "es2022",
     },
   },
 
   build: {
-    target:               "es2020",
+    target:               "es2022",
     chunkSizeWarningLimit: 2000,
     assetsDir:            "assets",
     rollupOptions: {
