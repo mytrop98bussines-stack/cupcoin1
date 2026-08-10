@@ -660,41 +660,4 @@ async function sendBitcoin(
     const change       = totalInput - amountSats - estimatedFee;
 
     if (change < 0) {
-      return { success: false, error: "Fondos insuficientes para cubrir el monto + comisión" };
-    }
-
-    psbt.addOutput({ address: params.toAddress, value: amountSats });
-
-    if (change > 546) {
-      psbt.addOutput({ address: fromAddress!, value: change });
-    }
-
-    // Firmar
-    psbt.signAllInputs({
-      publicKey: keyPair.publicKey,
-      sign: (hash: Buffer) => {
-        const sig = ecc.sign(hash, keyPair.privateKey!);
-        return Buffer.from(sig);
-      },
-    });
-
-    psbt.finalizeAllInputs();
-    const txHex = psbt.extractTransaction().toHex();
-
-    // Broadcast
-    const broadcastRes = await fetch(
-      "https://blockstream.info/api/tx",
-      {
-        method: "POST",
-        body:   txHex,
-      }
-    );
-    const txHash = await broadcastRes.text();
-
-    return {
-      success:  true,
-      txHash,
-      explorer: `https://mempool.space/tx/${txHash}`,
-    };
-  } catch (error: any) {
-    retu
+      return { success: false, error: "Fondos insuficientes
