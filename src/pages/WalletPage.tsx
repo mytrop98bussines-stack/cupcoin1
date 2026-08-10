@@ -1012,7 +1012,12 @@ export function WalletPage() {
 
                 </div>
               );
-            })()}  {/* ✅ CORRECTO: })() seguido de } */}
+             })()}  {/* ✅ CORRECTO: })() seguido de } */}
+            </>
+           )}
+         </div> {/* <- cierra .w-full max-w-md */}
+       </div>   {/* <- cierra overlay fixed */}
+      )}        {/* <- cierra {activeAction.type === "deposit" && ( ... )} */}
 
       {/* ═══ MODAL RETIRO ════════════════════════════════ */}
       {activeAction.type === "withdraw" && activeAction.asset && activeAction.networkId && (
