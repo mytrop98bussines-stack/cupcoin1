@@ -1,7 +1,6 @@
 import { create } from "zustand";
 import type {
   User,
-  CryptoBalance,
   CryptoPrice,
   P2POrder,
   Trade,
@@ -11,78 +10,87 @@ import type {
   ThemeMode,
   AppView,
 } from "@/types";
-import { setCache, getCache } from "@/lib/cache";
+import { setCache, getCache }          from "@/lib/cache";
 import { getWalletBalances, getTokenPrices } from "@/lib/wallet/walletService";
-import { getStoredWalletAddress }             from "@/lib/wallet/walletStorage";
-import type { TokenBalance }                  from "@/lib/wallet/walletTypes";
+import {
+  getStoredWalletAddress,
+  getWalletAddresses,
+  saveWalletAddresses,
+}                                      from "@/lib/wallet/walletStorage";
+import type {
+  TokenBalance,
+  WalletAddresses,
+}                                      from "@/lib/wallet/walletTypes";
 
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
-// ─── Helper token ─────────────────────────────────────────
 const getToken = (): string | null =>
   localStorage.getItem("cubax_token");
 
-// ─── Headers autenticados ─────────────────────────────────
 const authHeaders = () => ({
   "Content-Type": "application/json",
   Authorization:  `Bearer ${getToken()}`,
 });
 
+// =========================================================
+// INTERFACE
+// =========================================================
 interface AppState {
-  theme:                    ThemeMode;
-  currentView:              AppView;
-  previousView:             AppView | null;
-  user:                     User | null;
-  isAuthenticated:          boolean;
+  theme:         ThemeMode;
+  currentView:   AppView;
+  previousView:  AppView | null;
+  user:          User | null;
+  isAuthenticated: boolean;
 
-  // ✅ NUEVO: Wallet no custodia
-  walletAddress:            string | null;
-  walletBalances:           TokenBalance[];
-  walletLoading:            boolean;
+  // ✅ Wallet no custodia multi-red
+  walletAddresses:  WalletAddresses | null;
+  walletAddress:    string | null;          // EVM address (compat)
+  walletBalances:   TokenBalance[];
+  walletLoading:    boolean;
 
-  // ✅ ELIMINADO: balances custodios (ya no se usan)
-  // balances:              CryptoBalance[];
-  // depositAddresses:      Record<string, string>;
+  prices:        CryptoPrice[];
+  orders:        P2POrder[];
+  activeTrade:   Trade | null;
+  tradeMessages: ChatMessage[];
+  products:      Product[];
+  notifications: Notification[];
 
-  prices:                   CryptoPrice[];
-  orders:                   P2POrder[];
-  activeTrade:              Trade | null;
-  tradeMessages:            ChatMessage[];
-  products:                 Product[];
-  notifications:            Notification[];
-  selectedTradeId:          string | null;
-  selectedProductId:        string | null;
-  selectedPublicUserId:     string | null;
-  selectedSalesProductId:   string | null;
-  isLoading:                boolean;
-  mobileMenuOpen:           boolean;
-  loadingPrices:            boolean;
-  modalOpen:                boolean;
-  language:                 "es" | "en";
+  selectedTradeId:        string | null;
+  selectedProductId:      string | null;
+  selectedPublicUserId:   string | null;
+  selectedSalesProductId: string | null;
 
-  // ─── Tema ────────────────────────────────────────────────
+  isLoading:      boolean;
+  mobileMenuOpen: boolean;
+  loadingPrices:  boolean;
+  modalOpen:      boolean;
+  language:       "es" | "en";
+
+  // ─── Tema ────────────────────────────────────────────
   setTheme:    (theme: ThemeMode) => void;
   toggleTheme: () => void;
 
-  // ─── Navegación ──────────────────────────────────────────
+  // ─── Navegación ──────────────────────────────────────
   navigate:          (view: AppView) => void;
   goBack:            () => void;
   navigateToProfile: (userId: string) => void;
 
-  // ─── Usuario ─────────────────────────────────────────────
+  // ─── Usuario ─────────────────────────────────────────
   setUser:  (user: User | null) => void;
   login:    (user: User) => void;
   logout:   () => void;
 
-  // ✅ NUEVO: Wallet no custodia
-  loadWalletBalances: () => Promise<void>;
-  setWalletAddress:   (address: string | null) => void;
+  // ─── Wallet multi-red ────────────────────────────────
+  loadWalletBalances:  () => Promise<void>;
+  setWalletAddress:    (address: string | null) => void;
+  setWalletAddresses:  (addresses: WalletAddresses | null) => void;
+  refreshWalletPrices: () => Promise<void>;
 
-  // ─── Precios ─────────────────────────────────────────────
+  // ─── Precios ─────────────────────────────────────────
   setPrices:   (prices: CryptoPrice[]) => void;
   fetchPrices: () => Promise<void>;
 
-  // ─── Órdenes P2P ─────────────────────────────────────────
+  // ─── Órdenes P2P ─────────────────────────────────────
   setOrders:     (orders: P2POrder[]) => void;
   addOrder:      (order: P2POrder) => void;
   fetchOrders:   () => Promise<void>;
@@ -90,33 +98,33 @@ interface AppState {
   createOrder:   (orderData: Partial<P2POrder>) => Promise<{ success: boolean; message: string }>;
   cancelOrder:   (orderId: string) => Promise<{ success: boolean; message: string }>;
 
-  // ─── Trades ──────────────────────────────────────────────
+  // ─── Trades ──────────────────────────────────────────
   setActiveTrade:    (trade: Trade | null) => void;
   updateTradeStatus: (tradeId: string, status: Trade["status"]) => Promise<void>;
 
-  // ─── Mensajes ────────────────────────────────────────────
+  // ─── Mensajes ────────────────────────────────────────
   setTradeMessages:         (messages: ChatMessage[]) => void;
   addMessage:               (message: ChatMessage) => void;
   subscribeToTradeMessages: (tradeId: string) => () => void;
   sendMessage:              (tradeId: string, text: string) => Promise<void>;
 
-  // ─── Productos ───────────────────────────────────────────
+  // ─── Productos ───────────────────────────────────────
   setProducts:         (products: Product[]) => void;
   fetchProducts:       () => Promise<void>;
   addProduct:          (product: Partial<Product>) => Promise<{ success: boolean }>;
   deleteProduct:       (productId: string) => Promise<void>;
   subscribeToProducts: () => () => void;
 
-  // ─── Notificaciones ──────────────────────────────────────
+  // ─── Notificaciones ──────────────────────────────────
   setNotifications:         (notifications: Notification[]) => void;
   fetchNotifications:       (userId: string) => Promise<void>;
   subscribeToNotifications: (userId: string) => () => void;
   markNotificationRead:     (id: string) => Promise<void>;
 
-  // ─── Idioma ──────────────────────────────────────────────
+  // ─── Idioma ──────────────────────────────────────────
   setLanguage: (lang: "es" | "en") => void;
 
-  // ─── UI ──────────────────────────────────────────────────
+  // ─── UI ──────────────────────────────────────────────
   setSelectedTradeId:        (id: string | null) => void;
   setSelectedProductId:      (id: string | null) => void;
   setSelectedPublicUserId:   (id: string | null) => void;
@@ -126,7 +134,9 @@ interface AppState {
   setModalOpen:              (open: boolean) => void;
 }
 
-// ─── Tema inicial ─────────────────────────────────────────
+// =========================================================
+// HELPERS
+// =========================================================
 const getInitialTheme = (): ThemeMode => {
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem("cubax-theme") as ThemeMode | null;
@@ -138,14 +148,12 @@ const getInitialTheme = (): ThemeMode => {
   return "dark";
 };
 
-// ─── Vista inicial ────────────────────────────────────────
 const getInitialView = (): AppView => {
   if (typeof window !== "undefined") {
     const params = new URLSearchParams(window.location.search);
-
     const hasOAuthCallback =
-      params.has("token")        ||
-      params.has("requires2FA")  ||
+      params.has("token")          ||
+      params.has("requires2FA")    ||
       params.has("challengeToken") ||
       params.has("error");
 
@@ -155,44 +163,52 @@ const getInitialView = (): AppView => {
     if (token) return "dashboard";
 
     const stored = localStorage.getItem("cubax_last_view") as AppView | null;
-
     const validViews = [
       "landing", "login", "register", "dashboard", "p2p", "create-order",
       "trade", "kyc", "marketplace", "product-detail", "create-product",
-      "wallet", "settings", "notifications", "membership", "profile",
-      "security", "help", "terms", "language", "notification-settings",
-      "trade-history", "my-orders", "admin-kyc", "admin-disputes",
-      "public-profile", "sales-management",
+      "wallet", "wallet-history", "settings", "notifications", "membership",
+      "profile", "security", "help", "terms", "language",
+      "notification-settings", "trade-history", "my-orders", "admin-kyc",
+      "admin-disputes", "public-profile", "sales-management",
     ];
-
     if (stored && validViews.includes(stored)) return stored;
   }
   return "landing";
+};
+
+// ─── Cargar direcciones al iniciar ────────────────────────
+const getInitialAddresses = (): WalletAddresses | null => {
+  return getWalletAddresses();
 };
 
 // =========================================================
 // STORE
 // =========================================================
 export const useAppStore = create<AppState>((set, get) => ({
-  theme:                  getInitialTheme(),
-  currentView:            getInitialView(),
-  previousView:           null,
-  user:                   null,
-  isAuthenticated:        false,
+  theme:           getInitialTheme(),
+  currentView:     getInitialView(),
+  previousView:    null,
+  user:            null,
+  isAuthenticated: false,
 
-  // ✅ Wallet no custodia
-  walletAddress:          getStoredWalletAddress(),
-  walletBalances:         [],
-  walletLoading:          false,
+  // ✅ Wallet multi-red
+  walletAddresses: getInitialAddresses(),
+  walletAddress:   getStoredWalletAddress(),
+  walletBalances:  [],
+  walletLoading:   false,
 
   language: (localStorage.getItem("cubax_language") as "es" | "en") || "es",
 
   prices: [
-    { id: "1", symbol: "USDT",  name: "Tether",   priceUSD: 1.00,     change24h: 0 },
-    { id: "2", symbol: "USDC",  name: "USD Coin",  priceUSD: 1.00,     change24h: 0 },
-    { id: "3", symbol: "BTC",   name: "Bitcoin",   priceUSD: 67500.00, change24h: 0 },
-    { id: "4", symbol: "ETH",   name: "Ethereum",  priceUSD: 3500.00,  change24h: 0 },
-    { id: "5", symbol: "MATIC", name: "Polygon",   priceUSD: 0.70,     change24h: 0 },
+    { id: "1",  symbol: "USDT",  name: "Tether",        priceUSD: 1,      change24h: 0 },
+    { id: "2",  symbol: "USDC",  name: "USD Coin",       priceUSD: 1,      change24h: 0 },
+    { id: "3",  symbol: "BTC",   name: "Bitcoin",        priceUSD: 67500,  change24h: 0 },
+    { id: "4",  symbol: "ETH",   name: "Ethereum",       priceUSD: 3500,   change24h: 0 },
+    { id: "5",  symbol: "MATIC", name: "Polygon",        priceUSD: 0.7,    change24h: 0 },
+    { id: "6",  symbol: "BNB",   name: "BNB",            priceUSD: 300,    change24h: 0 },
+    { id: "7",  symbol: "TRX",   name: "Tron",           priceUSD: 0.12,   change24h: 0 },
+    { id: "8",  symbol: "BUSD",  name: "Binance USD",    priceUSD: 1,      change24h: 0 },
+    { id: "9",  symbol: "WBTC",  name: "Wrapped Bitcoin", priceUSD: 67500, change24h: 0 },
   ],
 
   orders:                  [],
@@ -256,18 +272,20 @@ export const useAppStore = create<AppState>((set, get) => ({
   login: (user) => {
     localStorage.setItem("cubax_last_view", "dashboard");
 
-    // ✅ Cargar wallet address del localStorage
-    const walletAddress = getStoredWalletAddress();
+    // ✅ Cargar direcciones multi-red
+    const walletAddresses = getWalletAddresses();
+    const walletAddress   = walletAddresses?.evm || getStoredWalletAddress();
 
     set({
       user,
       isAuthenticated: true,
       currentView:     "dashboard",
+      walletAddresses,
       walletAddress,
     });
 
-    // ✅ Cargar saldos de blockchain automáticamente
-    if (walletAddress) {
+    // ✅ Cargar saldos automáticamente
+    if (walletAddresses?.evm) {
       void get().loadWalletBalances();
     }
   },
@@ -277,6 +295,10 @@ export const useAppStore = create<AppState>((set, get) => ({
     const savedEmail       = localStorage.getItem("cubax_email");
     const biometricEnabled = localStorage.getItem("biometric_enabled");
 
+    // ✅ Preservar wallet y biometría
+    const walletEnc       = localStorage.getItem("cubax_wallet_enc");
+    const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
+
     localStorage.removeItem("cubax_token");
     localStorage.removeItem("cubax_refresh_token");
     localStorage.removeItem("cubax_last_view");
@@ -284,88 +306,122 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     if (biometricEnabled === "1" && savedUid) {
       if (savedEmail) localStorage.setItem("cubax_email", savedEmail);
-      localStorage.setItem("cubax_uid",        savedUid);
+      localStorage.setItem("cubax_uid",         savedUid);
       localStorage.setItem("biometric_enabled", "1");
     } else {
       localStorage.removeItem("cubax_uid");
       localStorage.removeItem("cubax_email");
     }
 
-    // ✅ NOTA: NO borramos la wallet del localStorage
-    // La wallet cifrada permanece en el dispositivo
-    // El usuario la necesita para volver a entrar
+    // ✅ Siempre preservar wallet
+    if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
+    if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
 
     set({
-      user:            null,
-      isAuthenticated: false,
-      currentView:     "landing",
-      walletBalances:  [],
-      walletAddress:   null,
-      notifications:   [],
-      activeTrade:     null,
-      tradeMessages:   [],
-      products:        [],
-      modalOpen:       false,
+      user:             null,
+      isAuthenticated:  false,
+      currentView:      "landing",
+      walletBalances:   [],
+      walletAddress:    null,
+      walletAddresses:  null,
+      notifications:    [],
+      activeTrade:      null,
+      tradeMessages:    [],
+      products:         [],
+      modalOpen:        false,
     });
   },
 
   // =========================================================
-  // ✅ WALLET NO CUSTODIA
+  // WALLET MULTI-RED
   // =========================================================
   setWalletAddress: (address) => set({ walletAddress: address }),
 
+  setWalletAddresses: (addresses) => {
+    set({
+      walletAddresses: addresses,
+      walletAddress:   addresses?.evm || null,
+    });
+  },
+
+  // ✅ Refrescar solo precios (sin llamar blockchain)
+  refreshWalletPrices: async () => {
+    try {
+      const newPrices = await getTokenPrices();
+      set((state) => ({
+        walletBalances: state.walletBalances.map((b) => {
+          const price = newPrices[b.symbol];
+          return {
+            ...b,
+            usdValue: price ? b.amount * price.usd : b.usdValue,
+          };
+        }),
+      }));
+    } catch (err) {
+      console.error("❌ [Store] Error refreshWalletPrices:", err);
+    }
+  },
+
+  // ✅ Cargar saldos desde blockchain (multi-red)
   loadWalletBalances: async () => {
-  const address = getStoredWalletAddress();
-  if (!address) return;
-
-  set({ walletLoading: true });
-
-  try {
-    const [tokenBalances, tokenPrices] = await Promise.all([
-      getWalletBalances(address),
-      getTokenPrices(),
-    ]);
-
-    // ✅ Verificar que tokenBalances sea un array válido
-    if (!Array.isArray(tokenBalances)) {
-      console.error("❌ [Store] tokenBalances no es un array");
+    const addresses = getWalletAddresses();
+    if (!addresses?.evm) {
+      console.warn("⚠️ [Store] No hay direcciones de wallet");
       return;
     }
 
-    // ✅ Verificar que tokenPrices sea un objeto válido
-    const safePrices = tokenPrices || {};
+    set({ walletLoading: true });
 
-    const enriched = tokenBalances.map((b) => {
-      if (!b || !b.symbol) return null; // ✅ Guard
-      const price = safePrices[b.symbol];
-      return {
-        ...b,
-        usdValue: price ? (b.amount || 0) * price.usd : 0,
-      };
-    }).filter(Boolean); // ✅ Eliminar nulls
+    try {
+      const [tokenBalances, tokenPrices] = await Promise.all([
+        getWalletBalances(addresses),
+        getTokenPrices(),
+      ]);
 
-    const updatedPrices = [
-      { id: "1", symbol: "USDT",  name: "Tether",  priceUSD: safePrices.USDT?.usd  || 1,     change24h: safePrices.USDT?.usd_24h_change  || 0 },
-      { id: "2", symbol: "USDC",  name: "USD Coin", priceUSD: safePrices.USDC?.usd  || 1,     change24h: safePrices.USDC?.usd_24h_change  || 0 },
-      { id: "3", symbol: "BTC",   name: "Bitcoin",  priceUSD: safePrices.BTC?.usd   || 67500, change24h: safePrices.BTC?.usd_24h_change   || 0 },
-      { id: "4", symbol: "ETH",   name: "Ethereum", priceUSD: safePrices.ETH?.usd   || 3500,  change24h: safePrices.ETH?.usd_24h_change   || 0 },
-      { id: "5", symbol: "MATIC", name: "Polygon",  priceUSD: safePrices.MATIC?.usd || 0.7,   change24h: safePrices.MATIC?.usd_24h_change || 0 },
-    ];
+      if (!Array.isArray(tokenBalances)) {
+        console.error("❌ [Store] tokenBalances no es array");
+        return;
+      }
 
-    set({
-      walletBalances: enriched as any,
-      walletAddress:  address,
-      prices:         updatedPrices,
-    });
+      const safePrices = tokenPrices || {};
 
-  } catch (err) {
-    console.error("❌ [Store] Error cargando wallet balances:", err);
-  } finally {
-    set({ walletLoading: false });
-  }
-},
+      const enriched = tokenBalances
+        .filter((b) => b && b.symbol)
+        .map((b) => ({
+          ...b,
+          usdValue: safePrices[b.symbol]
+            ? (b.amount || 0) * safePrices[b.symbol].usd
+            : 0,
+        }));
 
-  // =========================================================
+      // ✅ Actualizar precios globales del store
+      const updatedPrices: CryptoPrice[] = [
+        { id: "1",  symbol: "USDT",  name: "Tether",         priceUSD: safePrices.USDT?.usd  || 1,      change24h: safePrices.USDT?.usd_24h_change  || 0 },
+        { id: "2",  symbol: "USDC",  name: "USD Coin",        priceUSD: safePrices.USDC?.usd  || 1,      change24h: safePrices.USDC?.usd_24h_change  || 0 },
+        { id: "3",  symbol: "BTC",   name: "Bitcoin",         priceUSD: safePrices.BTC?.usd   || 67500,  change24h: safePrices.BTC?.usd_24h_change   || 0 },
+        { id: "4",  symbol: "ETH",   name: "Ethereum",        priceUSD: safePrices.ETH?.usd   || 3500,   change24h: safePrices.ETH?.usd_24h_change   || 0 },
+        { id: "5",  symbol: "MATIC", name: "Polygon",         priceUSD: safePrices.MATIC?.usd || 0.7,    change24h: safePrices.MATIC?.usd_24h_change || 0 },
+        { id: "6",  symbol: "BNB",   name: "BNB",             priceUSD: safePrices.BNB?.usd   || 300,    change24h: safePrices.BNB?.usd_24h_change   || 0 },
+        { id: "7",  symbol: "TRX",   name: "Tron",            priceUSD: safePrices.TRX?.usd   || 0.12,   change24h: safePrices.TRX?.usd_24h_change   || 0 },
+        { id: "8",  symbol: "BUSD",  name: "Binance USD",     priceUSD: safePrices.BUSD?.usd  || 1,      change24h: safePrices.BUSD?.usd_24h_change  || 0 },
+        { id: "9",  symbol: "WBTC",  name: "Wrapped Bitcoin", priceUSD: safePrices.WBTC?.usd  || 67500,  change24h: safePrices.WBTC?.usd_24h_change  || 0 },
+      ];
+
+      set({
+        walletBalances:  enriched,
+        walletAddresses: addresses,
+        walletAddress:   addresses.evm,
+        prices:          updatedPrices,
+      });
+
+      console.log("✅ [Store] Wallet multi-red cargada:", enriched.length, "tokens");
+    } catch (err) {
+      console.error("❌ [Store] Error loadWalletBalances:", err);
+    } finally {
+      set({ walletLoading: false });
+    }
+  },
+    // =========================================================
   // PRECIOS
   // =========================================================
   setPrices: (prices) => set({ prices }),
@@ -376,6 +432,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const response = await fetch(
         "https://api.coingecko.com/api/v3/simple/price" +
         "?ids=bitcoin,ethereum,tether,usd-coin,matic-network" +
+        ",binancecoin,tron,binance-usd,wrapped-bitcoin" +
         "&vs_currencies=usd" +
         "&include_24hr_change=true"
       );
@@ -383,21 +440,26 @@ export const useAppStore = create<AppState>((set, get) => ({
       const data = await response.json();
 
       const prices: CryptoPrice[] = [
-        { id: "1", symbol: "USDT",  name: "Tether",   priceUSD: data.tether?.usd               ?? 1,       change24h: data.tether?.usd_24h_change               ?? 0 },
-        { id: "2", symbol: "USDC",  name: "USD Coin",  priceUSD: data["usd-coin"]?.usd           ?? 1,       change24h: data["usd-coin"]?.usd_24h_change           ?? 0 },
-        { id: "3", symbol: "BTC",   name: "Bitcoin",   priceUSD: data.bitcoin?.usd               ?? 67500,   change24h: data.bitcoin?.usd_24h_change               ?? 0 },
-        { id: "4", symbol: "ETH",   name: "Ethereum",  priceUSD: data.ethereum?.usd              ?? 3500,    change24h: data.ethereum?.usd_24h_change              ?? 0 },
-        { id: "5", symbol: "MATIC", name: "Polygon",   priceUSD: data["matic-network"]?.usd      ?? 0.7,     change24h: data["matic-network"]?.usd_24h_change      ?? 0 },
+        { id: "1",  symbol: "USDT",  name: "Tether",         priceUSD: data.tether?.usd                ?? 1,      change24h: data.tether?.usd_24h_change                ?? 0 },
+        { id: "2",  symbol: "USDC",  name: "USD Coin",        priceUSD: data["usd-coin"]?.usd            ?? 1,      change24h: data["usd-coin"]?.usd_24h_change            ?? 0 },
+        { id: "3",  symbol: "BTC",   name: "Bitcoin",         priceUSD: data.bitcoin?.usd                ?? 67500,  change24h: data.bitcoin?.usd_24h_change                ?? 0 },
+        { id: "4",  symbol: "ETH",   name: "Ethereum",        priceUSD: data.ethereum?.usd               ?? 3500,   change24h: data.ethereum?.usd_24h_change               ?? 0 },
+        { id: "5",  symbol: "MATIC", name: "Polygon",         priceUSD: data["matic-network"]?.usd       ?? 0.7,    change24h: data["matic-network"]?.usd_24h_change       ?? 0 },
+        { id: "6",  symbol: "BNB",   name: "BNB",             priceUSD: data.binancecoin?.usd            ?? 300,    change24h: data.binancecoin?.usd_24h_change            ?? 0 },
+        { id: "7",  symbol: "TRX",   name: "Tron",            priceUSD: data.tron?.usd                   ?? 0.12,   change24h: data.tron?.usd_24h_change                   ?? 0 },
+        { id: "8",  symbol: "BUSD",  name: "Binance USD",     priceUSD: data["binance-usd"]?.usd         ?? 1,      change24h: data["binance-usd"]?.usd_24h_change         ?? 0 },
+        { id: "9",  symbol: "WBTC",  name: "Wrapped Bitcoin", priceUSD: data["wrapped-bitcoin"]?.usd     ?? 67500,  change24h: data["wrapped-bitcoin"]?.usd_24h_change     ?? 0 },
       ];
 
       set({ prices, loadingPrices: false });
-      console.log("✅ [Prices] Actualizados desde CoinGecko");
+      console.log("✅ [Prices] Actualizados");
     } catch (error) {
-      console.error("❌ [Prices] Error fetchPrices:", error);
+      console.error("❌ [Prices] Error:", error);
       set({ loadingPrices: false });
     }
   },
-    // =========================================================
+
+  // =========================================================
   // ÓRDENES P2P
   // =========================================================
   setOrders: (orders) => set({ orders }),
@@ -406,17 +468,15 @@ export const useAppStore = create<AppState>((set, get) => ({
   fetchOrders: async () => {
     const cached = getCache<P2POrder[]>("orders");
     if (cached) set({ orders: cached });
-
     try {
       const res  = await fetch(`${RENDER_API_URL}/orders`);
       const data = await res.json();
       if (data.success) {
         set({ orders: data.orders });
         setCache("orders", data.orders);
-        console.log("✅ [Orders] Órdenes cargadas");
       }
     } catch (error) {
-      console.error("❌ [Orders] Error fetchOrders — usando cache:", error);
+      console.error("❌ [Orders] Error fetchOrders:", error);
     }
   },
 
@@ -430,10 +490,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         body:    JSON.stringify({ uid: currentUser.uid }),
       });
       const data = await res.json();
-      if (data.success) {
-        set({ orders: data.orders });
-        console.log("✅ [Orders] Mis órdenes cargadas");
-      }
+      if (data.success) set({ orders: data.orders });
     } catch (error) {
       console.error("❌ [Orders] Error fetchMyOrders:", error);
     }
@@ -451,7 +508,7 @@ export const useAppStore = create<AppState>((set, get) => ({
       const data = await res.json();
       if (data.success) {
         get().addOrder(data.order);
-        return { success: true, message: "Orden creada exitosamente" };
+        return { success: true, message: "Orden creada" };
       }
       return { success: false, message: data.error || "Error creando orden" };
     } catch (error) {
@@ -474,7 +531,7 @@ export const useAppStore = create<AppState>((set, get) => ({
         set({ orders: get().orders.filter((o) => o.id !== orderId) });
         return { success: true, message: "Orden cancelada" };
       }
-      return { success: false, message: data.error || "Error cancelando orden" };
+      return { success: false, message: data.error || "Error" };
     } catch (error) {
       console.error("❌ [Orders] Error cancelOrder:", error);
       return { success: false, message: "Error de conexión" };
@@ -496,9 +553,8 @@ export const useAppStore = create<AppState>((set, get) => ({
       });
       const data = await res.json();
       if (!data.success) throw new Error(data.error);
-      console.log(`✅ [Trade] Estado actualizado: ${status}`);
     } catch (error) {
-      console.error("❌ Error actualizando estado del trade:", error);
+      console.error("❌ [Trade] Error updateTradeStatus:", error);
     }
   },
 
@@ -510,7 +566,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   subscribeToTradeMessages: (tradeId: string) => {
     if (!tradeId) return () => {};
-
     let stopped = false;
 
     const loadMessages = async () => {
@@ -532,7 +587,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     void loadMessages();
     const intervalId = window.setInterval(loadMessages, 5000);
-
     return () => {
       stopped = true;
       window.clearInterval(intervalId);
@@ -565,24 +619,22 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // =========================================================
-  // PRODUCTOS MARKETPLACE
+  // PRODUCTOS
   // =========================================================
   setProducts: (products) => set({ products }),
 
   fetchProducts: async () => {
     const cached = getCache<Product[]>("products");
     if (cached) set({ products: cached });
-
     try {
       const res  = await fetch(`${RENDER_API_URL}/products`);
       const data = await res.json();
       if (data.success) {
         set({ products: data.products });
         setCache("products", data.products);
-        console.log("✅ [Marketplace] Productos cargados");
       }
     } catch (error) {
-      console.error("❌ [Marketplace] Error fetchProducts — usando cache:", error);
+      console.error("❌ [Marketplace] Error fetchProducts:", error);
     }
   },
 
@@ -637,10 +689,8 @@ export const useAppStore = create<AppState>((set, get) => ({
 
   fetchNotifications: async (userId: string) => {
     if (!userId || userId === "invitado") return;
-
     const cached = getCache<Notification[]>(`notifications_${userId}`);
     if (cached) set({ notifications: cached });
-
     try {
       const res  = await fetch(`${RENDER_API_URL}/notifications/${userId}`, {
         headers: { Authorization: `Bearer ${getToken()}` },
@@ -649,16 +699,14 @@ export const useAppStore = create<AppState>((set, get) => ({
       if (data.success) {
         set({ notifications: data.notifications });
         setCache(`notifications_${userId}`, data.notifications);
-        console.log("✅ [Notifications] Cargadas");
       }
     } catch (error) {
-      console.error("❌ Error fetchNotifications — usando cache:", error);
+      console.error("❌ Error fetchNotifications:", error);
     }
   },
 
   subscribeToNotifications: (userId: string) => {
     if (!userId || userId === "invitado") return () => {};
-
     let stopped = false;
 
     const load = async () => {
@@ -668,7 +716,6 @@ export const useAppStore = create<AppState>((set, get) => ({
 
     void load();
     const intervalId = window.setInterval(load, 30000);
-
     return () => {
       stopped = true;
       window.clearInterval(intervalId);
@@ -714,3 +761,4 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMobileMenuOpen:         (open)    => set({ mobileMenuOpen:         open }),
   setModalOpen:              (open)    => set({ modalOpen:              open }),
 }));
+  
