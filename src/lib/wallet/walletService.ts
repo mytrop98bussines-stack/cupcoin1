@@ -635,7 +635,7 @@ async function sendBitcoin(
 
     for (const utxo of utxos) {
       const txRes  = await fetch(
-        `https://blockstream.info/api/tx/${utxo.txid}/hex`
+        https://blockstream.info/api/tx/${utxo.txid}/hex`
       );
       const txHex  = await txRes.text();
 
@@ -660,4 +660,149 @@ async function sendBitcoin(
     const change       = totalInput - amountSats - estimatedFee;
 
     if (change < 0) {
-      return { success: false, error: "Fondos insuficientes
+      return { success: false, error: "Fondos insuficientes para cubrir el monto + comisión" };
+    }
+
+    psbt.addOutput({ address: params.toAddress, value: amountSats });
+
+    if (change > 546) {
+      psbt.addOutput({ address: fromAddress!, value: change });
+    }
+
+    // Firmar
+    psbt.signAllInputs({
+      publicKey: keyPair.publicKey,
+      sign: (hash: Buffer) => {
+        const sig = ecc.sign(hash, keyPair.privateKey!);
+        return Buffer.from(sig);
+      },
+    });
+
+    psbt.finalizeAllInputs();
+    const txHex = psbt.extractTransaction().toHex();
+
+    // Broadcast
+    const broadcastRes = await fetch(
+      "https://blockstream.info/api/tx",
+      {
+        method: "POST",
+        body:   txHex,
+      }
+    );
+    const txHash = await broadcastRes.text();
+
+    return {
+      success:  true,
+      txHash,
+      explorer: `https://mempool.space/tx/${txHash}`,
+    };
+  } catch (error: any) {
+    return {
+      success: false,
+      error:   error?.message || "Error enviando Bitcoin",
+    };
+  }
+}
+
+// =========================================================
+// ENVIAR TOKEN (entrada principal)
+// =========================================================
+export async function sendToken(
+  params: SendTokenParams
+): Promise<TransactionResult> {
+  const walletData = await loadWalletPrivateKey(params.password);
+  if (!walletData) {
+    return { success: false, error: "Contraseña incorrecta" };
+  }
+
+  const { networkId } = params;
+
+  if (networkId === "bitcoin") {
+    return sendBitcoin(params, walletData.mnemonic);
+  }
+
+  if (networkId === "tron") {
+    return sendTronToken(params, walletData.privateKey);
+  }
+
+  // EVM: polygon, ethereum, bsc
+  return sendEvmToken(params, walletData.privateKey);
+}
+
+// =========================================================
+// ESTIMAR GAS
+// =========================================================
+export async function estimateGas(
+  symbol:    string,
+  networkId: string,
+  toAddress: string,
+  amount:    string
+): Promise<{ gasEstimate: string; gasCostUSD: string } | null> {
+  if (networkId === "bitcoin" || networkId === "tron") return null;
+
+  try {
+    const provider = getEvmProvider(networkId);
+    const token    = TOKENS.find(
+      (t) => t.symbol === symbol && t.networkId === networkId
+    );
+    if (!token) return null;
+
+    let gasEstimate: bigint;
+
+    if (!token.contract) {
+      gasEstimate = await provider.estimateGas({
+        to:    toAddress || ethers.ZeroAddress,
+        value: ethers.parseEther(amount || "0"),
+      });
+    } else {
+      const contract = new ethers.Contract(
+        token.contract,
+        ERC20_ABI,
+        provider
+      );
+      gasEstimate = await contract.transfer.estimateGas(
+        toAddress || ethers.ZeroAddress,
+        ethers.parseUnits(amount || "0", token.decimals)
+      );
+    }
+
+    const feeData  = await provider.getFeeData();
+    const gasPrice = feeData.gasPrice || 30000000000n;
+    const gasCost  = gasEstimate * gasPrice;
+
+    const prices    = await getTokenPrices();
+    const native    = NETWORKS[networkId]?.nativeCoin || "ETH";
+    const nativePrice = prices[native]?.usd || 1;
+    const gasCostNative = parseFloat(ethers.formatEther(gasCost));
+    const gasCostUSD    = gasCostNative * nativePrice;
+
+    return {
+      gasEstimate: `${gasCostNative.toFixed(6)} ${native}`,
+      gasCostUSD:  `$${gasCostUSD.toFixed(4)}`,
+    };
+  } catch {
+    return null;
+  }
+}
+
+// =========================================================
+// VERIFICAR PASSWORD
+// =========================================================
+export async function verifyWalletPassword(
+  password: string
+): Promise<boolean> {
+  const result = await loadWalletPrivateKey(password);
+  return result !== null;
+}
+
+// =========================================================
+// OBTENER DIRECCIÓN POR RED
+// =========================================================
+export function getAddressForNetwork(
+  addresses: WalletAddresses,
+  networkId: NetworkId
+): string {
+  if (networkId === "tron")   return addresses.tron;
+  if (networkId === "bitcoin") return addresses.bitcoin;
+  return addresses.evm; // polygon, ethereum, bsc
+}
