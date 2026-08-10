@@ -1009,15 +1009,14 @@ export function WalletPage() {
                       </div>
                     ))}
                   </div>
-
                 </div>
               );
-             })()}  {/* ✅ CORRECTO: })() seguido de } */}
+              })()}
             </>
            )}
-         </div> {/* <- cierra .w-full max-w-md */}
-       </div>   {/* <- cierra overlay fixed */}
-      )}        {/* <- cierra {activeAction.type === "deposit" && ( ... )} */}
+         </div> 
+       </div>   
+      )}        
 
       {/* ═══ MODAL RETIRO ════════════════════════════════ */}
       {activeAction.type === "withdraw" && activeAction.asset && activeAction.networkId && (
