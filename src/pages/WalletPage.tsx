@@ -1376,43 +1376,33 @@ export function WalletPage() {
                   </p>
                 </div>
 
-                withdrawTxId && (
-                  <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-2">
-                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-                      Hash de transacción
-                    </p>
-                    <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">
-                      {withdrawTxId}
-                    </p>
-                    <a
-                      href={
-                        activeAction.networkId === "bitcoin"
-                          ? `https://mempool.space/tx/${withdrawTxId}`
-                          : activeAction.networkId === "tron"
-                          ? `https://tronscan.org/#/transaction/${withdrawTxId}`
-                          : `${NETWORKS[activeAction.networkId!]?.explorerUrl}/tx/${withdrawTxId}`
-                      }
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className={`flex items-center justify-center gap-1 text-[11px] font-bold hover:opacity-80 ${
-                        NETWORK_COLORS[activeAction.networkId!]?.text
-                      }`}
-                    >
-                      Ver en explorador <ArrowRight className="h-3 w-3" />
-                    </a>
-                  </div>
-                )}
-
-                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400">
-                  <Info className="h-3.5 w-3.5" />
-                  {activeAction.networkId === "bitcoin"
-                    ? "~30 minutos para confirmar"
-                    : activeAction.networkId === "ethereum"
-                    ? "~3 minutos para confirmar"
-                    : "~2 minutos para confirmar"
-                  }
-                </div>
-
+                {withdrawTxId && (
+  <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-2">
+    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+      Hash de transacción
+    </p>
+    <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">
+      {withdrawTxId}
+    </p>
+    <a
+      href={
+        activeAction.networkId === "bitcoin"
+          ? `https://mempool.space/tx/${withdrawTxId}`
+          : activeAction.networkId === "tron"
+          ? `https://tronscan.org/#/transaction/${withdrawTxId}`
+          : `${NETWORKS[activeAction.networkId!]?.explorerUrl}/tx/${withdrawTxId}`
+      }
+      target="_blank"
+      rel="noopener noreferrer"
+      className={`flex items-center justify-center gap-1 text-[11px] font-bold hover:opacity-80 ${
+        NETWORK_COLORS[activeAction.networkId!]?.text
+      }`}
+    >
+      Ver en explorador <ArrowRight className="h-3 w-3" />
+    </a>
+  </div>
+)}
+                
                 <button
                   onClick={handleCloseAction}
                   className="w-full py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold"
