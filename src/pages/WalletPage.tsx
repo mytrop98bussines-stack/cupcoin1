@@ -1326,3 +1326,105 @@ export function WalletPage() {
                   <p className="text-[10px] text-gray-400 mt-1">
                     Necesaria para descifrar tu llave privada y firmar la transacción
                   </p>
+                </div>
+
+                {withdrawError && (
+                  <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
+                    <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
+                    <p className="text-[11px] text-red-700 dark:text-red-400">
+                      {withdrawError}
+                    </p>
+                  </div>
+                )}
+
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => setWithdrawStep(2)}
+                    className="flex-1 py-3 rounded-xl bg-gray-100 dark:bg-white/5 text-gray-600 dark:text-gray-300 text-xs font-bold"
+                  >
+                    Atrás
+                  </button>
+                  <button
+                    disabled={isSubmitting || !withdrawPassword}
+                    onClick={handleExecuteWithdrawal}
+                    className={`flex-1 flex items-center justify-center gap-2 py-3 rounded-xl text-white text-xs font-bold disabled:opacity-40 transition-all ${
+                      NETWORK_COLORS[activeAction.networkId]?.bg?.replace("/10", "")
+                    } bg-purple-500`}
+                  >
+                    {isSubmitting
+                      ? <><Loader2 className="h-3.5 w-3.5 animate-spin" /> Firmando...</>
+                      : <><Shield className="h-3.5 w-3.5" /> Confirmar y Enviar</>
+                    }
+                  </button>
+                </div>
+              </div>
+            )}
+
+            {/* ── SUCCESS ── */}
+            {withdrawSuccess && (
+              <div className="py-6 text-center space-y-4">
+                <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
+                  <CheckCircle2 className="h-8 w-8 text-emerald-500" />
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-gray-900 dark:text-white mb-1">
+                    ¡Transacción enviada!
+                  </h3>
+                  <p className="text-xs text-gray-400">
+                    Firmada y enviada a {NETWORKS[activeAction.networkId!]?.name}
+                  </p>
+                </div>
+
+                withdrawTxId && (
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-2">
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+                      Hash de transacción
+                    </p>
+                    <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">
+                      {withdrawTxId}
+                    </p>
+                    <a
+                      href={
+                        activeAction.networkId === "bitcoin"
+                          ? `https://mempool.space/tx/${withdrawTxId}`
+                          : activeAction.networkId === "tron"
+                          ? `https://tronscan.org/#/transaction/${withdrawTxId}`
+                          : `${NETWORKS[activeAction.networkId!]?.explorerUrl}/tx/${withdrawTxId}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center justify-center gap-1 text-[11px] font-bold hover:opacity-80 ${
+                        NETWORK_COLORS[activeAction.networkId!]?.text
+                      }`}
+                    >
+                      Ver en explorador <ArrowRight className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
+
+                <div className="flex items-center justify-center gap-2 text-[10px] text-gray-400">
+                  <Info className="h-3.5 w-3.5" />
+                  {activeAction.networkId === "bitcoin"
+                    ? "~30 minutos para confirmar"
+                    : activeAction.networkId === "ethereum"
+                    ? "~3 minutos para confirmar"
+                    : "~2 minutos para confirmar"
+                  }
+                </div>
+
+                <button
+                  onClick={handleCloseAction}
+                  className="w-full py-3 rounded-xl bg-gray-900 dark:bg-white/10 text-white text-xs font-bold"
+                >
+                  Volver a Wallet
+                </button>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+    </div>
+  );
+}
+                     
