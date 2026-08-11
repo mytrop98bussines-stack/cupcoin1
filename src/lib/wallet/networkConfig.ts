@@ -11,9 +11,11 @@ export const NETWORKS: Record<string, Network> = {
     nativeCoin: "MATIC",
     chainId:    137,
     rpcUrls: [
+      // ✅ Estos son los más confiables y sin rate limit
+      "https://polygon-bor-rpc.publicnode.com",
+      "https://polygon.llamarpc.com",
       "https://polygon-rpc.com",
-      "https://rpc-mainnet.maticvigil.com",
-      "https://polygon-mainnet.public.blastapi.io",
+      "https://rpc-mainnet.matic.quiknode.pro",
     ],
     explorerUrl: "https://polygonscan.com",
     logoUrl:     "/crypto/matic.svg",
@@ -28,8 +30,8 @@ export const NETWORKS: Record<string, Network> = {
     chainId:    1,
     rpcUrls: [
       "https://eth.llamarpc.com",
-      "https://rpc.ankr.com/eth",
       "https://ethereum.publicnode.com",
+      "https://rpc.ankr.com/eth",
     ],
     explorerUrl: "https://etherscan.io",
     logoUrl:     "/crypto/eth.svg",
@@ -43,9 +45,9 @@ export const NETWORKS: Record<string, Network> = {
     nativeCoin: "BNB",
     chainId:    56,
     rpcUrls: [
+      "https://bsc.llamarpc.com",
       "https://bsc-dataseed1.binance.org",
       "https://bsc-dataseed2.binance.org",
-      "https://bsc-dataseed.bnbchain.org",
     ],
     explorerUrl: "https://bscscan.com",
     logoUrl:     "/crypto/bnb.svg",
