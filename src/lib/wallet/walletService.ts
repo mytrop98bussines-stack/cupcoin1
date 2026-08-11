@@ -191,85 +191,142 @@ export async function restoreWalletFromMnemonic(
 // =========================================================
 // OBTENER SALDOS EVM (Polygon, ETH, BSC)
 // =========================================================
+// ─── Timeout helper ───────────────────────────────────────
+const withTimeout = <T>(
+  promise: Promise<T>,
+  ms:      number,
+  fallback: T
+): Promise<T> =>
+  Promise.race([
+    promise,
+    new Promise<T>((resolve) =>
+      setTimeout(() => {
+        console.warn(`⏱️ Timeout después de ${ms}ms`);
+        resolve(fallback);
+      }, ms)
+    ),
+  ]);
+
+// ─── EVM Balances con timeout ─────────────────────────────
 async function getEvmBalances(
   address:   string,
   networkId: string
 ): Promise<TokenBalance[]> {
-  if (!address || !address.startsWith("0x")) {
-    return [];
-  }
+  if (!address || !address.startsWith("0x")) return [];
 
-  const tokens = getTokensByNetwork(networkId);
-  if (!tokens || tokens.length === 0) {
-    return [];
-  }
+  const tokens  = getTokensByNetwork(networkId);
+  const network = NETWORKS[networkId];
+  if (!tokens?.length || !network) return [];
 
   const balances: TokenBalance[] = [];
 
-  // ✅ Timeout para evitar que una red lenta bloquee todo
-  const withTimeout = <T>(promise: Promise<T>, ms = 10000): Promise<T> =>
-    Promise.race([
-      promise,
-      new Promise<T>((_, reject) =>
-        setTimeout(() => reject(new Error(`Timeout ${networkId}`)), ms)
-      ),
-    ]);
+  // ✅ Intentar con cada RPC hasta que uno funcione
+  let provider: ethers.JsonRpcProvider | null = null;
 
-  for (const token of tokens) {
+  for (const rpcUrl of network.rpcUrls) {
     try {
-      const provider = getEvmProvider(networkId);
-      let rawBalance: bigint = 0n;
+      const testProvider = new ethers.JsonRpcProvider(rpcUrl);
 
-      if (!token.contract) {
-        rawBalance = await withTimeout(provider.getBalance(address));
-      } else {
-        const contract = new ethers.Contract(
-          token.contract,
-          ERC20_ABI,
-          provider
-        );
-        rawBalance = await withTimeout(contract.balanceOf(address));
-      }
+      // Test rápido de conexión (5s max)
+      await withTimeout(
+        testProvider.getBlockNumber(),
+        5000,
+        null
+      );
 
-      const safeBalance = typeof rawBalance === "bigint"
-        ? rawBalance
-        : BigInt(rawBalance ?? 0);
-
-      const formatted = ethers.formatUnits(safeBalance, token.decimals);
-      const amount    = parseFloat(formatted) || 0;
-
-      balances.push({
-        symbol:    token.symbol,
-        name:      token.name,
-        balance:   formatted,
-        amount,
-        usdValue:  0,
-        contract:  token.contract,
-        decimals:  token.decimals,
-        logoUrl:   token.logoUrl,
-        networkId: token.networkId,
-        address,
-      });
-
-    } catch (err) {
-      console.error(`❌ ${token.symbol} en ${networkId}:`, err);
-      rotateEvmProvider(networkId);
-
-      // ✅ Agregar con 0 para que aparezca en la lista
-      balances.push({
-        symbol:    token.symbol,
-        name:      token.name,
-        balance:   "0",
-        amount:    0,
-        usdValue:  0,
-        contract:  token.contract,
-        decimals:  token.decimals,
-        logoUrl:   token.logoUrl,
-        networkId: token.networkId,
-        address,
-      });
+      provider = testProvider;
+      console.log(`✅ [RPC] Conectado a ${networkId}: ${rpcUrl}`);
+      break;
+    } catch {
+      console.warn(`⚠️ [RPC] Falló ${rpcUrl}, probando siguiente...`);
     }
   }
+
+  if (!provider) {
+    console.error(`❌ [RPC] Todos los RPCs de ${networkId} fallaron`);
+    // Retornar tokens con balance 0 para que aparezcan en la UI
+    return tokens.map((token) => ({
+      symbol:    token.symbol,
+      name:      token.name,
+      balance:   "0",
+      amount:    0,
+      usdValue:  0,
+      contract:  token.contract,
+      decimals:  token.decimals,
+      logoUrl:   token.logoUrl,
+      networkId: token.networkId,
+      address,
+    }));
+  }
+
+  // ✅ Cargar todos los tokens en paralelo con timeout individual
+  const results = await Promise.allSettled(
+    tokens.map(async (token) => {
+      try {
+        let rawBalance: bigint = 0n;
+
+        if (!token.contract) {
+          rawBalance = await withTimeout(
+            provider!.getBalance(address),
+            8000,
+            0n
+          );
+        } else {
+          const contract = new ethers.Contract(
+            token.contract,
+            ERC20_ABI,
+            provider!
+          );
+          rawBalance = await withTimeout(
+            contract.balanceOf(address),
+            8000,
+            0n
+          );
+        }
+
+        const safeBalance = typeof rawBalance === "bigint"
+          ? rawBalance
+          : BigInt(rawBalance ?? 0);
+
+        const formatted = ethers.formatUnits(safeBalance, token.decimals);
+        const amount    = parseFloat(formatted) || 0;
+
+        return {
+          symbol:    token.symbol,
+          name:      token.name,
+          balance:   formatted,
+          amount,
+          usdValue:  0,
+          contract:  token.contract,
+          decimals:  token.decimals,
+          logoUrl:   token.logoUrl,
+          networkId: token.networkId,
+          address,
+        } as TokenBalance;
+
+      } catch (err) {
+        console.error(`❌ ${token.symbol} en ${networkId}:`, err);
+        return {
+          symbol:    token.symbol,
+          name:      token.name,
+          balance:   "0",
+          amount:    0,
+          usdValue:  0,
+          contract:  token.contract,
+          decimals:  token.decimals,
+          logoUrl:   token.logoUrl,
+          networkId: token.networkId,
+          address,
+        } as TokenBalance;
+      }
+    })
+  );
+
+  results.forEach((result) => {
+    if (result.status === "fulfilled" && result.value) {
+      balances.push(result.value);
+    }
+  });
 
   return balances;
 }
@@ -398,66 +455,95 @@ async function getBitcoinBalance(
 }
 
 // =========================================================
-// OBTENER TODOS LOS SALDOS (Multi-red)
+// OBTENER TODOS LOS SALDOS - Estrategia por fases
 // =========================================================
 export async function getWalletBalances(
   addresses: WalletAddresses
 ): Promise<TokenBalance[]> {
-  // ✅ Guard completo
-  if (!addresses) {
-    console.error("❌ [getWalletBalances] addresses es null/undefined");
+  if (!addresses?.evm || !addresses.evm.startsWith("0x")) {
+    console.error("❌ Dirección EVM inválida");
     return [];
   }
 
-  if (!addresses.evm || !addresses.evm.startsWith("0x")) {
-    console.error("❌ [getWalletBalances] Dirección EVM inválida:", addresses.evm);
-    return [];
-  }
-
-  console.log("🔍 [getWalletBalances] Cargando para EVM:", addresses.evm);
+  console.log("🔍 Cargando saldos para:", addresses.evm);
 
   const allBalances: TokenBalance[] = [];
 
-  // ─── EVM siempre (Polygon, ETH, BSC) ─────────────────
+  // ─── FASE 1: Polygon primero (más importante y barato) ─
   try {
-    const [polygon, ethereum, bsc] = await Promise.allSettled([
+    console.log("📡 Fase 1: Polygon...");
+    const polygonBals = await withTimeout(
       getEvmBalances(addresses.evm, "polygon"),
-      getEvmBalances(addresses.evm, "ethereum"),
-      getEvmBalances(addresses.evm, "bsc"),
-    ]);
-
-    if (polygon.status   === "fulfilled") allBalances.push(...polygon.value);
-    if (ethereum.status  === "fulfilled") allBalances.push(...ethereum.value);
-    if (bsc.status       === "fulfilled") allBalances.push(...bsc.value);
+      15000,
+      []
+    );
+    allBalances.push(...polygonBals);
+    console.log(`✅ Polygon: ${polygonBals.length} tokens`);
   } catch (err) {
-    console.error("❌ Error en redes EVM:", err);
+    console.error("❌ Error Polygon:", err);
   }
 
-  // ─── Tron (solo si tiene dirección válida) ────────────
-  if (addresses.tron && addresses.tron.startsWith("T")) {
+  // ─── FASE 2: Ethereum (puede ser lento) ───────────────
+  try {
+    console.log("📡 Fase 2: Ethereum...");
+    const ethBals = await withTimeout(
+      getEvmBalances(addresses.evm, "ethereum"),
+      15000,
+      []
+    );
+    allBalances.push(...ethBals);
+    console.log(`✅ Ethereum: ${ethBals.length} tokens`);
+  } catch (err) {
+    console.error("❌ Error Ethereum:", err);
+  }
+
+  // ─── FASE 3: BSC ──────────────────────────────────────
+  try {
+    console.log("📡 Fase 3: BSC...");
+    const bscBals = await withTimeout(
+      getEvmBalances(addresses.evm, "bsc"),
+      15000,
+      []
+    );
+    allBalances.push(...bscBals);
+    console.log(`✅ BSC: ${bscBals.length} tokens`);
+  } catch (err) {
+    console.error("❌ Error BSC:", err);
+  }
+
+  // ─── FASE 4: Tron (solo si tiene dirección) ───────────
+  if (addresses.tron?.startsWith("T")) {
     try {
-      const tronBals = await getTronBalances(addresses.tron);
+      console.log("📡 Fase 4: Tron...");
+      const tronBals = await withTimeout(
+        getTronBalances(addresses.tron),
+        15000,
+        []
+      );
       allBalances.push(...tronBals);
+      console.log(`✅ Tron: ${tronBals.length} tokens`);
     } catch (err) {
-      console.error("❌ Error en Tron:", err);
+      console.error("❌ Error Tron:", err);
     }
-  } else {
-    console.log("ℹ️ Sin dirección Tron, omitiendo");
   }
 
-  // ─── Bitcoin (solo si tiene dirección válida) ─────────
-  if (addresses.bitcoin && addresses.bitcoin.startsWith("bc1")) {
+  // ─── FASE 5: Bitcoin (solo si tiene dirección) ────────
+  if (addresses.bitcoin?.startsWith("bc1")) {
     try {
-      const btcBals = await getBitcoinBalance(addresses.bitcoin);
+      console.log("📡 Fase 5: Bitcoin...");
+      const btcBals = await withTimeout(
+        getBitcoinBalance(addresses.bitcoin),
+        15000,
+        []
+      );
       allBalances.push(...btcBals);
+      console.log(`✅ Bitcoin: ${btcBals.length} tokens`);
     } catch (err) {
-      console.error("❌ Error en Bitcoin:", err);
+      console.error("❌ Error Bitcoin:", err);
     }
-  } else {
-    console.log("ℹ️ Sin dirección Bitcoin, omitiendo");
   }
 
-  console.log("✅ [getWalletBalances] Total tokens:", allBalances.length);
+  console.log(`✅ Total: ${allBalances.length} tokens cargados`);
   return allBalances;
 }
 // =========================================================
