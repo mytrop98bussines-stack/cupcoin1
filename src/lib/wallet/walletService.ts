@@ -330,6 +330,14 @@ async function getEvmBalances(
 
   return balances;
 }
+
+// ✅ Export para carga progresiva
+export async function getEvmBalancesForNetwork(
+  address:   string,
+  networkId: string
+): Promise<TokenBalance[]> {
+  return getEvmBalances(address, networkId);
+}
 // =========================================================
 // OBTENER SALDOS TRON
 // =========================================================
