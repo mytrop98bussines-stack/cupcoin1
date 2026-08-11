@@ -1387,6 +1387,33 @@ export function WalletPage() {
                 </div>
               </div>
             )}
+            {/* Botón temporal de migración - quitar después */}
+{addresses && (!addresses.tron || !addresses.bitcoin) && (
+  <button
+    onClick={async () => {
+      const { loadWalletPrivateKey } = await import("@/lib/wallet/walletStorage");
+      const pwd = prompt("Ingresa tu contraseña para regenerar direcciones:");
+      if (!pwd) return;
+
+      const walletData = await loadWalletPrivateKey(pwd);
+      if (!walletData) {
+        alert("Contraseña incorrecta");
+        return;
+      }
+
+      const { getAllAddresses }    = await import("@/lib/wallet/walletService");
+      const { saveWalletAddresses } = await import("@/lib/wallet/walletStorage");
+
+      const newAddresses = await getAllAddresses(walletData.mnemonic);
+      saveWalletAddresses(newAddresses);
+      alert(`✅ Direcciones regeneradas:\nTron: ${newAddresses.tron}\nBitcoin: ${newAddresses.bitcoin}`);
+      window.location.reload();
+    }}
+    className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs font-bold"
+  >
+    🔄 Regenerar direcciones Tron y Bitcoin
+  </button>
+)}
 
             {/* ── SUCCESS ── */}
             {withdrawSuccess && (
