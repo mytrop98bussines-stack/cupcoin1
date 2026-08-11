@@ -385,38 +385,63 @@ async function getBitcoinBalance(
 export async function getWalletBalances(
   addresses: WalletAddresses
 ): Promise<TokenBalance[]> {
-  if (!addresses?.evm) {
-    console.error("❌ [Wallet] Direcciones inválidas");
+  // ✅ Guard completo
+  if (!addresses) {
+    console.error("❌ [getWalletBalances] addresses es null/undefined");
     return [];
   }
 
-  // Cargar todas las redes en paralelo
-  const [
-    polygonBal,
-    ethereumBal,
-    bscBal,
-    tronBal,
-    bitcoinBal,
-  ] = await Promise.allSettled([
-    getEvmBalances(addresses.evm, "polygon"),
-    getEvmBalances(addresses.evm, "ethereum"),
-    getEvmBalances(addresses.evm, "bsc"),
-    addresses.tron   ? getTronBalances(addresses.tron)     : Promise.resolve([]),
-    addresses.bitcoin ? getBitcoinBalance(addresses.bitcoin) : Promise.resolve([]),
-  ]);
+  if (!addresses.evm || !addresses.evm.startsWith("0x")) {
+    console.error("❌ [getWalletBalances] Dirección EVM inválida:", addresses.evm);
+    return [];
+  }
+
+  console.log("🔍 [getWalletBalances] Cargando para EVM:", addresses.evm);
 
   const allBalances: TokenBalance[] = [];
 
-  // Extraer resultados
-  [polygonBal, ethereumBal, bscBal, tronBal, bitcoinBal].forEach((result) => {
-    if (result.status === "fulfilled") {
-      allBalances.push(...result.value);
-    }
-  });
+  // ─── EVM siempre (Polygon, ETH, BSC) ─────────────────
+  try {
+    const [polygon, ethereum, bsc] = await Promise.allSettled([
+      getEvmBalances(addresses.evm, "polygon"),
+      getEvmBalances(addresses.evm, "ethereum"),
+      getEvmBalances(addresses.evm, "bsc"),
+    ]);
 
+    if (polygon.status   === "fulfilled") allBalances.push(...polygon.value);
+    if (ethereum.status  === "fulfilled") allBalances.push(...ethereum.value);
+    if (bsc.status       === "fulfilled") allBalances.push(...bsc.value);
+  } catch (err) {
+    console.error("❌ Error en redes EVM:", err);
+  }
+
+  // ─── Tron (solo si tiene dirección válida) ────────────
+  if (addresses.tron && addresses.tron.startsWith("T")) {
+    try {
+      const tronBals = await getTronBalances(addresses.tron);
+      allBalances.push(...tronBals);
+    } catch (err) {
+      console.error("❌ Error en Tron:", err);
+    }
+  } else {
+    console.log("ℹ️ Sin dirección Tron, omitiendo");
+  }
+
+  // ─── Bitcoin (solo si tiene dirección válida) ─────────
+  if (addresses.bitcoin && addresses.bitcoin.startsWith("bc1")) {
+    try {
+      const btcBals = await getBitcoinBalance(addresses.bitcoin);
+      allBalances.push(...btcBals);
+    } catch (err) {
+      console.error("❌ Error en Bitcoin:", err);
+    }
+  } else {
+    console.log("ℹ️ Sin dirección Bitcoin, omitiendo");
+  }
+
+  console.log("✅ [getWalletBalances] Total tokens:", allBalances.length);
   return allBalances;
 }
-
 // =========================================================
 // OBTENER PRECIOS
 // =========================================================
