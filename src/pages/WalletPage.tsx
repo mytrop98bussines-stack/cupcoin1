@@ -1,17 +1,16 @@
 import { useState, useEffect, useCallback } from "react";
 import { useAppStore }  from "@/store/useAppStore";
+import { RegenerateAddressesModal } from "@/components/RegenerateAddressesModal";
 import {
   getWalletBalances,
   getTokenPrices,
   sendToken,
   estimateGas,
-  getAddressForNetwork,
 } from "@/lib/wallet/walletService";
 import {
   getWalletAddresses,
   getStoredWalletAddress,
   hasStoredWallet,
-  saveWalletAddresses,
 } from "@/lib/wallet/walletStorage";
 import type { TokenBalance, NetworkId, WalletAddresses } from "@/lib/wallet/walletTypes";
 import { NETWORKS } from "@/lib/wallet/networkConfig";
@@ -58,7 +57,7 @@ interface ActiveAction {
 }
 
 export function WalletPage() {
-  const { user, setModalOpen, navigate } = useAppStore();
+  const { setModalOpen, navigate } = useAppStore();
 
   // ─── Wallet state ─────────────────────────────────────
   const [addresses, setAddresses]         = useState<WalletAddresses | null>(null);
@@ -66,6 +65,9 @@ export function WalletPage() {
   const [prices, setPrices]               = useState<Record<string, { usd: number; usd_24h_change: number }>>({});
   const [loadingBalances, setLoadingBalances] = useState(true);
   const [refreshing, setRefreshing]       = useState(false);
+
+  // ─── Regenerate Modal state ───────────────────────────
+  const [showRegenerateModal, setShowRegenerateModal] = useState(false);
 
   // ─── UI state ─────────────────────────────────────────
   const [hideBalances, setHideBalances]   = useState(false);
@@ -98,81 +100,90 @@ export function WalletPage() {
   // CARGAR WALLET Y SALDOS
   // =========================================================
   const loadWalletData = useCallback(async () => {
-  const storedAddresses = getWalletAddresses();
-  const evmAddress      = getStoredWalletAddress();
+    const storedAddresses = getWalletAddresses();
+    const evmAddress      = getStoredWalletAddress();
 
-  // ✅ Construir direcciones aunque sean parciales
-  const addresses: WalletAddresses = storedAddresses || {
-    evm:     evmAddress || "",
-    tron:    "",
-    bitcoin: "",
-  };
+    // ✅ Construir direcciones aunque sean parciales
+    const currentAddresses: WalletAddresses = storedAddresses || {
+      evm:     evmAddress || "",
+      tron:    "",
+      bitcoin: "",
+    };
 
-  if (!addresses.evm) {
-    setLoadingBalances(false);
-    return;
-  }
-
-  setAddresses(addresses);
-  setLoadingBalances(true);
-
-  // ✅ Cargar precios primero (rápido)
-  try {
-    const tokenPrices = await getTokenPrices();
-    setPrices(tokenPrices || {});
-  } catch {
-    console.warn("⚠️ No se pudieron cargar precios");
-  }
-
-  // ✅ Cargar Polygon primero y mostrar inmediatamente
-  try {
-    const { getEvmBalancesForNetwork } = await import(
-      "@/lib/wallet/walletService"
-    );
-
-    // Solo Polygon primero para carga rápida
-    const polygonBals = await getEvmBalancesForNetwork(
-      addresses.evm,
-      "polygon"
-    );
-
-    if (polygonBals.length > 0) {
-      const enriched = polygonBals.map((b) => ({
-        ...b,
-        usdValue: prices[b.symbol]
-          ? b.amount * prices[b.symbol].usd
-          : 0,
-      }));
-      setBalances(enriched);
-      setLoadingBalances(false); // ✅ Mostrar Polygon ya
-      console.log("✅ Polygon cargado, mostrando...");
+    if (!currentAddresses.evm) {
+      setLoadingBalances(false);
+      return;
     }
-  } catch (err) {
-    console.error("❌ Error Polygon:", err);
-    setLoadingBalances(false);
-  }
 
-  // ✅ Luego cargar el resto en background
-  try {
-    const fullBalances = await getWalletBalances(addresses);
-    const tokenPrices  = prices;
+    setAddresses(currentAddresses);
 
-    const enriched = fullBalances
-      .filter((b) => b && b.symbol)
-      .map((b) => ({
-        ...b,
-        usdValue: tokenPrices[b.symbol]
-          ? b.amount * tokenPrices[b.symbol].usd
-          : 0,
-      }));
+    // Detección para abrir automáticamente el modal si faltan direcciones
+    if (!currentAddresses.tron || !currentAddresses.bitcoin) {
+      setShowRegenerateModal(true);
+    }
 
-    setBalances(enriched);
-    console.log("✅ Todas las redes cargadas");
-  } catch (err) {
-    console.error("❌ Error cargando todas las redes:", err);
-  }
-}, [prices]);
-  
+    setLoadingBalances(true);
+
+    // ✅ Cargar precios primero (rápido)
+    try {
+      const tokenPrices = await getTokenPrices();
+      setPrices(tokenPrices || {});
+    } catch {
+      console.warn("⚠️ No se pudieron cargar precios");
+    }
+
+    // ✅ Cargar Polygon primero y mostrar inmediatamente
+    try {
+      const { getEvmBalancesForNetwork } = await import(
+        "@/lib/wallet/walletService"
+      );
+
+      const polygonBals = await getEvmBalancesForNetwork(
+        currentAddresses.evm,
+        "polygon"
+      );
+
+      if (polygonBals.length > 0) {
+        const enriched = polygonBals.map((b) => ({
+          ...b,
+          usdValue: prices[b.symbol]
+            ? b.amount * prices[b.symbol].usd
+            : 0,
+        }));
+        setBalances(enriched);
+        setLoadingBalances(false);
+        console.log("✅ Polygon cargado, mostrando...");
+      }
+    } catch (err) {
+      console.error("❌ Error Polygon:", err);
+      setLoadingBalances(false);
+    }
+
+    // ✅ Luego cargar el resto en background
+    try {
+      const fullBalances = await getWalletBalances(currentAddresses);
+      const tokenPrices  = prices;
+
+      const enriched = fullBalances
+        .filter((b) => b && b.symbol)
+        .map((b) => ({
+          ...b,
+          usdValue: tokenPrices[b.symbol]
+            ? b.amount * tokenPrices[b.symbol].usd
+            : 0,
+        }));
+
+      setBalances(enriched);
+      console.log("✅ Todas las redes cargadas");
+    } catch (err) {
+      console.error("❌ Error cargando todas las redes:", err);
+    }
+  }, [prices]);
+
+  useEffect(() => {
+    loadWalletData();
+  }, []);
+
   // ─── Refrescar precios cada 30s ───────────────────────
   useEffect(() => {
     const interval = setInterval(async () => {
@@ -191,9 +202,9 @@ export function WalletPage() {
   }, []);
 
   useEffect(() => {
-    setModalOpen(activeAction.type !== null);
+    setModalOpen(activeAction.type !== null || showRegenerateModal);
     return () => setModalOpen(false);
-  }, [activeAction.type, setModalOpen]);
+  }, [activeAction.type, showRegenerateModal, setModalOpen]);
 
   // ─── Estimar gas ──────────────────────────────────────
   useEffect(() => {
@@ -288,7 +299,7 @@ export function WalletPage() {
     setGasEstimate(null);
   };
 
-  const handleSetMaxAmount = () => {
+    const handleSetMaxAmount = () => {
     if (!activeAction.asset || !activeAction.networkId) return;
     const token = balances.find(
       (b) => b.symbol    === activeAction.asset &&
@@ -561,6 +572,31 @@ export function WalletPage() {
         </div>
       </div>
 
+      {/* ─── BANNER REGENERACIÓN DE DIRECCIONES ────────────── */}
+      {addresses && (!addresses.tron || !addresses.bitcoin) && (
+        <button
+          onClick={() => setShowRegenerateModal(true)}
+          className="w-full flex items-center justify-between p-3.5 rounded-2xl bg-amber-500/10 border border-amber-500/20 text-left transition-all hover:bg-amber-500/15"
+        >
+          <div className="flex items-center gap-3">
+            <div className="h-8 w-8 rounded-xl bg-amber-500/20 flex items-center justify-center flex-shrink-0">
+              <Shield className="h-4 w-4 text-amber-500" />
+            </div>
+            <div>
+              <p className="text-xs font-bold text-amber-600 dark:text-amber-400">
+                Activar direcciones Tron y Bitcoin
+              </p>
+              <p className="text-[10px] text-amber-600/80 dark:text-amber-500">
+                Deriva tus nuevas redes con tu contraseña
+              </p>
+            </div>
+          </div>
+          <span className="px-2.5 py-1 rounded-lg bg-amber-500 text-white text-[10px] font-bold">
+            Activar
+          </span>
+        </button>
+      )}
+
       {/* ─── DIRECCIONES POR RED ────────────────────────── */}
       {addresses && (
         <div className="space-y-2">
@@ -628,7 +664,7 @@ export function WalletPage() {
           ))}
         </div>
       )}
-          {/* ─── BANNER GAS ─────────────────────────────────── */}
+            {/* ─── BANNER GAS ─────────────────────────────────── */}
       {!loadingBalances && balances.find(
         (b) => b.symbol === "MATIC" && b.networkId === "polygon" && b.amount < 0.01
       ) && (
@@ -826,7 +862,8 @@ export function WalletPage() {
           </p>
         </div>
       </div>
-            {/* ═══ MODAL DEPÓSITO ══════════════════════════════ */}
+
+      {/* ═══ MODAL DEPÓSITO ══════════════════════════════ */}
       {activeAction.type === "deposit" && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
@@ -890,7 +927,6 @@ export function WalletPage() {
             {/* Dirección de depósito */}
             {addresses && (
               <>
-                {/* Info de red */}
                 <div className={`flex items-center gap-2 px-3 py-2.5 rounded-xl border ${
                   NETWORK_COLORS[depositNetwork]?.border
                 } ${NETWORK_COLORS[depositNetwork]?.bg}`}>
@@ -918,7 +954,6 @@ export function WalletPage() {
                   </div>
                 </div>
 
-                {/* Advertencia */}
                 <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
                   <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
                   <p className="text-[10px] text-red-600 dark:text-red-400 leading-relaxed">
@@ -927,126 +962,84 @@ export function WalletPage() {
                   </p>
                 </div>
 
-                {/* QR y dirección */}
-            {(() => {
-              const addr = depositNetwork === "tron"
-                ? addresses.tron
-                : depositNetwork === "bitcoin"
-                ? addresses.bitcoin
-                : addresses.evm;
+                {(() => {
+                  const addr = depositNetwork === "tron"
+                    ? addresses.tron
+                    : depositNetwork === "bitcoin"
+                    ? addresses.bitcoin
+                    : addresses.evm;
 
-              if (!addr) return (
-                <div className="py-6 text-center">
-                  <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
-                  <p className="text-xs text-gray-400">
-                    Dirección no disponible para esta red.
-                    Cierra sesión y vuelve a entrar.
-                  </p>
-                </div>
-              );
-
-              return (
-                <div className="space-y-4">
-
-                  {/* QR */}
-                  <div className="flex justify-center">
-                    <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
-                      <img
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}&format=svg`}
-                        alt="QR"
-                        className="w-44 h-44"
-                      />
+                  if (!addr) return (
+                    <div className="py-6 text-center">
+                      <AlertTriangle className="h-5 w-5 text-red-500 mx-auto mb-2" />
+                      <p className="text-xs text-gray-400">
+                        Dirección no disponible para esta red.
+                        Usa la opción de activar direcciones.
+                      </p>
                     </div>
-                  </div>
+                  );
 
-                  {/* Dirección */}
-                  <div className="space-y-2">
-                    <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
-                      Tu dirección {NETWORKS[depositNetwork]?.name}
-                    </p>
-                    <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
-                      <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 break-all select-all">
-                        {addr}
-                      </span>
-                      <button
-                        onClick={() => handleCopy(addr, "deposit")}
-                        className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-shrink-0 ${
-                          copied === "deposit"
-                            ? "bg-emerald-500 text-white"
-                            : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+                  return (
+                    <div className="space-y-4">
+                      <div className="flex justify-center">
+                        <div className="bg-white p-3 rounded-2xl shadow-lg border border-gray-100">
+                          <img
+                            src={`https://api.qrserver.com/v1/create-qr-code/?size=180x180&data=${encodeURIComponent(addr)}&format=svg`}
+                            alt="QR"
+                            className="w-44 h-44"
+                          />
+                        </div>
+                      </div>
+
+                      <div className="space-y-2">
+                        <p className="text-[10px] font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider">
+                          Tu dirección {NETWORKS[depositNetwork]?.name}
+                        </p>
+                        <div className="flex items-center gap-2 bg-gray-50 dark:bg-white/5 rounded-xl px-4 py-3 border border-gray-200 dark:border-white/10">
+                          <span className="text-[11px] font-mono text-gray-600 dark:text-gray-300 flex-1 break-all select-all">
+                            {addr}
+                          </span>
+                          <button
+                            onClick={() => handleCopy(addr, "deposit")}
+                            className={`flex items-center gap-1 px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all flex-shrink-0 ${
+                              copied === "deposit"
+                                ? "bg-emerald-500 text-white"
+                                : "bg-gray-200 dark:bg-white/10 text-gray-600 dark:text-gray-300"
+                            }`}
+                          >
+                            {copied === "deposit"
+                              ? <><Check className="h-3 w-3" /> Copiada</>
+                              : <><Copy  className="h-3 w-3" /> Copiar</>
+                            }
+                          </button>
+                        </div>
+                      </div>
+
+                      <a
+                        href={
+                          depositNetwork === "bitcoin"
+                            ? `https://mempool.space/address/${addr}`
+                            : depositNetwork === "tron"
+                            ? `https://tronscan.org/#/address/${addr}`
+                            : `${NETWORKS[depositNetwork]?.explorerUrl}/address/${addr}`
+                        }
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className={`block text-center text-[11px] font-bold hover:opacity-80 transition-opacity ${
+                          NETWORK_COLORS[depositNetwork]?.text
                         }`}
                       >
-                        {copied === "deposit"
-                          ? <><Check className="h-3 w-3" /> Copiada</>
-                          : <><Copy  className="h-3 w-3" /> Copiar</>
-                        }
-                      </button>
+                        Ver en explorador →
+                      </a>
                     </div>
-                  </div>
-
-                  {/* Explorer */}
-                  <a
-                    href={
-                      depositNetwork === "bitcoin"
-                        ? `https://mempool.space/address/${addr}`
-                        : depositNetwork === "tron"
-                        ? `https://tronscan.org/#/address/${addr}`
-                        : `${NETWORKS[depositNetwork]?.explorerUrl}/address/${addr}`
-                    }
-                    target="_blank"
-                    rel="noopener noreferrer"
-                    className={`block text-center text-[11px] font-bold hover:opacity-80 transition-opacity ${
-                      NETWORK_COLORS[depositNetwork]?.text
-                    }`}
-                  >
-                    Ver en explorador →
-                  </a>
-
-                  {/* Stats */}
-                  <div className="grid grid-cols-3 gap-2">
-                    {[
-                      {
-                        label: "Comisión",
-                        value: depositNetwork === "bitcoin"  ? "Variable"
-                             : depositNetwork === "tron"     ? "~1 USDT"
-                             : depositNetwork === "ethereum" ? "Variable"
-                             : "< $0.01",
-                      },
-                      {
-                        label: "Tiempo",
-                        value: depositNetwork === "bitcoin"  ? "~30 min"
-                             : depositNetwork === "tron"     ? "~1 min"
-                             : depositNetwork === "ethereum" ? "~3 min"
-                             : "~2 min",
-                      },
-                      {
-                        label: "Red",
-                        value: NETWORKS[depositNetwork]?.shortName,
-                      },
-                    ].map((item) => (
-                      <div
-                        key={item.label}
-                        className="text-center p-2 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10"
-                      >
-                        <p className="text-[10px] text-gray-400 mb-0.5">
-                          {item.label}
-                        </p>
-                        <p className="text-[11px] font-bold text-gray-900 dark:text-white">
-                          {item.value}
-                        </p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              );
-              })()}
-            </>
-           )}
-         </div> 
-       </div>   
-      )}        
-
-      {/* ═══ MODAL RETIRO ════════════════════════════════ */}
+                  );
+                })()}
+              </>
+            )}
+          </div> 
+        </div>   
+      )}
+            {/* ═══ MODAL RETIRO ════════════════════════════════ */}
       {activeAction.type === "withdraw" && activeAction.asset && activeAction.networkId && (
         <div className="fixed inset-0 z-[100] flex items-end sm:items-center justify-center bg-black/60 backdrop-blur-sm animate-fade-in">
           <div className="w-full max-w-md bg-white dark:bg-gray-900 rounded-t-3xl sm:rounded-2xl p-5 space-y-4 max-h-[90vh] overflow-y-auto animate-slide-up shadow-2xl safe-bottom">
@@ -1388,33 +1381,6 @@ export function WalletPage() {
                 </div>
               </div>
             )}
-            {/* Botón temporal de migración - quitar después */}
-{addresses && (!addresses.tron || !addresses.bitcoin) && (
-  <button
-    onClick={async () => {
-      const { loadWalletPrivateKey } = await import("@/lib/wallet/walletStorage");
-      const pwd = prompt("Ingresa tu contraseña para regenerar direcciones:");
-      if (!pwd) return;
-
-      const walletData = await loadWalletPrivateKey(pwd);
-      if (!walletData) {
-        alert("Contraseña incorrecta");
-        return;
-      }
-
-      const { getAllAddresses }    = await import("@/lib/wallet/walletService");
-      const { saveWalletAddresses } = await import("@/lib/wallet/walletStorage");
-
-      const newAddresses = await getAllAddresses(walletData.mnemonic);
-      saveWalletAddresses(newAddresses);
-      alert(`✅ Direcciones regeneradas:\nTron: ${newAddresses.tron}\nBitcoin: ${newAddresses.bitcoin}`);
-      window.location.reload();
-    }}
-    className="w-full py-3 rounded-xl bg-amber-500/10 border border-amber-500/20 text-amber-600 text-xs font-bold"
-  >
-    🔄 Regenerar direcciones Tron y Bitcoin
-  </button>
-)}
 
             {/* ── SUCCESS ── */}
             {withdrawSuccess && (
@@ -1432,31 +1398,31 @@ export function WalletPage() {
                 </div>
 
                 {withdrawTxId && (
-  <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-2">
-    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
-      Hash de transacción
-    </p>
-    <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">
-      {withdrawTxId}
-    </p>
-    <a
-      href={
-        activeAction.networkId === "bitcoin"
-          ? `https://mempool.space/tx/${withdrawTxId}`
-          : activeAction.networkId === "tron"
-          ? `https://tronscan.org/#/transaction/${withdrawTxId}`
-          : `${NETWORKS[activeAction.networkId!]?.explorerUrl}/tx/${withdrawTxId}`
-      }
-      target="_blank"
-      rel="noopener noreferrer"
-      className={`flex items-center justify-center gap-1 text-[11px] font-bold hover:opacity-80 ${
-        NETWORK_COLORS[activeAction.networkId!]?.text
-      }`}
-    >
-      Ver en explorador <ArrowRight className="h-3 w-3" />
-    </a>
-  </div>
-)}
+                  <div className="bg-gray-50 dark:bg-white/5 rounded-xl p-4 border border-gray-200 dark:border-white/10 space-y-2">
+                    <p className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">
+                      Hash de transacción
+                    </p>
+                    <p className="text-[11px] font-mono text-gray-600 dark:text-gray-300 break-all">
+                      {withdrawTxId}
+                    </p>
+                    <a
+                      href={
+                        activeAction.networkId === "bitcoin"
+                          ? `https://mempool.space/tx/${withdrawTxId}`
+                          : activeAction.networkId === "tron"
+                          ? `https://tronscan.org/#/transaction/${withdrawTxId}`
+                          : `${NETWORKS[activeAction.networkId!]?.explorerUrl}/tx/${withdrawTxId}`
+                      }
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className={`flex items-center justify-center gap-1 text-[11px] font-bold hover:opacity-80 ${
+                        NETWORK_COLORS[activeAction.networkId!]?.text
+                      }`}
+                    >
+                      Ver en explorador <ArrowRight className="h-3 w-3" />
+                    </a>
+                  </div>
+                )}
                 
                 <button
                   onClick={handleCloseAction}
@@ -1470,7 +1436,22 @@ export function WalletPage() {
         </div>
       )}
 
+      {/* ═══ MODAL REGENERAR DIRECCIONES TRON/BITCOIN ═════ */}
+      {showRegenerateModal && (
+        <RegenerateAddressesModal
+          onClose={() => setShowRegenerateModal(false)}
+          onRegenerated={() => {
+            setShowRegenerateModal(false);
+            loadWalletData();
+          }}
+        />
+      )}
+
     </div>
   );
 }
-                     
+         
+
+      
+                        
+            
