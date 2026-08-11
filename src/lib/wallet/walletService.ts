@@ -195,23 +195,40 @@ async function getEvmBalances(
   address:   string,
   networkId: string
 ): Promise<TokenBalance[]> {
-  const provider = getEvmProvider(networkId);
-  const tokens   = getTokensByNetwork(networkId);
+  if (!address || !address.startsWith("0x")) {
+    return [];
+  }
+
+  const tokens = getTokensByNetwork(networkId);
+  if (!tokens || tokens.length === 0) {
+    return [];
+  }
+
   const balances: TokenBalance[] = [];
+
+  // ✅ Timeout para evitar que una red lenta bloquee todo
+  const withTimeout = <T>(promise: Promise<T>, ms = 10000): Promise<T> =>
+    Promise.race([
+      promise,
+      new Promise<T>((_, reject) =>
+        setTimeout(() => reject(new Error(`Timeout ${networkId}`)), ms)
+      ),
+    ]);
 
   for (const token of tokens) {
     try {
+      const provider = getEvmProvider(networkId);
       let rawBalance: bigint = 0n;
 
       if (!token.contract) {
-        rawBalance = await provider.getBalance(address);
+        rawBalance = await withTimeout(provider.getBalance(address));
       } else {
         const contract = new ethers.Contract(
           token.contract,
           ERC20_ABI,
           provider
         );
-        rawBalance = await contract.balanceOf(address);
+        rawBalance = await withTimeout(contract.balanceOf(address));
       }
 
       const safeBalance = typeof rawBalance === "bigint"
@@ -233,10 +250,12 @@ async function getEvmBalances(
         networkId: token.networkId,
         address,
       });
+
     } catch (err) {
-      console.error(`❌ Error ${token.symbol} en ${networkId}:`, err);
+      console.error(`❌ ${token.symbol} en ${networkId}:`, err);
       rotateEvmProvider(networkId);
 
+      // ✅ Agregar con 0 para que aparezca en la lista
       balances.push({
         symbol:    token.symbol,
         name:      token.name,
@@ -254,7 +273,6 @@ async function getEvmBalances(
 
   return balances;
 }
-
 // =========================================================
 // OBTENER SALDOS TRON
 // =========================================================
