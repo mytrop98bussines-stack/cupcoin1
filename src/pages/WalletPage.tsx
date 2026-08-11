@@ -98,53 +98,80 @@ export function WalletPage() {
   // CARGAR WALLET Y SALDOS
   // =========================================================
   const loadWalletData = useCallback(async () => {
-    const storedAddresses = getWalletAddresses();
+  setLoadingBalances(true);
+
+  try {
+    // ✅ Intentar obtener direcciones guardadas
+    let storedAddresses = getWalletAddresses();
+
+    // ✅ Si no hay direcciones multi-red pero SÍ hay wallet EVM
+    // (usuario registrado antes de la migración multi-red)
     if (!storedAddresses?.evm) {
-      setLoadingBalances(false);
-      return;
-    }
+      const evmAddress = getStoredWalletAddress();
 
-    setAddresses(storedAddresses);
-    setLoadingBalances(true);
-
-    try {
-      const [tokenBalances, tokenPrices] = await Promise.all([
-        getWalletBalances(storedAddresses),
-        getTokenPrices(),
-      ]);
-
-      if (!Array.isArray(tokenBalances)) {
-        setBalances([]);
+      if (!evmAddress) {
+        console.warn("⚠️ No hay wallet en este dispositivo");
+        setLoadingBalances(false);
         return;
       }
 
-      const safePrices = tokenPrices || {};
+      console.log("⚠️ Wallet antigua detectada, solo EVM disponible");
 
-      const enriched = tokenBalances
-        .filter((b) => b && b.symbol)
-        .map((b) => {
-          const price = safePrices[b.symbol];
-          return {
-            ...b,
-            usdValue: price ? (b.amount || 0) * price.usd : 0,
-          };
-        });
+      // Crear objeto de direcciones solo con EVM
+      storedAddresses = {
+        evm:     evmAddress,
+        tron:    "",
+        bitcoin: "",
+      };
 
-      setBalances(enriched);
-      setPrices(safePrices);
-      console.log("✅ [Wallet] Saldos multi-red cargados");
-    } catch (err) {
-      console.error("❌ [Wallet] Error:", err);
-      setBalances([]);
-    } finally {
-      setLoadingBalances(false);
+      // Guardar para futuras cargas
+      saveWalletAddresses(storedAddresses);
     }
-  }, []);
 
-  useEffect(() => {
-    loadWalletData();
-  }, [loadWalletData]);
+    setAddresses(storedAddresses);
 
+    console.log("🔍 Cargando saldos para:", storedAddresses);
+
+    // ✅ Cargar precios primero (más rápido)
+    const tokenPrices = await getTokenPrices();
+    setPrices(tokenPrices || {});
+
+    // ✅ Cargar saldos de cada red por separado
+    // para que si una falla no bloquee las demás
+    const allBalances: TokenBalance[] = [];
+
+    // EVM siempre disponible
+    try {
+      const { getWalletBalances } = await import("@/lib/wallet/walletService");
+      const evmBalances = await getWalletBalances(storedAddresses);
+
+      if (Array.isArray(evmBalances)) {
+        const enriched = evmBalances
+          .filter((b) => b && b.symbol)
+          .map((b) => ({
+            ...b,
+            usdValue: tokenPrices[b.symbol]
+              ? (b.amount || 0) * tokenPrices[b.symbol].usd
+              : 0,
+          }));
+        allBalances.push(...enriched);
+      }
+    } catch (err) {
+      console.error("❌ Error cargando saldos:", err);
+    }
+
+    console.log("✅ Saldos cargados:", allBalances.length, "tokens");
+    console.log("✅ Con balance:", allBalances.filter(b => b.amount > 0));
+
+    setBalances(allBalances);
+
+  } catch (err) {
+    console.error("❌ [Wallet] Error general:", err);
+    setBalances([]);
+  } finally {
+    setLoadingBalances(false);
+  }
+}, []);
   // ─── Refrescar precios cada 30s ───────────────────────
   useEffect(() => {
     const interval = setInterval(async () => {
