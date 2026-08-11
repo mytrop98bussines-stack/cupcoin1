@@ -98,80 +98,81 @@ export function WalletPage() {
   // CARGAR WALLET Y SALDOS
   // =========================================================
   const loadWalletData = useCallback(async () => {
+  const storedAddresses = getWalletAddresses();
+  const evmAddress      = getStoredWalletAddress();
+
+  // ✅ Construir direcciones aunque sean parciales
+  const addresses: WalletAddresses = storedAddresses || {
+    evm:     evmAddress || "",
+    tron:    "",
+    bitcoin: "",
+  };
+
+  if (!addresses.evm) {
+    setLoadingBalances(false);
+    return;
+  }
+
+  setAddresses(addresses);
   setLoadingBalances(true);
 
+  // ✅ Cargar precios primero (rápido)
   try {
-    // ✅ Intentar obtener direcciones guardadas
-    let storedAddresses = getWalletAddresses();
-
-    // ✅ Si no hay direcciones multi-red pero SÍ hay wallet EVM
-    // (usuario registrado antes de la migración multi-red)
-    if (!storedAddresses?.evm) {
-      const evmAddress = getStoredWalletAddress();
-
-      if (!evmAddress) {
-        console.warn("⚠️ No hay wallet en este dispositivo");
-        setLoadingBalances(false);
-        return;
-      }
-
-      console.log("⚠️ Wallet antigua detectada, solo EVM disponible");
-
-      // Crear objeto de direcciones solo con EVM
-      storedAddresses = {
-        evm:     evmAddress,
-        tron:    "",
-        bitcoin: "",
-      };
-
-      // Guardar para futuras cargas
-      saveWalletAddresses(storedAddresses);
-    }
-
-    setAddresses(storedAddresses);
-
-    console.log("🔍 Cargando saldos para:", storedAddresses);
-
-    // ✅ Cargar precios primero (más rápido)
     const tokenPrices = await getTokenPrices();
     setPrices(tokenPrices || {});
+  } catch {
+    console.warn("⚠️ No se pudieron cargar precios");
+  }
 
-    // ✅ Cargar saldos de cada red por separado
-    // para que si una falla no bloquee las demás
-    const allBalances: TokenBalance[] = [];
+  // ✅ Cargar Polygon primero y mostrar inmediatamente
+  try {
+    const { getEvmBalancesForNetwork } = await import(
+      "@/lib/wallet/walletService"
+    );
 
-    // EVM siempre disponible
-    try {
-      const { getWalletBalances } = await import("@/lib/wallet/walletService");
-      const evmBalances = await getWalletBalances(storedAddresses);
+    // Solo Polygon primero para carga rápida
+    const polygonBals = await getEvmBalancesForNetwork(
+      addresses.evm,
+      "polygon"
+    );
 
-      if (Array.isArray(evmBalances)) {
-        const enriched = evmBalances
-          .filter((b) => b && b.symbol)
-          .map((b) => ({
-            ...b,
-            usdValue: tokenPrices[b.symbol]
-              ? (b.amount || 0) * tokenPrices[b.symbol].usd
-              : 0,
-          }));
-        allBalances.push(...enriched);
-      }
-    } catch (err) {
-      console.error("❌ Error cargando saldos:", err);
+    if (polygonBals.length > 0) {
+      const enriched = polygonBals.map((b) => ({
+        ...b,
+        usdValue: prices[b.symbol]
+          ? b.amount * prices[b.symbol].usd
+          : 0,
+      }));
+      setBalances(enriched);
+      setLoadingBalances(false); // ✅ Mostrar Polygon ya
+      console.log("✅ Polygon cargado, mostrando...");
     }
-
-    console.log("✅ Saldos cargados:", allBalances.length, "tokens");
-    console.log("✅ Con balance:", allBalances.filter(b => b.amount > 0));
-
-    setBalances(allBalances);
-
   } catch (err) {
-    console.error("❌ [Wallet] Error general:", err);
-    setBalances([]);
-  } finally {
+    console.error("❌ Error Polygon:", err);
     setLoadingBalances(false);
   }
-}, []);
+
+  // ✅ Luego cargar el resto en background
+  try {
+    const fullBalances = await getWalletBalances(addresses);
+    const tokenPrices  = prices;
+
+    const enriched = fullBalances
+      .filter((b) => b && b.symbol)
+      .map((b) => ({
+        ...b,
+        usdValue: tokenPrices[b.symbol]
+          ? b.amount * tokenPrices[b.symbol].usd
+          : 0,
+      }));
+
+    setBalances(enriched);
+    console.log("✅ Todas las redes cargadas");
+  } catch (err) {
+    console.error("❌ Error cargando todas las redes:", err);
+  }
+}, [prices]);
+  
   // ─── Refrescar precios cada 30s ───────────────────────
   useEffect(() => {
     const interval = setInterval(async () => {
