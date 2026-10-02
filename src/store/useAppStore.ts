@@ -10,17 +10,7 @@ import type {
   ThemeMode,
   AppView,
 } from "@/types";
-import { setCache, getCache }          from "@/lib/cache";
-import { getWalletBalances, getTokenPrices } from "@/lib/wallet/walletService";
-import {
-  getStoredWalletAddress,
-  getWalletAddresses,
-  saveWalletAddresses,
-}                                      from "@/lib/wallet/walletStorage";
-import type {
-  TokenBalance,
-  WalletAddresses,
-}                                      from "@/lib/wallet/walletTypes";
+import { setCache, getCache } from "@/lib/cache";
 
 const RENDER_API_URL = "https://cubax-backend.onrender.com/api";
 
@@ -33,19 +23,19 @@ const authHeaders = () => ({
 });
 
 // =========================================================
-// INTERFACE
+// INTERFACE (Simplificada y adaptada a Custodia de USDT TRC20)
 // =========================================================
 interface AppState {
-  theme:         ThemeMode;
-  currentView:   AppView;
-  previousView:  AppView | null;
-  user:          User | null;
+  theme:           ThemeMode;
+  currentView:     AppView;
+  previousView:    AppView | null;
+  user:            User | null;
   isAuthenticated: boolean;
 
-  // ✅ Wallet no custodia multi-red
-  walletAddresses:  WalletAddresses | null;
-  walletAddress:    string | null;          // EVM address (compat)
-  walletBalances:   TokenBalance[];
+  // 💰 Wallet Custodial USDT (TRC-20)
+  custodialAddress: string | null;
+  usdtBalance:      number;
+  walletHistory:    any[];
   walletLoading:    boolean;
 
   prices:        CryptoPrice[];
@@ -80,13 +70,11 @@ interface AppState {
   login:    (user: User) => void;
   logout:   () => void;
 
-  // ─── Wallet multi-red ────────────────────────────────
-  loadWalletBalances:  () => Promise<void>;
-  setWalletAddress:    (address: string | null) => void;
-  setWalletAddresses:  (addresses: WalletAddresses | null) => void;
-  refreshWalletPrices: () => Promise<void>;
+  // ─── Wallet Custodial (USDT TRC20) ────────────────────
+  loadCustodialWallet: () => Promise<void>;
+  fetchWalletHistory:  () => Promise<void>;
 
-  // ─── Precios ─────────────────────────────────────────
+  // ─── Precios (Solo USDT para rendimiento) ─────────────
   setPrices:   (prices: CryptoPrice[]) => void;
   fetchPrices: () => Promise<void>;
 
@@ -141,9 +129,7 @@ const getInitialTheme = (): ThemeMode => {
   if (typeof window !== "undefined") {
     const stored = localStorage.getItem("cubax-theme") as ThemeMode | null;
     if (stored) return stored;
-    return window.matchMedia("(prefers-color-scheme: dark)").matches
-      ? "dark"
-      : "light";
+    return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
   }
   return "dark";
 };
@@ -163,22 +149,9 @@ const getInitialView = (): AppView => {
     if (token) return "dashboard";
 
     const stored = localStorage.getItem("cubax_last_view") as AppView | null;
-    const validViews = [
-      "landing", "login", "register", "dashboard", "p2p", "create-order",
-      "trade", "kyc", "marketplace", "product-detail", "create-product",
-      "wallet", "wallet-history", "settings", "notifications", "membership",
-      "profile", "security", "help", "terms", "language",
-      "notification-settings", "trade-history", "my-orders", "admin-kyc",
-      "admin-disputes", "public-profile", "sales-management",
-    ];
-    if (stored && validViews.includes(stored)) return stored;
+    if (stored) return stored;
   }
   return "landing";
-};
-
-// ─── Cargar direcciones al iniciar ────────────────────────
-const getInitialAddresses = (): WalletAddresses | null => {
-  return getWalletAddresses();
 };
 
 // =========================================================
@@ -191,24 +164,16 @@ export const useAppStore = create<AppState>((set, get) => ({
   user:            null,
   isAuthenticated: false,
 
-  // ✅ Wallet multi-red
-  walletAddresses: getInitialAddresses(),
-  walletAddress:   getStoredWalletAddress(),
-  walletBalances:  [],
-  walletLoading:   false,
+  // 💰 Wallet Custodial USDT TRC20 Inicialización
+  custodialAddress: null,
+  usdtBalance:      0.0,
+  walletHistory:    [],
+  walletLoading:    false,
 
   language: (localStorage.getItem("cubax_language") as "es" | "en") || "es",
 
   prices: [
-    { id: "1",  symbol: "USDT",  name: "Tether",        priceUSD: 1,      change24h: 0 },
-    { id: "2",  symbol: "USDC",  name: "USD Coin",       priceUSD: 1,      change24h: 0 },
-    { id: "3",  symbol: "BTC",   name: "Bitcoin",        priceUSD: 67500,  change24h: 0 },
-    { id: "4",  symbol: "ETH",   name: "Ethereum",       priceUSD: 3500,   change24h: 0 },
-    { id: "5",  symbol: "MATIC", name: "Polygon",        priceUSD: 0.7,    change24h: 0 },
-    { id: "6",  symbol: "BNB",   name: "BNB",            priceUSD: 300,    change24h: 0 },
-    { id: "7",  symbol: "TRX",   name: "Tron",           priceUSD: 0.12,   change24h: 0 },
-    { id: "8",  symbol: "BUSD",  name: "Binance USD",    priceUSD: 1,      change24h: 0 },
-    { id: "9",  symbol: "WBTC",  name: "Wrapped Bitcoin", priceUSD: 67500, change24h: 0 },
+    { id: "1", symbol: "USDT", name: "Tether", priceUSD: 1, change24h: 0 }
   ],
 
   orders:                  [],
@@ -265,39 +230,26 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // =========================================================
-  // USUARIO
+  // USUARIO / AUTH
   // =========================================================
   setUser: (user) => set({ user, isAuthenticated: !!user }),
 
   login: (user) => {
     localStorage.setItem("cubax_last_view", "dashboard");
-
-    // ✅ Cargar direcciones multi-red
-    const walletAddresses = getWalletAddresses();
-    const walletAddress   = walletAddresses?.evm || getStoredWalletAddress();
-
     set({
       user,
       isAuthenticated: true,
       currentView:     "dashboard",
-      walletAddresses,
-      walletAddress,
     });
 
-    // ✅ Cargar saldos automáticamente
-    if (walletAddresses?.evm) {
-      void get().loadWalletBalances();
-    }
+    // Cargar automáticamente su wallet custodia de USDT
+    void get().loadCustodialWallet();
   },
 
   logout: () => {
     const savedUid         = localStorage.getItem("cubax_uid");
     const savedEmail       = localStorage.getItem("cubax_email");
     const biometricEnabled = localStorage.getItem("biometric_enabled");
-
-    // ✅ Preservar wallet y biometría
-    const walletEnc       = localStorage.getItem("cubax_wallet_enc");
-    const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
 
     localStorage.removeItem("cubax_token");
     localStorage.removeItem("cubax_refresh_token");
@@ -313,17 +265,13 @@ export const useAppStore = create<AppState>((set, get) => ({
       localStorage.removeItem("cubax_email");
     }
 
-    // ✅ Siempre preservar wallet
-    if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
-    if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
-
     set({
       user:             null,
       isAuthenticated:  false,
       currentView:      "landing",
-      walletBalances:   [],
-      walletAddress:    null,
-      walletAddresses:  null,
+      custodialAddress: null,
+      usdtBalance:      0,
+      walletHistory:    [],
       notifications:    [],
       activeTrade:      null,
       tradeMessages:    [],
@@ -333,95 +281,69 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // =========================================================
-  // WALLET MULTI-RED
+  // 💰 WALLET CUSTODIAL INTEGRATION (USDT TRC20)
   // =========================================================
-  setWalletAddress: (address) => set({ walletAddress: address }),
-
-  setWalletAddresses: (addresses) => {
-    set({
-      walletAddresses: addresses,
-      walletAddress:   addresses?.evm || null,
-    });
-  },
-
-  // ✅ Refrescar solo precios (sin llamar blockchain)
-  refreshWalletPrices: async () => {
-    try {
-      const newPrices = await getTokenPrices();
-      set((state) => ({
-        walletBalances: state.walletBalances.map((b) => {
-          const price = newPrices[b.symbol];
-          return {
-            ...b,
-            usdValue: price ? b.amount * price.usd : b.usdValue,
-          };
-        }),
-      }));
-    } catch (err) {
-      console.error("❌ [Store] Error refreshWalletPrices:", err);
-    }
-  },
-
-  // ✅ Cargar saldos desde blockchain (multi-red)
-  loadWalletBalances: async () => {
-    const addresses = getWalletAddresses();
-    if (!addresses?.evm) {
-      console.warn("⚠️ [Store] No hay direcciones de wallet");
-      return;
-    }
+  loadCustodialWallet: async () => {
+    const currentUser = get().user;
+    if (!currentUser?.uid) return;
 
     set({ walletLoading: true });
-
     try {
-      const [tokenBalances, tokenPrices] = await Promise.all([
-        getWalletBalances(addresses),
-        getTokenPrices(),
-      ]);
-
-      if (!Array.isArray(tokenBalances)) {
-        console.error("❌ [Store] tokenBalances no es array");
-        return;
-      }
-
-      const safePrices = tokenPrices || {};
-
-      const enriched = tokenBalances
-        .filter((b) => b && b.symbol)
-        .map((b) => ({
-          ...b,
-          usdValue: safePrices[b.symbol]
-            ? (b.amount || 0) * safePrices[b.symbol].usd
-            : 0,
-        }));
-
-      // ✅ Actualizar precios globales del store
-      const updatedPrices: CryptoPrice[] = [
-        { id: "1",  symbol: "USDT",  name: "Tether",         priceUSD: safePrices.USDT?.usd  || 1,      change24h: safePrices.USDT?.usd_24h_change  || 0 },
-        { id: "2",  symbol: "USDC",  name: "USD Coin",        priceUSD: safePrices.USDC?.usd  || 1,      change24h: safePrices.USDC?.usd_24h_change  || 0 },
-        { id: "3",  symbol: "BTC",   name: "Bitcoin",         priceUSD: safePrices.BTC?.usd   || 67500,  change24h: safePrices.BTC?.usd_24h_change   || 0 },
-        { id: "4",  symbol: "ETH",   name: "Ethereum",        priceUSD: safePrices.ETH?.usd   || 3500,   change24h: safePrices.ETH?.usd_24h_change   || 0 },
-        { id: "5",  symbol: "MATIC", name: "Polygon",         priceUSD: safePrices.MATIC?.usd || 0.7,    change24h: safePrices.MATIC?.usd_24h_change || 0 },
-        { id: "6",  symbol: "BNB",   name: "BNB",             priceUSD: safePrices.BNB?.usd   || 300,    change24h: safePrices.BNB?.usd_24h_change   || 0 },
-        { id: "7",  symbol: "TRX",   name: "Tron",            priceUSD: safePrices.TRX?.usd   || 0.12,   change24h: safePrices.TRX?.usd_24h_change   || 0 },
-        { id: "8",  symbol: "BUSD",  name: "Binance USD",     priceUSD: safePrices.BUSD?.usd  || 1,      change24h: safePrices.BUSD?.usd_24h_change  || 0 },
-        { id: "9",  symbol: "WBTC",  name: "Wrapped Bitcoin", priceUSD: safePrices.WBTC?.usd  || 67500,  change24h: safePrices.WBTC?.usd_24h_change  || 0 },
-      ];
-
-      set({
-        walletBalances:  enriched,
-        walletAddresses: addresses,
-        walletAddress:   addresses.evm,
-        prices:          updatedPrices,
+      // 1. Obtener/Crear la dirección de Tron asignada en custodia
+      const addressRes = await fetch(`${RENDER_API_URL}/tron/deposit-address`, {
+        method:  "POST",
+        headers: authHeaders(),
+        body:    JSON.stringify({ uid: currentUser.uid }),
       });
+      const addressData = await addressRes.json();
 
-      console.log("✅ [Store] Wallet multi-red cargada:", enriched.length, "tokens");
+      if (addressData.success && addressData.coin_address) {
+        const address = addressData.coin_address;
+        
+        // 2. Obtener balance del backend usando la dirección custodial
+        const balanceRes = await fetch(`${RENDER_API_URL}/tron/balance/${address}`, {
+          headers: authHeaders(),
+        });
+        const balanceData = await balanceRes.json();
+        
+        // Si el backend te devuelve un objeto como { balance: 50 } o { balance: "50" }
+        const rawBalance = balanceData.balance ?? balanceData.usdt ?? 0;
+
+        set({
+          custodialAddress: address,
+          usdtBalance:      parseFloat(rawBalance),
+        });
+
+        // 3. Traer el historial de transacciones de Tron
+        void get().fetchWalletHistory();
+      }
     } catch (err) {
-      console.error("❌ [Store] Error loadWalletBalances:", err);
+      console.error("❌ [Store] Error cargando wallet custodial TRC20:", err);
     } finally {
       set({ walletLoading: false });
     }
   },
-    // =========================================================
+
+  fetchWalletHistory: async () => {
+    const address = get().custodialAddress;
+    if (!address) return;
+
+    try {
+      const res = await fetch(`${RENDER_API_URL}/tron/transactions/${address}`, {
+        headers: authHeaders(),
+      });
+      const data = await res.json();
+      if (data.success || Array.isArray(data)) {
+        // Adaptar según el formato que retorne tu API (ej: data.transactions o data directo)
+        const txs = Array.isArray(data) ? data : (data.transactions || []);
+        set({ walletHistory: txs });
+      }
+    } catch (err) {
+      console.error("❌ [Store] Error obteniendo historial TRC20:", err);
+    }
+  },
+
+  // =========================================================
   // PRECIOS
   // =========================================================
   setPrices: (prices) => set({ prices }),
@@ -430,29 +352,22 @@ export const useAppStore = create<AppState>((set, get) => ({
     set({ loadingPrices: true });
     try {
       const response = await fetch(
-        "https://api.coingecko.com/api/v3/simple/price" +
-        "?ids=bitcoin,ethereum,tether,usd-coin,matic-network" +
-        ",binancecoin,tron,binance-usd,wrapped-bitcoin" +
-        "&vs_currencies=usd" +
-        "&include_24hr_change=true"
+        "https://api.coingecko.com/api/v3/simple/price?ids=tether&vs_currencies=usd&include_24hr_change=true"
       );
       if (!response.ok) throw new Error("Error CoinGecko");
       const data = await response.json();
 
       const prices: CryptoPrice[] = [
-        { id: "1",  symbol: "USDT",  name: "Tether",         priceUSD: data.tether?.usd                ?? 1,      change24h: data.tether?.usd_24h_change                ?? 0 },
-        { id: "2",  symbol: "USDC",  name: "USD Coin",        priceUSD: data["usd-coin"]?.usd            ?? 1,      change24h: data["usd-coin"]?.usd_24h_change            ?? 0 },
-        { id: "3",  symbol: "BTC",   name: "Bitcoin",         priceUSD: data.bitcoin?.usd                ?? 67500,  change24h: data.bitcoin?.usd_24h_change                ?? 0 },
-        { id: "4",  symbol: "ETH",   name: "Ethereum",        priceUSD: data.ethereum?.usd               ?? 3500,   change24h: data.ethereum?.usd_24h_change               ?? 0 },
-        { id: "5",  symbol: "MATIC", name: "Polygon",         priceUSD: data["matic-network"]?.usd       ?? 0.7,    change24h: data["matic-network"]?.usd_24h_change       ?? 0 },
-        { id: "6",  symbol: "BNB",   name: "BNB",             priceUSD: data.binancecoin?.usd            ?? 300,    change24h: data.binancecoin?.usd_24h_change            ?? 0 },
-        { id: "7",  symbol: "TRX",   name: "Tron",            priceUSD: data.tron?.usd                   ?? 0.12,   change24h: data.tron?.usd_24h_change                   ?? 0 },
-        { id: "8",  symbol: "BUSD",  name: "Binance USD",     priceUSD: data["binance-usd"]?.usd         ?? 1,      change24h: data["binance-usd"]?.usd_24h_change         ?? 0 },
-        { id: "9",  symbol: "WBTC",  name: "Wrapped Bitcoin", priceUSD: data["wrapped-bitcoin"]?.usd     ?? 67500,  change24h: data["wrapped-bitcoin"]?.usd_24h_change     ?? 0 },
+        { 
+          id: "1", 
+          symbol: "USDT", 
+          name: "Tether", 
+          priceUSD: data.tether?.usd ?? 1.0, 
+          change24h: data.tether?.usd_24h_change ?? 0.0 
+        }
       ];
 
       set({ prices, loadingPrices: false });
-      console.log("✅ [Prices] Actualizados");
     } catch (error) {
       console.error("❌ [Prices] Error:", error);
       set({ loadingPrices: false });
@@ -460,7 +375,7 @@ export const useAppStore = create<AppState>((set, get) => ({
   },
 
   // =========================================================
-  // ÓRDENES P2P
+  // ÓRDENES P2P (Mantiene el JWT Headers)
   // =========================================================
   setOrders: (orders) => set({ orders }),
   addOrder:  (order)  => set({ orders: [order, ...get().orders] }),
@@ -761,4 +676,3 @@ export const useAppStore = create<AppState>((set, get) => ({
   setMobileMenuOpen:         (open)    => set({ mobileMenuOpen:         open }),
   setModalOpen:              (open)    => set({ modalOpen:              open }),
 }));
-  
