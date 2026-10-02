@@ -1,4 +1,6 @@
-// ─── Tipos base ───────────────────────────────────────────
+// =========================================================
+// 🪙 TIPOS BASE - MODELO 100% CUSTODIAL (USDT TRC-20)
+// =========================================================
 
 export type KYCStatus =
   | "unverified"
@@ -26,13 +28,11 @@ export type TradeStatus =
   | "disputed"
   | "cancelled";
 
-// ✅ ACTUALIZADO: Agregado MATIC para Polygon
-export type CryptoAsset =
-  | "BTC"
-  | "ETH"
-  | "USDT"
-  | "USDC"
-  | "MATIC";
+// ✅ Simplificado: Solo manejamos USDT en custodia
+export type CryptoAsset = "USDT";
+
+// ✅ Simplificado: Única red soportada en custodia
+export type BlockchainNetwork = "tron";
 
 export type ProductCategory =
   | "electronics"
@@ -46,7 +46,7 @@ export type ProductCategory =
 
 export type ThemeMode = "light" | "dark";
 
-// ✅ ACTUALIZADO: Eliminado "stellar", agregado "wallet-history"
+// ✅ Mantenemos "wallet-history" para historial custodial
 export type AppView =
   | "landing"
   | "login"
@@ -72,7 +72,9 @@ export type AppView =
   | "my-orders"
   | "kyc"
   | "admin-kyc"
+  | "admin-users"
   | "admin-disputes"
+  | "admin-promos"
   | "membership"
   | "public-profile"
   | "sales-management";
@@ -103,7 +105,9 @@ export type MarketplaceOrderStatus =
   | "cancelled"
   | "disputed";
 
-// ─── Entidades ────────────────────────────────────────────
+// =========================================================
+// 🧑‍💼 ENTIDADES - USUARIO CUSTODIAL
+// =========================================================
 
 export interface User {
   uid:           string;
@@ -115,18 +119,15 @@ export interface User {
   totalTrades:   number;
   rating:        number;
 
-  // ✅ ACTUALIZADO: Solo dirección pública
-  // La private key y mnemonic NUNCA van aquí
-  // Se guardan cifradas en localStorage del dispositivo
-  walletAddress:    string | null;
-  walletCreatedAt?: number;
+  // ✅ Dirección custodial de Tron asignada por el backend
+  custodialAddress?: string | null;
 
   role?:         "user" | "admin";
   fcmToken?:     string;
+  emailVerified?: boolean;
 
-  // ✅ ELIMINADO: balances y depositAddresses custodios
-  // balances?:         Record<string, number>;
-  // depositAddresses?: Record<string, string>;
+  // ✅ Saldo centralizado en el backend (devuelto por /api/tron/balance)
+  usdtBalance?: number;
 
   membership?: {
     status:       MembershipStatus;
@@ -137,16 +138,15 @@ export interface User {
   };
 }
 
-// ✅ ACTUALIZADO: CryptoBalance ahora refleja
-// tokens reales de Polygon
+// =========================================================
+// 💰 BALANCE Y PRECIOS CUSTODIALES
+// =========================================================
+
 export interface CryptoBalance {
-  asset:    CryptoAsset;
+  asset:    CryptoAsset;    // Siempre USDT
   amount:   number;
   usdValue: number;
-  // Información adicional de blockchain
-  contract?: string | null;
-  decimals?: number;
-  network?:  "polygon";
+  network:  BlockchainNetwork; // Siempre "tron"
 }
 
 export interface CryptoPrice {
@@ -156,6 +156,10 @@ export interface CryptoPrice {
   priceUSD:  number;
   change24h: number;
 }
+
+// =========================================================
+// 💱 ÓRDENES P2P
+// =========================================================
 
 export interface P2POrder {
   id:              string;
@@ -183,6 +187,10 @@ export interface PaymentDetails {
   instructions?: string;
 }
 
+// =========================================================
+// 🤝 TRADES CON ESCROW CUSTODIAL
+// =========================================================
+
 export interface Trade {
   id:              string;
   orderId:         string;
@@ -198,7 +206,7 @@ export interface Trade {
   paymentMethod:   PaymentMethod;
   status:          TradeStatus;
 
-  // ✅ ACTUALIZADO: Hashes apuntan a Polygon
+  // ✅ Hashes de transacciones en red TRON (TronGrid)
   escrowTxHash:    string | null;
   releaseTxHash:   string | null;
   escrowAmount?:   number;
@@ -214,9 +222,13 @@ export interface Trade {
   updatedAt:       number;
   paymentDetails:  PaymentDetails | null;
 
-  // ✅ NUEVO: Red de la transacción
-  network?:        "polygon";
+  // ✅ Red fija de la transacción custodial
+  network?:        BlockchainNetwork;
 }
+
+// =========================================================
+// 💬 CHAT Y MENSAJES
+// =========================================================
 
 export interface ChatMessage {
   id:         string;
@@ -227,6 +239,10 @@ export interface ChatMessage {
   createdAt:  number;
   type:       "text" | "system" | "image";
 }
+
+// =========================================================
+// 🛍️ MARKETPLACE
+// =========================================================
 
 export interface Product {
   id:              string;
@@ -285,6 +301,10 @@ export interface MarketplaceOrder {
   updatedAt:     number;
 }
 
+// =========================================================
+// 🔔 NOTIFICACIONES
+// =========================================================
+
 export interface Notification {
   id:        string;
   userId:    string;
@@ -300,12 +320,18 @@ export interface Notification {
     | "trade_completed"
     | "membership"
     | "marketplace_order"
-    | "wallet";           // ✅ NUEVO: notificaciones de wallet
+    | "wallet"
+    | "deposit"      // ✅ Notificación cuando llega un depósito TRC-20
+    | "withdrawal";  // ✅ Notificación de retiro procesado
   read:      boolean;
   createdAt: number;
   data?:     Record<string, string>;
   link?:     string;
 }
+
+// =========================================================
+// ⚙️ CONFIGURACIÓN GENERAL
+// =========================================================
 
 export interface AppConfig {
   membership: {
@@ -332,6 +358,10 @@ export interface MembershipPayment {
   reviewedAt?: number;
   reviewedBy?: string;
 }
+
+// =========================================================
+// ⚠️ DISPUTAS
+// =========================================================
 
 export interface Dispute {
   id:          string;
@@ -369,24 +399,61 @@ export interface ProductChat {
   createdAt:      number;
 }
 
-// ✅ NUEVO: Tipos para wallet no custodia
+// =========================================================
+// 🏦 TIPOS DE WALLET CUSTODIAL (TRON TRC-20)
+// =========================================================
+
 export interface WalletTransaction {
-  hash:        string;
-  from:        string;
-  to:          string;
-  value:       string;
-  asset:       string;
-  timestamp:   number;
+  hash:        string;        // txID de TronGrid
+  txID?:       string;        // Alias de hash
+  from:        string;        // Dirección origen
+  to:          string;        // Dirección destino
+  amount:      number;        // Monto en USDT
+  value?:      number;        // Alias de amount
+  asset:       CryptoAsset;   // Siempre USDT
+  timestamp:   number;        // Fecha Unix
   status:      "confirmed" | "pending" | "failed";
-  network:     "polygon";
-  explorerUrl: string;
+  network:     BlockchainNetwork; // Siempre "tron"
+  explorerUrl: string;        // Link a TronScan
+  type?:       "deposit" | "withdrawal" | "trade" | "internal";
+  fee?:        number;        // Comisión de red (TRX)
 }
 
-// ✅ NUEVO: Tipo para el estado de la wallet en el store
+// ✅ Estado de la wallet custodial manejada por el backend
 export interface WalletInfo {
-  address:      string;
-  balances:     CryptoBalance[];
-  totalUSD:     number;
-  lastUpdated:  number;
-  network:      "polygon";
+  address:      string;              // Dirección de depósito Tron
+  usdtBalance:  number;              // Balance total en USDT
+  totalUSD:     number;              // Equivalente en USD (1:1)
+  lastUpdated:  number;              // Última sincronización
+  network:      BlockchainNetwork;   // "tron"
 }
+
+// ✅ Respuesta estandarizada del backend custodial
+export interface CustodialResponse<T = any> {
+  success:     boolean;
+  message?:    string;
+  error?:      string;
+  code?:       string;
+  data?:       T;
+}
+
+// ✅ Respuesta al solicitar dirección de depósito
+export interface DepositAddressResponse {
+  success:        boolean;
+  coin_address:   string;
+  network:        "TRC20";
+  qr?:            string;
+  minDeposit?:    number;
+}
+
+// ✅ Respuesta al ejecutar un retiro
+export interface WithdrawResponse {
+  success:    boolean;
+  txHash?:    string;
+  txId?:      string;
+  message?:   string;
+  error?:     string;
+  amount?:    number;
+  fee?:       number;
+  explorerUrl?: string;
+  }
