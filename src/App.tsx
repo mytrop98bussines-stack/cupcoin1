@@ -44,12 +44,6 @@ import { AdminKYCPage }      from "@/pages/AdminKYCPage";
 import { AdminUsersPage }    from "@/pages/AdminUsersPage";
 import { AdminDisputesPage } from "@/components/admin/AdminDisputesPage";
 
-// ✅ Wallet multi-red
-import {
-  getWalletAddresses,
-  getStoredWalletAddress,
-} from "@/lib/wallet/walletStorage";
-
 import type { User as AppUser } from "@/types";
 
 const BACKEND_URL = "https://cubax-backend.onrender.com";
@@ -82,13 +76,9 @@ class ErrorBoundary extends Component<
 
   handleReload = () => window.location.reload();
 
-  // ✅ Preservar wallet al limpiar datos
+  // ✅ Simplificado: Ya no necesitamos preservar llaves de wallets locales
   handleClearAndReload = () => {
-    const walletEnc       = localStorage.getItem("cubax_wallet_enc");
-    const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
     localStorage.clear();
-    if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
-    if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
     window.location.reload();
   };
 
@@ -106,7 +96,7 @@ class ErrorBoundary extends Component<
               </h1>
               <p className="text-sm text-gray-500 dark:text-gray-400">
                 Ocurrió un error inesperado. Puedes recargar
-                la página o limpiar los datos guardados.
+                la página o limpiar la memoria caché de la App.
               </p>
             </div>
 
@@ -126,7 +116,7 @@ class ErrorBoundary extends Component<
             <div className="space-y-2">
               <button
                 onClick={this.handleReload}
-                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-brand-500 hover:bg-brand-600 text-white font-bold transition-colors"
+                className="w-full flex items-center justify-center gap-2 py-3 px-4 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white font-bold transition-colors"
               >
                 <RefreshCw className="h-4 w-4" />
                 Recargar página
@@ -169,7 +159,7 @@ const VIEW_TITLES: Record<string, string> = {
   "admin-promos":          "Promociones",
   profile:                 "Mi Perfil",
   security:                "Seguridad",
-  help:                    "Centro de ayuda",
+  help:                 "Centro de ayuda",
   terms:                   "Términos y Privacidad",
   language:                "Idioma",
   "notification-settings": "Notificaciones",
@@ -211,8 +201,7 @@ function AppContent() {
     fetchOrders,
     fetchProducts,
     subscribeToNotifications,
-    loadWalletBalances,
-    refreshWalletPrices,
+    loadCustodialWallet, // ✅ Importado el cargador de wallet custodial
   } = useAppStore();
 
   const [isOffline, setIsOffline] = useState(!navigator.onLine);
@@ -244,19 +233,18 @@ function AppContent() {
       try {
         const res  = await fetch(`${BACKEND_URL}/api/auth/me`, {
           method:  "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${localStorage.getItem("cubax_token")}`
+          },
           body:    JSON.stringify({ uid: user.uid }),
         });
         const data = await res.json();
 
         if (data.success && data.userData && !stopped) {
           useAppStore.setState({ user: data.userData as AppUser });
-
-          // ✅ Recargar wallet si tiene direcciones
-          const addresses = getWalletAddresses();
-          if (addresses?.evm && !stopped) {
-            void loadWalletBalances();
-          }
+          // ✅ Carga o actualiza la wallet custodial de USDT TRC20 tras sincronizar
+          void loadCustodialWallet();
         }
       } catch (err) {
         console.warn("⚠️ Error sincronizando usuario:", err);
@@ -269,7 +257,7 @@ function AppContent() {
       stopped = true;
       window.clearInterval(intervalId);
     };
-  }, [user?.uid, loadWalletBalances]);
+  }, [user?.uid, loadCustodialWallet]);
 
   // ─── Cargar datos iniciales ───────────────────────────
   useEffect(() => {
@@ -280,35 +268,21 @@ function AppContent() {
     return () => { unsubNotifs(); };
   }, [user?.uid, fetchOrders, fetchProducts, subscribeToNotifications]);
 
-  // ✅ Cargar saldos multi-red al entrar
+  // ✅ Cargar wallet custodial de USDT al arrancar la vista
   useEffect(() => {
     if (!user?.uid) return;
-    const addresses = getWalletAddresses();
-    if (!addresses?.evm) return;
-    void loadWalletBalances();
-  }, [user?.uid, loadWalletBalances]);
+    void loadCustodialWallet();
+  }, [user?.uid, loadCustodialWallet]);
 
-  // ✅ Refrescar precios cada 60s (sin llamar blockchain)
+  // ✅ Intervalo de refresco automático del balance custodial cada 60s
   useEffect(() => {
     if (!user?.uid) return;
     const interval = window.setInterval(() => {
-      void refreshWalletPrices();
+      void loadCustodialWallet();
     }, 60 * 1000);
-    return () => window.clearInterval(interval);
-  }, [user?.uid, refreshWalletPrices]);
-
-  // ✅ Refrescar saldos completos cada 5 minutos
-  useEffect(() => {
-    if (!user?.uid) return;
-    const addresses = getWalletAddresses();
-    if (!addresses?.evm) return;
-
-    const interval = window.setInterval(() => {
-      void loadWalletBalances();
-    }, 5 * 60 * 1000);
 
     return () => window.clearInterval(interval);
-  }, [user?.uid, loadWalletBalances]);
+  }, [user?.uid, loadCustodialWallet]);
 
   // ─── Notificaciones push ──────────────────────────────
   useEffect(() => {
@@ -335,7 +309,7 @@ function AppContent() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 dark:bg-black gap-4">
         <Logo size={48} className="text-black dark:text-white" />
         <p className="text-sm font-semibold tracking-wide animate-pulse text-gray-900 dark:text-white">
-          Sincronizando cuenta...
+          Sincronizando cuenta segura...
         </p>
       </div>
     );
@@ -416,7 +390,7 @@ function AppContent() {
 function AppRoot() {
   const [isInitializing, setIsInitializing]       = useState(true);
   const [showBiometricLock, setShowBiometricLock] = useState(false);
-  const { navigate, loadWalletBalances, setWalletAddresses } = useAppStore();
+  const { navigate, loadCustodialWallet } = useAppStore();
 
   useEffect(() => {
     try {
@@ -459,40 +433,29 @@ function AppRoot() {
       if (savedToken && savedUid) {
         fetch(`${BACKEND_URL}/api/auth/me`, {
           method:  "POST",
-          headers: { "Content-Type": "application/json" },
+          headers: { 
+            "Content-Type": "application/json",
+            "Authorization": `Bearer ${savedToken}`
+          },
           body:    JSON.stringify({ uid: savedUid }),
         })
           .then((r) => r.json())
           .then((data) => {
             if (data.success && data.userData) {
               const lastView = localStorage.getItem("cubax_last_view") || "dashboard";
-              const safeView = AUTHENTICATED_VIEWS.includes(lastView)
-                ? lastView
-                : "dashboard";
-
-              // ✅ Cargar direcciones multi-red
-              const walletAddresses = getWalletAddresses();
-              const walletAddress   = walletAddresses?.evm || getStoredWalletAddress();
+              const safeView = AUTHENTICATED_VIEWS.includes(lastView) ? lastView : "dashboard";
 
               useAppStore.setState({
                 user:            data.userData as AppUser,
                 isAuthenticated: true,
                 currentView:     safeView as any,
-                walletAddresses: walletAddresses || null,
-                walletAddress:   walletAddress   || null,
               });
 
-              // ✅ Cargar saldos multi-red si tiene wallet
-              if (walletAddresses?.evm) {
-                void loadWalletBalances();
-              }
+              // ✅ Cargar la wallet custodial automáticamente desde el backend
+              void loadCustodialWallet();
             } else {
-              // ✅ Preservar wallet al limpiar sesión
-              const walletEnc       = localStorage.getItem("cubax_wallet_enc");
-              const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
+              // Limpiar sesión inválida de forma segura
               localStorage.clear();
-              if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
-              if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
               navigate("landing");
             }
           })
@@ -507,7 +470,7 @@ function AppRoot() {
       navigate("landing");
       setIsInitializing(false);
     }
-  }, [navigate, loadWalletBalances, setWalletAddresses]);
+  }, [navigate, loadCustodialWallet]);
 
   // ─── Biometric unlock ─────────────────────────────────
   const handleBiometricUnlock = (data: any) => {
@@ -519,23 +482,14 @@ function AppRoot() {
       localStorage.setItem("cubax_name",          data.displayName || "");
       localStorage.setItem("cubax_last_login",    Date.now().toString());
 
-      // ✅ Cargar direcciones multi-red
-      const walletAddresses = getWalletAddresses();
-      const walletAddress   = walletAddresses?.evm || getStoredWalletAddress();
-
       useAppStore.setState({
         user:            data.userData as AppUser,
         isAuthenticated: true,
         currentView:     "dashboard",
-        walletAddresses: walletAddresses || null,
-        walletAddress:   walletAddress   || null,
       });
 
-      // ✅ Cargar saldos multi-red
-      if (walletAddresses?.evm) {
-        void loadWalletBalances();
-      }
-
+      // ✅ Cargar wallet custodial tras desbloquear con biometría
+      void loadCustodialWallet();
       setShowBiometricLock(false);
     } catch (err) {
       console.error("❌ Error en unlock:", err);
@@ -565,12 +519,7 @@ function AppRoot() {
           localStorage.setItem("cubax_token",         data.token);
           localStorage.setItem("cubax_refresh_token", data.refreshToken);
         } else {
-          // ✅ Preservar wallet al cerrar sesión por token expirado
-          const walletEnc       = localStorage.getItem("cubax_wallet_enc");
-          const walletAddresses = localStorage.getItem("cubax_wallet_addresses");
           useAppStore.getState().logout();
-          if (walletEnc)       localStorage.setItem("cubax_wallet_enc",       walletEnc);
-          if (walletAddresses) localStorage.setItem("cubax_wallet_addresses", walletAddresses);
           navigate("landing");
         }
       } catch {}
@@ -612,7 +561,7 @@ function AppRoot() {
 }
 
 // =========================================================
-// EXPORT PRINCIPAL
+// APP ROOT
 // =========================================================
 export default function App() {
   return (
@@ -620,4 +569,4 @@ export default function App() {
       <AppRoot />
     </ErrorBoundary>
   );
-}
+  }
