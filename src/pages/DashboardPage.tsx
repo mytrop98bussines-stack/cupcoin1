@@ -2,7 +2,6 @@ import { useAppStore } from "@/store/useAppStore";
 import { Card }        from "@/components/ui/Card";
 import { Badge }       from "@/components/ui/Badge";
 import { useCryptoPrices } from "@/lib/coingecko/prices";
-import { CryptoIcon }  from "@/components/ui/CryptoIcon";
 import { EmailVerifyBanner } from "@/components/EmailVerificationBanner";
 import { PromoBanner }       from "@/components/PromoBanner";
 import { useTranslation }    from "@/lib/useTranslation";
@@ -14,16 +13,20 @@ import {
 } from "lucide-react";
 import { useState, useMemo, useEffect, useCallback } from "react";
 
+// Helper de íconos locales para el listado de activos
+const USDT_ICON = "/crypto/usdt.svg";
+
 export function DashboardPage() {
   const {
     user,
-    walletBalances,   // ✅ NUEVO: reemplaza balances custodios
-    walletLoading,    // ✅ NUEVO
+    usdtBalance,         // ✅ Sincronizado con el store custodial
+    custodialAddress,    // ✅ Dirección real de Tron (TRC-20)
+    walletLoading,       // ✅ Estado de carga custodial
     navigate,
     notifications,
     subscribeToNotifications,
     fetchPrices,
-    loadWalletBalances, // ✅ NUEVO
+    loadCustodialWallet, // ✅ Método de recarga custodial
   } = useAppStore();
 
   const { t } = useTranslation();
@@ -31,20 +34,11 @@ export function DashboardPage() {
   const [hideBalance, setHideBalance] = useState(false);
   const [refreshing, setRefreshing]   = useState(false);
 
-  // ─── CoinGecko en tiempo real ─────────────────────────────
+  // ─── CoinGecko en tiempo real para cotización de referencia ───
   const { data: cryptoPrices, isLoading: loadingMarket } = useCryptoPrices();
 
-  // ─── Balance total desde wallet no custodia ───────────────
-  const totalUSD = useMemo(() => {
-    if (!walletBalances || !Array.isArray(walletBalances)) return 0;
-    return walletBalances.reduce((sum, b) => sum + (b?.usdValue || 0), 0);
-  }, [walletBalances]);
-
-  // ─── Activos con balance > 0 ──────────────────────────────
-  const assetsWithBalance = useMemo(() => {
-    if (!walletBalances || !Array.isArray(walletBalances)) return [];
-    return walletBalances.filter((b) => b && (b.amount || 0) > 0);
-  }, [walletBalances]);
+  // ─── Balance total simplificado a USDT custodial ──────────────
+  const totalUSD = usdtBalance;
 
   // ─── Notificaciones no leídas ─────────────────────────────
   const unreadNotifs = useMemo(
@@ -64,12 +58,19 @@ export function DashboardPage() {
     }
   }, [user?.uid, subscribeToNotifications]);
 
-  // ─── Refrescar ────────────────────────────────────────────
+  // ─── Sincronización automática de wallet custodial al montar ──
+  useEffect(() => {
+    if (user?.uid) {
+      void loadCustodialWallet();
+    }
+  }, [user?.uid, loadCustodialWallet]);
+
+  // ─── Refrescar balance y precios ──────────────────────────
   const handleRefresh = useCallback(async () => {
     setRefreshing(true);
-    await Promise.all([fetchPrices(), loadWalletBalances()]);
+    await Promise.all([fetchPrices(), loadCustodialWallet()]);
     setTimeout(() => setRefreshing(false), 1000);
-  }, [fetchPrices, loadWalletBalances]);
+  }, [fetchPrices, loadCustodialWallet]);
 
   if (!user) return null;
 
@@ -111,8 +112,8 @@ export function DashboardPage() {
       icon:  <ArrowLeftRight className="h-5 w-5" />,
       label: t("nav.p2p"),
       view:  "p2p"          as const,
-      bg:    "bg-brand-500/10",
-      color: "text-brand-500",
+      bg:    "bg-emerald-500/10",
+      color: "text-emerald-500",
     },
     {
       icon:  <Plus className="h-5 w-5" />,
@@ -144,8 +145,7 @@ export function DashboardPage() {
     if (hour < 18) return t("dashboard.greeting.afternoon");
     return t("dashboard.greeting.evening");
   };
-
-  // =========================================================
+    // =========================================================
   // RENDER
   // =========================================================
   return (
@@ -172,7 +172,7 @@ export function DashboardPage() {
           >
             <Bell className="h-4 w-4 text-gray-600 dark:text-gray-300" />
             {unreadNotifs.length > 0 && (
-              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-brand-500 text-white text-[9px] font-black flex items-center justify-center">
+              <span className="absolute -top-1 -right-1 h-4 w-4 rounded-full bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center">
                 {unreadNotifs.length > 9 ? "9+" : unreadNotifs.length}
               </span>
             )}
@@ -185,17 +185,17 @@ export function DashboardPage() {
         </div>
       </div>
 
-      {/* ─── BALANCE CARD ───────────────────────────────── */}
-      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-gray-900 via-gray-900 to-gray-800 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] p-5 border border-gray-800 dark:border-white/[0.08] shadow-2xl">
-        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-brand-500/10 blur-3xl" />
-        <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-violet-500/10 blur-3xl" />
+      {/* ─── BALANCE CARD (Custodia USDT) ───────────────── */}
+      <div className="relative overflow-hidden rounded-2xl bg-gradient-to-br from-emerald-950 via-gray-900 to-gray-800 dark:from-white/[0.08] dark:via-white/[0.04] dark:to-white/[0.02] p-5 border border-emerald-500/10 dark:border-white/[0.08] shadow-2xl">
+        <div className="absolute -top-10 -right-10 h-40 w-40 rounded-full bg-emerald-500/10 blur-3xl" />
+        <div className="absolute -bottom-8 -left-8 h-32 w-32 rounded-full bg-teal-500/10 blur-3xl" />
 
         <div className="relative z-10">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-1.5">
-              <Sparkles className="h-3.5 w-3.5 text-amber-400" />
+              <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
               <span className="text-[11px] font-bold text-gray-400 uppercase tracking-wider">
-                {t("dashboard.totalBalance")}
+                {t("dashboard.totalBalance")} (Tron)
               </span>
             </div>
             <button
@@ -212,22 +212,25 @@ export function DashboardPage() {
           <div className="mb-4">
             {walletLoading ? (
               <div className="flex items-center gap-2">
-                <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                <Loader2 className="h-5 w-5 animate-spin text-emerald-400" />
                 <span className="text-sm text-gray-400">
-                  Cargando desde blockchain...
+                  Sincronizando wallet con TronGrid...
                 </span>
               </div>
             ) : (
               <>
-                <p className="text-4xl font-black text-white tracking-tight leading-none">
-                  {hideBalance
-                    ? "••••••"
-                    : `$${totalUSD.toLocaleString("en-US", {
-                        minimumFractionDigits: 2,
-                        maximumFractionDigits: 2,
-                      })}`
-                  }
-                </p>
+                <div className="flex items-baseline gap-2">
+                  <p className="text-4xl font-black text-white tracking-tight leading-none">
+                    {hideBalance
+                      ? "••••••"
+                      : `$${totalUSD.toLocaleString("en-US", {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}`
+                    }
+                  </p>
+                  <span className="text-emerald-400 font-bold text-base">USDT</span>
+                </div>
                 <p className="text-sm text-gray-400 mt-1.5 font-medium">
                   ≈{" "}
                   {hideBalance
@@ -248,7 +251,7 @@ export function DashboardPage() {
             </div>
             <div className="h-3 w-px bg-gray-700" />
             <div className="flex items-center gap-1.5">
-              <ArrowLeftRight className="h-3.5 w-3.5 text-brand-400" />
+              <ArrowLeftRight className="h-3.5 w-3.5 text-emerald-400" />
               <span className="text-xs font-semibold text-gray-300">
                 {user.totalTrades || 0} {t("dashboard.trades")}
               </span>
@@ -263,7 +266,7 @@ export function DashboardPage() {
           <div className="flex gap-2.5">
             <button
               onClick={() => navigate("p2p")}
-              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-brand-500 hover:bg-brand-600 text-white text-xs font-bold transition-all shadow-lg shadow-brand-500/25 active:scale-[0.98]"
+              className="flex-1 flex items-center justify-center gap-2 py-2.5 rounded-xl bg-emerald-500 hover:bg-emerald-600 text-white text-xs font-bold transition-all shadow-lg shadow-emerald-500/25 active:scale-[0.98]"
             >
               <ArrowLeftRight className="h-4 w-4" />
               {t("dashboard.exchange")}
@@ -321,7 +324,7 @@ export function DashboardPage() {
         </button>
       )}
 
-      {/* ─── MIS ACTIVOS (Polygon) ──────────────────────── */}
+      {/* ─── MIS ACTIVOS CUSTODIALES (USDT TRC20) ───────── */}
       <div>
         <div className="flex items-center justify-between mb-3">
           <h2 className="text-sm font-bold text-gray-900 dark:text-white">
@@ -329,107 +332,53 @@ export function DashboardPage() {
           </h2>
           <button
             onClick={() => navigate("wallet")}
-            className="text-xs text-brand-500 font-semibold flex items-center gap-0.5 hover:text-brand-400"
+            className="text-xs text-emerald-500 font-semibold flex items-center gap-0.5 hover:text-emerald-400"
           >
             {t("dashboard.viewAll")} <ChevronRight className="h-3 w-3" />
           </button>
         </div>
 
         {/* Loading skeleton */}
-        {walletLoading && (
-          <div className="space-y-2">
-            {[1, 2, 3].map((i) => (
-              <div
-                key={i}
-                className="h-16 rounded-2xl bg-gray-100 dark:bg-white/5 animate-pulse"
-              />
-            ))}
-          </div>
-        )}
-
-        {/* Activos con balance */}
-        {!walletLoading && assetsWithBalance.length > 0 && (
-          <div className="space-y-2">
-            {assetsWithBalance.slice(0, 4).map((balance) => {
-              if (!balance?.symbol) return null;
-
-              const liveCoin = cryptoPrices?.find(
-                (p) => p.symbol.toUpperCase() === balance.symbol.toUpperCase()
-              );
-              const change = liveCoin?.price_change_percentage_24h ?? 0;
-              const isUp   = change >= 0;
-
-              return (
-                <button
-                  key={balance.symbol}
-                  onClick={() => navigate("wallet")}
-                  className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-gray-200 dark:hover:border-white/10 transition-all text-left active:scale-[0.99]"
-                >
-                  <div className="flex items-center gap-3">
-                    <CryptoIcon symbol={balance.symbol} size={40} />
-                    <div>
-                      <div className="flex items-center gap-1.5">
-                        <p className="font-bold text-sm text-gray-900 dark:text-white">
-                          {balance.symbol}
-                        </p>
-                        <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-purple-500/10 text-purple-500 font-semibold">
-                          Polygon
-                        </span>
-                      </div>
-                      <p className="text-xs text-gray-400">
-                        {hideBalance
-                          ? "••••"
-                          : `${(balance.amount || 0).toFixed(
-                              balance.symbol === "BTC"  ? 6 :
-                              balance.symbol === "ETH"  ? 4 :
-                              balance.symbol === "MATIC"? 4 : 2
-                            )} ${balance.symbol}`
-                        }
-                      </p>
-                    </div>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-bold text-sm text-gray-900 dark:text-white">
-                      {hideBalance
-                        ? "••••"
-                        : `$${(balance.usdValue || 0).toLocaleString("en-US", {
-                            minimumFractionDigits: 2,
-                          })}`
-                      }
-                    </p>
-                    <div className={`text-xs font-semibold flex items-center justify-end gap-0.5 ${
-                      isUp ? "text-emerald-500" : "text-red-500"
-                    }`}>
-                      {isUp
-                        ? <TrendingUp  className="h-3 w-3" />
-                        : <TrendingDown className="h-3 w-3" />
-                      }
-                      {Math.abs(change).toFixed(2)}%
-                    </div>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Sin balance */}
-        {!walletLoading && assetsWithBalance.length === 0 && (
-          <div className="text-center py-8 border border-dashed border-gray-200 dark:border-white/10 rounded-2xl">
-            <Wallet className="h-8 w-8 text-gray-300 dark:text-gray-600 mx-auto mb-2" />
-            <p className="text-sm font-semibold text-gray-500 dark:text-gray-400 mb-1">
-              {t("dashboard.noBalance")}
-            </p>
-            <p className="text-xs text-gray-400 mb-3">
-              Deposita MATIC o USDT en tu wallet Polygon
-            </p>
-            <button
-              onClick={() => navigate("wallet")}
-              className="text-xs font-bold text-brand-500 hover:text-brand-400"
-            >
-              {t("dashboard.goToWallet")} →
-            </button>
-          </div>
+        {walletLoading ? (
+          <div className="h-20 rounded-2xl bg-gray-100 dark:bg-white/5 animate-pulse" />
+        ) : (
+          <button
+            onClick={() => navigate("wallet")}
+            className="w-full flex items-center justify-between p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-emerald-500/20 transition-all text-left active:scale-[0.99]"
+          >
+            <div className="flex items-center gap-3">
+              <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center overflow-hidden">
+                <img 
+                  src={USDT_ICON} 
+                  alt="USDT" 
+                  className="h-6 w-6 object-contain" 
+                  onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }}
+                />
+              </div>
+              <div>
+                <div className="flex items-center gap-1.5">
+                  <p className="font-bold text-sm text-gray-900 dark:text-white">
+                    USDT
+                  </p>
+                  <span className="text-[9px] px-1.5 py-0.5 rounded-full bg-red-500/10 text-red-500 font-semibold">
+                    TRC-20
+                  </span>
+                </div>
+                <p className="text-xs text-gray-400">
+                  {hideBalance ? "••••" : `${usdtBalance.toFixed(2)} USDT`}
+                </p>
+              </div>
+            </div>
+            <div className="text-right">
+              <p className="font-bold text-sm text-gray-900 dark:text-white">
+                {hideBalance
+                  ? "••••"
+                  : `$${usdtBalance.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+                }
+              </p>
+              <span className="text-[10px] text-emerald-500 font-medium">1.00 USD</span>
+            </div>
+          </button>
         )}
       </div>
 
@@ -442,7 +391,7 @@ export function DashboardPage() {
           <div className="flex items-center gap-2">
             <div className="flex items-center gap-1 text-[10px] text-gray-400 font-medium">
               {loadingMarket && (
-                <Loader2 className="h-2.5 w-2.5 animate-spin text-brand-500" />
+                <Loader2 className="h-2.5 w-2.5 animate-spin text-emerald-500" />
               )}
               <div className="h-1.5 w-1.5 rounded-full bg-emerald-500 animate-pulse" />
               CoinGecko
@@ -467,7 +416,7 @@ export function DashboardPage() {
           </div>
         ) : (
           <div className="grid grid-cols-2 gap-2">
-            {(cryptoPrices || []).map((coin) => {
+            {(cryptoPrices || []).slice(0, 4).map((coin) => {
               if (!coin?.symbol) return null;
               const symbolUpper = coin.symbol.toUpperCase();
               const isUp        = (coin.price_change_percentage_24h || 0) >= 0;
@@ -476,10 +425,15 @@ export function DashboardPage() {
                 <button
                   key={coin.id}
                   onClick={() => navigate("p2p")}
-                  className="flex flex-col p-3.5 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
+                  className="flex flex-col p-3.5 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-emerald-500/20 transition-all text-left active:scale-[0.98]"
                 >
                   <div className="flex items-center gap-2 mb-2">
-                    <CryptoIcon symbol={symbolUpper} size={28} />
+                    <img 
+                      src={`/crypto/${symbolUpper.toLowerCase()}.svg`} 
+                      alt={symbolUpper} 
+                      className="h-6 w-6 object-contain"
+                      onError={(e) => { e.currentTarget.src = "/crypto/usd.svg"; }} 
+                    />
                     <div>
                       <p className="text-xs font-bold text-gray-900 dark:text-white">
                         {symbolUpper}
@@ -519,10 +473,10 @@ export function DashboardPage() {
       <div className="grid grid-cols-2 gap-2">
         <button
           onClick={() => navigate("trade-history")}
-          className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
+          className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-emerald-500/20 transition-all text-left active:scale-[0.98]"
         >
-          <div className="h-9 w-9 rounded-xl bg-brand-500/10 flex items-center justify-center flex-shrink-0">
-            <ArrowLeftRight className="h-4 w-4 text-brand-500" />
+          <div className="h-9 w-9 rounded-xl bg-emerald-500/10 flex items-center justify-center flex-shrink-0">
+            <ArrowLeftRight className="h-4 w-4 text-emerald-500" />
           </div>
           <div>
             <p className="text-xs font-bold text-gray-900 dark:text-white">
@@ -536,7 +490,7 @@ export function DashboardPage() {
 
         <button
           onClick={() => navigate("my-orders")}
-          className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-brand-500/20 transition-all text-left active:scale-[0.98]"
+          className="flex items-center gap-3 p-4 rounded-2xl bg-white dark:bg-white/[0.02] border border-gray-100 dark:border-white/[0.05] hover:border-emerald-500/20 transition-all text-left active:scale-[0.98]"
         >
           <div className="h-9 w-9 rounded-xl bg-violet-500/10 flex items-center justify-center flex-shrink-0">
             <Package className="h-4 w-4 text-violet-500" />
@@ -560,13 +514,13 @@ export function DashboardPage() {
               <h2 className="text-sm font-bold text-gray-900 dark:text-white">
                 {t("nav.notifications")}
               </h2>
-              <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-brand-500 text-white text-[9px] font-black flex items-center justify-center">
+              <span className="h-5 min-w-[20px] px-1.5 rounded-full bg-emerald-500 text-white text-[9px] font-black flex items-center justify-center">
                 {unreadNotifs.length}
               </span>
             </div>
             <button
               onClick={() => navigate("notifications")}
-              className="text-xs text-brand-500 font-semibold flex items-center gap-0.5 hover:text-brand-400"
+              className="text-xs text-emerald-500 font-semibold flex items-center gap-0.5 hover:text-emerald-400"
             >
               {t("dashboard.viewAll")} <ChevronRight className="h-3 w-3" />
             </button>
@@ -577,21 +531,21 @@ export function DashboardPage() {
               if (!notif?.id) return null;
 
               const iconMap: Record<string, JSX.Element> = {
-                trade:   <ArrowLeftRight className="h-4 w-4 text-brand-500"  />,
-                kyc:     <Shield         className="h-4 w-4 text-amber-500"  />,
-                product: <ShoppingBag    className="h-4 w-4 text-violet-500" />,
-                wallet:  <Wallet         className="h-4 w-4 text-purple-500" />,
-                alert:   <AlertTriangle  className="h-4 w-4 text-red-500"    />,
+                trade:   <ArrowLeftRight className="h-4 w-4 text-emerald-500" />,
+                kyc:     <Shield         className="h-4 w-4 text-amber-500"   />,
+                product: <ShoppingBag    className="h-4 w-4 text-violet-500"  />,
+                wallet:  <Wallet         className="h-4 w-4 text-purple-500"  />,
+                alert:   <AlertTriangle  className="h-4 w-4 text-red-500"     />,
               };
 
               return (
                 <button
                   key={notif.id}
                   onClick={() => navigate("notifications")}
-                  className="w-full flex items-start gap-3 p-3.5 rounded-2xl bg-brand-500/[0.02] border border-brand-500/10 hover:border-brand-500/20 transition-all text-left active:scale-[0.99]"
+                  className="w-full flex items-start gap-3 p-3.5 rounded-2xl bg-emerald-500/[0.02] border border-emerald-500/10 hover:border-emerald-500/20 transition-all text-left active:scale-[0.99]"
                 >
-                  <div className="h-8 w-8 rounded-lg bg-brand-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
-                    {iconMap[notif.type] || <Zap className="h-4 w-4 text-brand-500" />}
+                  <div className="h-8 w-8 rounded-lg bg-emerald-500/10 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    {iconMap[notif.type] || <Zap className="h-4 w-4 text-emerald-500" />}
                   </div>
                   <div className="flex-1 min-w-0">
                     <p className="text-xs font-bold text-gray-900 dark:text-white truncate">
@@ -601,7 +555,7 @@ export function DashboardPage() {
                       {(notif as any).message || notif.body || ""}
                     </p>
                   </div>
-                  <div className="h-2 w-2 rounded-full bg-brand-500 flex-shrink-0 mt-1.5 animate-pulse" />
+                  <div className="h-2 w-2 rounded-full bg-emerald-500 flex-shrink-0 mt-1.5 animate-pulse" />
                 </button>
               );
             })}
@@ -611,4 +565,4 @@ export function DashboardPage() {
 
     </div>
   );
-}
+    }
