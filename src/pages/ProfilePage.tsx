@@ -6,10 +6,11 @@ import { Avatar } from "@/components/ui/Avatar";
 import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
+import { PhoneVerificationModal } from "@/components/PhoneVerificationModal";
 import {
   User, Mail, Phone, Calendar, Shield, Star,
   Camera, Save, Loader2, CheckCircle2,
-  AlertTriangle, X, Award, Edit3,
+  AlertTriangle, X, Award, Edit3, Send,
 } from "lucide-react";
 
 const BACKEND_URL              = "https://cubax-backend.onrender.com/api";
@@ -19,14 +20,15 @@ const CLOUDINARY_UPLOAD_PRESET = "cubax_unsigned";
 export function ProfilePage() {
   const { user, setUser, navigate } = useAppStore();
 
-  const [displayName, setDisplayName]     = useState(user?.displayName || "");
-  const [photoURL, setPhotoURL]           = useState(user?.photoURL || "");
-  const [uploading, setUploading]         = useState(false);
-  const [saving, setSaving]               = useState(false);
-  const [error, setError]                 = useState<string | null>(null);
-  const [success, setSuccess]             = useState<string | null>(null);
-  const [hasChanges, setHasChanges]       = useState(false);
-  const fileInputRef                      = useRef<HTMLInputElement>(null);
+  const [displayName, setDisplayName]       = useState(user?.displayName || "");
+  const [photoURL, setPhotoURL]             = useState(user?.photoURL || "");
+  const [uploading, setUploading]           = useState(false);
+  const [saving, setSaving]                 = useState(false);
+  const [error, setError]                   = useState<string | null>(null);
+  const [success, setSuccess]               = useState<string | null>(null);
+  const [hasChanges, setHasChanges]         = useState(false);
+  const [showPhoneModal, setShowPhoneModal] = useState(false); // ✅ Modal de verificación
+  const fileInputRef                        = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
     if (!user) return;
@@ -70,6 +72,7 @@ export function ProfilePage() {
   };
 
   const phoneInfo = formatPhoneDisplay((user as any).phoneNumber);
+  const phoneVerified = (user as any).phoneVerified === true;
 
   const memberSince = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString("es-CU", {
@@ -172,8 +175,7 @@ export function ProfilePage() {
       setSaving(false);
     }
   };
-
-  return (
+    return (
     <div className="max-w-lg mx-auto px-4 py-4 pb-24 space-y-4 animate-fade-in">
 
       {/* Header */}
@@ -291,20 +293,43 @@ export function ProfilePage() {
             </div>
           </div>
 
-          {/* ✅ NUEVO: Teléfono (No editable) */}
+          {/* ✅ Teléfono con botón de verificación */}
           <div>
-            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
-              Número de teléfono
-            </label>
+            <div className="flex items-center justify-between mb-2">
+              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider block">
+                Número de teléfono
+              </label>
+
+              {!phoneVerified && (
+                <button
+                  type="button"
+                  onClick={() => setShowPhoneModal(true)}
+                  className="text-xs font-bold text-sky-500 hover:text-sky-400 flex items-center gap-1 transition-colors"
+                >
+                  <Send className="h-3 w-3" />
+                  Verificar vía Telegram →
+                </button>
+              )}
+            </div>
+
             <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
               <span className="text-xl flex-shrink-0">{phoneInfo.flag}</span>
               <div className="flex-1 min-w-0">
                 <p className="text-sm text-gray-700 dark:text-gray-300 font-mono truncate">
                   {phoneInfo.formatted}
                 </p>
-                <p className="text-[10px] text-gray-400">
-                  Registrado en {phoneInfo.country}
-                </p>
+                <div className="flex items-center gap-2 mt-0.5 flex-wrap">
+                  <p className="text-[10px] text-gray-400">
+                    {phoneInfo.country}
+                  </p>
+                  <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded-full ${
+                    phoneVerified 
+                      ? "bg-emerald-500/10 text-emerald-500" 
+                      : "bg-amber-500/10 text-amber-500"
+                  }`}>
+                    {phoneVerified ? "✓ Verificado" : "⏳ No verificado"}
+                  </span>
+                </div>
               </div>
               <span className="text-[10px] text-gray-400 font-semibold">
                 No editable
@@ -427,6 +452,28 @@ export function ProfilePage() {
           </div>
         </div>
       </Card>
+
+      {/* ✅ Modal de Verificación con Telegram */}
+      {showPhoneModal && (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="relative w-full max-w-sm">
+            <button
+              onClick={() => setShowPhoneModal(false)}
+              className="absolute -top-3 -right-3 h-8 w-8 rounded-full bg-gray-900 text-white flex items-center justify-center shadow-lg hover:bg-gray-800 z-10"
+            >
+              ✕
+            </button>
+            <PhoneVerificationModal
+              uid={user.uid}
+              onVerified={() => {
+                setShowPhoneModal(false);
+                // Refresca el usuario para traer el nuevo estado phoneVerified
+                setTimeout(() => window.location.reload(), 1000);
+              }}
+            />
+          </div>
+        </div>
+      )}
     </div>
   );
 }
