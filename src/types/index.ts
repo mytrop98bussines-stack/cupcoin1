@@ -113,6 +113,7 @@ export interface User {
   uid:           string;
   email:         string;
   displayName:   string;
+  phoneNumber?:  string; // ✅ Agregado: Teléfono único (+53 / +1)
   photoURL:      string | null;
   kycStatus:     KYCStatus;
   createdAt:     number;
@@ -122,8 +123,8 @@ export interface User {
   // ✅ Dirección custodial de Tron asignada por el backend
   custodialAddress?: string | null;
 
-  role?:         "user" | "admin";
-  fcmToken?:     string;
+  role?:          "user" | "admin";
+  fcmToken?:      string;
   emailVerified?: boolean;
 
   // ✅ Saldo centralizado en el backend (devuelto por /api/tron/balance)
