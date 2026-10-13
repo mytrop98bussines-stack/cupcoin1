@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/Button";
 import { Input }  from "@/components/ui/Input";
 import { VerifiedBadge } from "@/components/VerifiedBadge";
 import {
-  User, Mail, Calendar, Shield, Star,
+  User, Mail, Phone, Calendar, Shield, Star,
   Camera, Save, Loader2, CheckCircle2,
   AlertTriangle, X, Award, Edit3,
 } from "lucide-react";
@@ -44,6 +44,33 @@ export function ProfilePage() {
 
   if (!user) return null;
 
+  // ✅ Formateador del teléfono con bandera visual
+  const formatPhoneDisplay = (phone?: string) => {
+    if (!phone) return { formatted: "No registrado", flag: "📵", country: "N/A" };
+
+    if (phone.startsWith("+53")) {
+      const digits = phone.replace("+53", "");
+      return {
+        formatted: `+53 ${digits.slice(0, 4)} ${digits.slice(4)}`,
+        flag: "🇨🇺",
+        country: "Cuba",
+      };
+    }
+
+    if (phone.startsWith("+1")) {
+      const digits = phone.replace("+1", "");
+      return {
+        formatted: `+1 (${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`,
+        flag: "🇺🇸",
+        country: "USA",
+      };
+    }
+
+    return { formatted: phone, flag: "🌍", country: "Otro" };
+  };
+
+  const phoneInfo = formatPhoneDisplay((user as any).phoneNumber);
+
   const memberSince = user.createdAt
     ? new Date(user.createdAt).toLocaleDateString("es-CU", {
         month: "long",
@@ -62,7 +89,6 @@ export function ProfilePage() {
     || kycConfig.unverified;
 
   const rating = (user as any).rating || 5;
-  const stars  = Math.round(rating);
 
   // ─── Subir foto a Cloudinary ──────────────────────────────
   const handleUploadPhoto = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -152,8 +178,8 @@ export function ProfilePage() {
 
       {/* Header */}
       <div className="flex items-center gap-3">
-        <div className="h-10 w-10 rounded-xl bg-brand-500/10 flex items-center justify-center">
-          <User className="h-5 w-5 text-brand-500" />
+        <div className="h-10 w-10 rounded-xl bg-emerald-500/10 flex items-center justify-center">
+          <User className="h-5 w-5 text-emerald-500" />
         </div>
         <div>
           <h1 className="text-lg font-bold text-gray-900 dark:text-white">Mi Perfil</h1>
@@ -181,7 +207,7 @@ export function ProfilePage() {
 
       {/* Foto de perfil */}
       <Card padding="lg" className="relative overflow-hidden">
-        <div className="absolute top-0 right-0 h-24 w-24 bg-brand-500/5 rounded-full blur-2xl pointer-events-none" />
+        <div className="absolute top-0 right-0 h-24 w-24 bg-emerald-500/5 rounded-full blur-2xl pointer-events-none" />
 
         <div className="flex flex-col items-center gap-4">
           <div className="relative">
@@ -200,7 +226,7 @@ export function ProfilePage() {
             <button
               onClick={() => fileInputRef.current?.click()}
               disabled={uploading}
-              className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-brand-500 hover:bg-brand-600 text-white shadow-lg flex items-center justify-center transition-all disabled:opacity-50"
+              className="absolute -bottom-2 -right-2 h-8 w-8 rounded-full bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg flex items-center justify-center transition-all disabled:opacity-50"
             >
               {uploading ? (
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -249,6 +275,7 @@ export function ProfilePage() {
             placeholder="Tu nombre completo"
           />
 
+          {/* ✅ Email (No editable) */}
           <div>
             <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
               Correo electrónico
@@ -264,6 +291,27 @@ export function ProfilePage() {
             </div>
           </div>
 
+          {/* ✅ NUEVO: Teléfono (No editable) */}
+          <div>
+            <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
+              Número de teléfono
+            </label>
+            <div className="flex items-center gap-2 px-4 py-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-200 dark:border-white/10">
+              <span className="text-xl flex-shrink-0">{phoneInfo.flag}</span>
+              <div className="flex-1 min-w-0">
+                <p className="text-sm text-gray-700 dark:text-gray-300 font-mono truncate">
+                  {phoneInfo.formatted}
+                </p>
+                <p className="text-[10px] text-gray-400">
+                  Registrado en {phoneInfo.country}
+                </p>
+              </div>
+              <span className="text-[10px] text-gray-400 font-semibold">
+                No editable
+              </span>
+            </div>
+          </div>
+
           {hasChanges && (
             <Button
               size="lg"
@@ -271,6 +319,7 @@ export function ProfilePage() {
               loading={saving}
               onClick={handleSave}
               icon={<Save className="h-4 w-4" />}
+              className="bg-emerald-500 hover:bg-emerald-600 text-white"
             >
               Guardar cambios
             </Button>
@@ -285,7 +334,7 @@ export function ProfilePage() {
         </h3>
         <div className="grid grid-cols-3 gap-2">
           <Card padding="md" className="text-center">
-            <p className="text-xl font-black text-brand-500">
+            <p className="text-xl font-black text-emerald-500">
               {user.totalTrades || 0}
             </p>
             <p className="text-[10px] text-gray-400 mt-1">Trades</p>
@@ -343,7 +392,7 @@ export function ProfilePage() {
             {user.kycStatus !== "verified" && (
               <button
                 onClick={() => navigate("kyc")}
-                className="text-xs font-bold text-brand-500"
+                className="text-xs font-bold text-emerald-500"
               >
                 Verificar →
               </button>
@@ -365,20 +414,19 @@ export function ProfilePage() {
       </div>
 
       {/* Ver perfil público */}
-      <Card padding="md" className="bg-brand-500/5 border-brand-500/20">
+      <Card padding="md" className="bg-emerald-500/5 border-emerald-500/20">
         <div className="flex items-start gap-2">
-          <Edit3 className="h-4 w-4 text-brand-500 flex-shrink-0 mt-0.5" />
+          <Edit3 className="h-4 w-4 text-emerald-500 flex-shrink-0 mt-0.5" />
           <div className="flex-1">
-            <p className="text-xs font-bold text-brand-700 dark:text-brand-400 mb-1">
+            <p className="text-xs font-bold text-emerald-700 dark:text-emerald-400 mb-1">
               Perfil público
             </p>
             <p className="text-[11px] text-gray-500 dark:text-gray-400">
-              Los otros usuarios ven tu nombre, foto, rating y trades completados
-              cuando publicas ofertas en el P2P.
+              Los otros usuarios ven tu nombre, foto, rating y trades completados cuando publicas ofertas en el P2P. Tu número de teléfono permanece privado.
             </p>
           </div>
         </div>
       </Card>
     </div>
   );
-      }
+}
