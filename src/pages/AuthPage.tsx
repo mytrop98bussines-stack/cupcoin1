@@ -5,7 +5,7 @@ import { Input }  from "@/components/ui/Input";
 import { Logo }   from "@/components/Logo";
 import { useTranslation } from "@/lib/useTranslation";
 import {
-  Mail, Lock, User, Eye, EyeOff,
+  Mail, Lock, User, Eye, EyeOff, Phone,
   ArrowLeft, CheckCircle2, AlertTriangle, Shield,
 } from "lucide-react";
 import type { User as AppUser } from "@/types";
@@ -24,6 +24,8 @@ export function AuthPage() {
   const [email, setEmail]                 = useState("");
   const [password, setPassword]           = useState("");
   const [name, setName]                   = useState("");
+  const [countryCode, setCountryCode]     = useState<"+53" | "+1">("+53");
+  const [phoneNumber, setPhoneNumber]     = useState("");
   const [showPassword, setShowPassword]   = useState(false);
   const [loading, setLoading]             = useState(false);
   const [errors, setErrors]               = useState<Record<string, string>>({});
@@ -46,7 +48,7 @@ export function AuthPage() {
   const [pendingUserData, setPendingUserData]       = useState<any>(null);
 
   // =========================================================
-  // HELPER: Completar login e iniciar sesión custodial
+  // HELPER: Completar login
   // =========================================================
   const finishLogin = useCallback(async (data: any) => {
     localStorage.setItem("cubax_token",         data.token);
@@ -58,7 +60,6 @@ export function AuthPage() {
 
     const u = data.userData || {};
 
-    // Mapeamos el usuario con su rol y datos básicos. El address se leerá del endpoint custodial.
     const appUser: AppUser = {
       uid:           data.uid,
       email:         data.email,
@@ -68,7 +69,7 @@ export function AuthPage() {
       createdAt:     u.createdAt     || Date.now(),
       totalTrades:   u.totalTrades   || 0,
       rating:        u.rating        || 5.0,
-      walletAddress: u.walletAddress || null, 
+      custodialAddress: u.custodialAddress || u.depositAddresses?.USDT || null,
       role:          u.role          || "user",
       emailVerified: u.emailVerified || false,
     } as any;
@@ -76,7 +77,6 @@ export function AuthPage() {
     const promptedBefore = localStorage.getItem(`biometric_prompted_${data.uid}`);
     const alreadyEnabled = localStorage.getItem("biometric_enabled");
 
-    // Lógica limpia: Preguntar por activar biometría si no se ha consultado, sino ingresar
     if (isBiometricSupported() && !promptedBefore && !alreadyEnabled) {
       setPendingUserData({ appUser, data });
       setShowBiometricModal(true);
@@ -87,7 +87,7 @@ export function AuthPage() {
   }, [login, navigate]);
 
   // =========================================================
-  // HANDLERS: Activar o saltar Biometría
+  // HANDLERS: Biometría
   // =========================================================
   const handleBiometricActivated = () => {
     localStorage.setItem("biometric_enabled", "1");
@@ -111,110 +111,52 @@ export function AuthPage() {
   };
 
   // =========================================================
-  // EFFECT: Manejar el callback de inicio de sesión con Google
-  // =========================================================
-  useEffect(() => {
-    const params = new URLSearchParams(window.location.search);
-
-    const error          = params.get("error");
-    const requires2FA    = params.get("requires2FA");
-    const challengeToken = params.get("challengeToken");
-    const token          = params.get("token");
-    const refreshToken   = params.get("refreshToken");
-    const uid            = params.get("uid");
-
-    const clearUrl = () => {
-      window.history.replaceState({}, document.title, window.location.pathname);
-    };
-
-    if (!error && !requires2FA && !token) return;
-
-    if (error) {
-      setGlobalError(decodeURIComponent(error));
-      clearUrl();
-      setGoogleLoading(false);
-      return;
-    }
-
-    if (requires2FA === "1" && challengeToken) {
-      setTwoFAChallengeToken(challengeToken);
-      setTwoFARequired(true);
-      setTwoFACode("");
-      setTwoFAError(null);
-      setGoogleLoading(false);
-      clearUrl();
-      return;
-    }
-
-    if (token && uid) {
-      clearUrl();
-      setGoogleLoading(true);
-
-      fetch(`${BACKEND_URL}/api/auth/me`, {
-        method:  "POST",
-        headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ uid }),
-      })
-        .then((r) => r.json())
-        .then((me) => {
-          if (!me.success) {
-            setGlobalError(t("auth.errors.loadUser"));
-            return;
-          }
-          finishLogin({
-            token,
-            refreshToken: refreshToken || "",
-            uid,
-            email:        me.userData.email,
-            displayName:  me.userData.displayName,
-            photoURL:     me.userData.photoURL || null,
-            userData:     me.userData,
-          });
-        })
-        .catch(() => setGlobalError(t("auth.errors.googleSession")))
-        .finally(() => setGoogleLoading(false));
-    }
-  }, [finishLogin, t]);
-
-  // =========================================================
-  // VALIDACIÓN DE FORMULARIO
+  // VALIDACIÓN
   // =========================================================
   const validate = useCallback((): boolean => {
     const newErrors: Record<string, string> = {};
 
     if (!email.trim()) {
-      newErrors.email = t("auth.errors.emailRequired");
+      newErrors.email = "El correo es obligatorio";
     } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
-      newErrors.email = t("auth.errors.emailInvalid");
+      newErrors.email = "Correo electrónico inválido";
     }
 
     if (!password) {
-      newErrors.password = t("auth.errors.passwordRequired");
+      newErrors.password = "La contraseña es requerida";
     } else if (password.length < 6) {
-      newErrors.password = t("auth.errors.passwordShort");
+      newErrors.password = "Mínimo 6 caracteres";
     }
 
-    if (!isLogin && !name.trim()) {
-      newErrors.name = t("auth.errors.nameRequired");
-    }
+    if (!isLogin) {
+      if (!name.trim()) {
+        newErrors.name = "El nombre es obligatorio";
+      } else if (name.trim().length < 2) {
+        newErrors.name = "Nombre muy corto";
+      }
 
-    if (!isLogin && name.trim().length < 2) {
-      newErrors.name = t("auth.errors.nameShort");
+      // Validación estricta de teléfono para Cuba y USA
+      const cleanPhone = phoneNumber.replace(/\D/g, "");
+      if (!cleanPhone) {
+        newErrors.phone = "El teléfono es obligatorio";
+      } else if (countryCode === "+53") {
+        if (!/^[56]\d{7}$/.test(cleanPhone)) {
+          newErrors.phone = "Debe tener 8 dígitos e iniciar con 5 o 6";
+        }
+      } else if (countryCode === "+1") {
+        if (!/^\d{10}$/.test(cleanPhone)) {
+          newErrors.phone = "Debe tener 10 dígitos (Código de área + Número)";
+        }
+      }
     }
 
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
-  }, [email, password, name, isLogin, t]);
+  }, [email, password, name, isLogin, countryCode, phoneNumber]);
 
   // =========================================================
-  // HANDLERS: Login y registro contra la API
+  // SUBMIT
   // =========================================================
-  const handleGoogleLogin = () => {
-    setGoogleLoading(true);
-    setGlobalError(null);
-    window.location.href = `${BACKEND_URL}/auth/google/start`;
-  };
-
   const handleSubmit = useCallback(
     async (e: React.FormEvent) => {
       e.preventDefault();
@@ -229,9 +171,16 @@ export function AuthPage() {
           ? `${BACKEND_URL}/api/auth/login`
           : `${BACKEND_URL}/api/auth/register`;
 
+        const fullPhone = `${countryCode}${phoneNumber.replace(/\D/g, "")}`;
+
         const body = isLogin
           ? { email: email.trim(), password }
-          : { email: email.trim(), password, displayName: name.trim() };
+          : { 
+              email: email.trim(), 
+              password, 
+              displayName: name.trim(),
+              phone: fullPhone 
+            };
 
         const res  = await fetch(endpoint, {
           method:  "POST",
@@ -242,19 +191,14 @@ export function AuthPage() {
         const data = await res.json();
 
         if (!data.success) {
-          if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
+          if (data.code === "PHONE_EXISTS" || data.code === "INVALID_PHONE") {
+            setErrors({ phone: data.error });
+          } else if (data.code === "EMAIL_EXISTS" || data.code === "INVALID_EMAIL") {
             setErrors({ email: data.error });
-          } else if (
-            data.code === "INVALID_PASSWORD" ||
-            data.code === "INVALID_LOGIN_CREDENTIALS"
-          ) {
+          } else if (data.code === "INVALID_PASSWORD" || data.code === "INVALID_LOGIN_CREDENTIALS") {
             setErrors({ password: data.error });
-          } else if (data.code === "ACCOUNT_SUSPENDED") {
-            setGlobalError("🚫 " + data.error);
-          } else if (data.code === "RATE_LIMIT") {
-            setGlobalError(`⏳ ${data.error}`);
           } else {
-            setGlobalError(data.error);
+            setGlobalError(data.error || "Error al procesar la solicitud");
           }
           return;
         }
@@ -271,20 +215,20 @@ export function AuthPage() {
 
       } catch (err: any) {
         console.error("❌ Error de autenticación:", err.message);
-        setGlobalError(t("auth.errors.connection"));
+        setGlobalError("Error de conexión con el servidor");
       } finally {
         setLoading(false);
       }
     },
-    [email, password, name, isLogin, validate, finishLogin, t]
+    [email, password, name, countryCode, phoneNumber, isLogin, validate, finishLogin]
   );
 
   // =========================================================
-  // HANDLERS: 2FA y Recuperar Contraseña
+  // HANDLERS: 2FA & Reset
   // =========================================================
   const handleVerify2FA = async () => {
     if (twoFACode.length !== 6) {
-      setTwoFAError(t("auth.twoFA.enterCode"));
+      setTwoFAError("Ingresa el código de 6 dígitos");
       return;
     }
 
@@ -292,29 +236,24 @@ export function AuthPage() {
     setTwoFAError(null);
 
     try {
-      const res  = await fetch(`${BACKEND_URL}/api/auth/2fa/verify-login`, {
-        method:  "POST",
+      const res = await fetch(`${BACKEND_URL}/api/auth/2fa/verify-login`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({
+        body: JSON.stringify({
           challengeToken: twoFAChallengeToken,
-          code:           twoFACode,
+          code: twoFACode,
         }),
       });
       const data = await res.json();
 
       if (!data.success) {
-        if (data.code === "RATE_LIMIT") {
-          setTwoFAError(`⏳ ${data.error}`);
-        } else {
-          setTwoFAError(data.error || t("auth.twoFA.incorrect"));
-        }
+        setTwoFAError(data.error || "Código incorrecto");
         return;
       }
 
       await finishLogin(data);
-
     } catch {
-      setTwoFAError(t("auth.errors.connection"));
+      setTwoFAError("Error de conexión");
     } finally {
       setTwoFALoading(false);
     }
@@ -322,32 +261,30 @@ export function AuthPage() {
 
   const handlePasswordReset = useCallback(async () => {
     if (!resetEmail.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(resetEmail)) {
-      setGlobalError(t("auth.errors.invalidEmail"));
+      setGlobalError("Correo electrónico inválido");
       return;
     }
 
     setResetLoading(true);
     try {
-      const res  = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
-        method:  "POST",
+      const res = await fetch(`${BACKEND_URL}/api/auth/reset-password`, {
+        method: "POST",
         headers: { "Content-Type": "application/json" },
-        body:    JSON.stringify({ email: resetEmail.trim() }),
+        body: JSON.stringify({ email: resetEmail.trim() }),
       });
       const data = await res.json();
 
       if (data.success) {
         setResetSent(true);
-      } else if (data.code === "RATE_LIMIT") {
-        setGlobalError(`⏳ ${data.error}`);
       } else {
         setGlobalError(data.error);
       }
     } catch {
-      setGlobalError(t("auth.errors.connection"));
+      setGlobalError("Error de conexión");
     } finally {
       setResetLoading(false);
     }
-  }, [resetEmail, t]);
+  }, [resetEmail]);
 
   const handleSwitchView = () => {
     setErrors({});
@@ -356,109 +293,44 @@ export function AuthPage() {
     setResetSent(false);
     navigate(isLogin ? "register" : "login");
   };
-    // =========================================================
+
+  // =========================================================
   // RENDER: Pantalla 2FA
   // =========================================================
   if (twoFARequired) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
-        <div className="px-4 pt-4">
-          <button
-            onClick={() => {
-              setTwoFARequired(false);
-              setTwoFACode("");
-              setTwoFAError(null);
-              setTwoFAChallengeToken("");
-            }}
-            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-          </button>
+      <div className="min-h-screen bg-white dark:bg-black flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8 animate-fade-in">
+        <div className="text-center mb-8">
+          <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
+            <Shield className="h-8 w-8 text-emerald-500" />
+          </div>
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Autenticación 2FA</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Ingresa el código de tu aplicación de autenticación</p>
         </div>
 
-        <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
-          <div className="text-center mb-8">
-            <div className="h-16 w-16 rounded-2xl bg-emerald-500/10 flex items-center justify-center mx-auto mb-4">
-              <Shield className="h-8 w-8 text-emerald-500" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t("auth.twoFA.title")}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {t("auth.twoFA.subtitle")}
-            </p>
-            <div className="flex items-center justify-center gap-2 mt-3">
-              {["Google Authenticator", "Aegis", "Authy"].map((app) => (
-                <span
-                  key={app}
-                  className="text-[10px] px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 font-medium"
-                >
-                  {app}
-                </span>
-              ))}
-            </div>
+        {twoFAError && (
+          <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
+            <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
+            <p className="text-xs text-red-700 dark:text-red-400">{twoFAError}</p>
           </div>
+        )}
 
-          {twoFAError && (
-            <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
-              <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-              <p className="text-xs text-red-700 dark:text-red-400">
-                {twoFAError}
-              </p>
-            </div>
-          )}
-
-          <div className="space-y-4">
-            <div>
-              <label className="text-xs font-bold text-gray-500 dark:text-gray-400 uppercase tracking-wider mb-2 block">
-                {t("auth.twoFA.codeLabel")}
-              </label>
-              <input
-                type="text"
-                inputMode="numeric"
-                pattern="[0-9]*"
-                placeholder="000000"
-                value={twoFACode}
-                maxLength={6}
-                onChange={(e) => {
-                  const val = e.target.value.replace(/\D/g, "").slice(0, 6);
-                  setTwoFACode(val);
-                  if (twoFAError) setTwoFAError(null);
-                }}
-                className="w-full px-4 py-4 text-center text-2xl font-black tracking-widest rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:border-emerald-500 focus:ring-2 focus:ring-emerald-500/20 outline-none transition-all"
-                autoFocus
-              />
-            </div>
-
-            <Button
-              size="lg"
-              fullWidth
-              loading={twoFALoading}
-              onClick={handleVerify2FA}
-              disabled={twoFACode.length !== 6}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-            >
-              {t("auth.twoFA.verify")}
-            </Button>
-
-            <div className="p-3 rounded-xl bg-gray-50 dark:bg-white/5 border border-gray-100 dark:border-white/10">
-              <p className="text-[11px] text-gray-400 text-center">
-                {t("auth.twoFA.codeInfo")}
-              </p>
-            </div>
-
-            <button
-              onClick={() => {
-                setTwoFARequired(false);
-                setTwoFACode("");
-                setTwoFAError(null);
-                setTwoFAChallengeToken("");
-              }}
-              className="w-full text-xs text-gray-400 font-semibold text-center py-1 hover:text-gray-600 dark:hover:text-gray-300"
-            >
-              {t("auth.twoFA.backToLogin")}
-            </button>
-          </div>
+        <div className="space-y-4">
+          <input
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
+            placeholder="000000"
+            value={twoFACode}
+            maxLength={6}
+            onChange={(e) => setTwoFACode(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            className="w-full px-4 py-4 text-center text-2xl font-black tracking-widest rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 text-gray-900 dark:text-white focus:border-emerald-500 outline-none"
+            autoFocus
+          />
+          <Button size="lg" fullWidth loading={twoFALoading} onClick={handleVerify2FA} disabled={twoFACode.length !== 6} className="bg-emerald-500 hover:bg-emerald-600 text-white">
+            Verificar Código
+          </Button>
+          <button onClick={() => setTwoFARequired(false)} className="w-full text-xs text-gray-400 font-semibold text-center">Volver al inicio de sesión</button>
         </div>
       </div>
     );
@@ -469,160 +341,134 @@ export function AuthPage() {
   // =========================================================
   if (showReset) {
     return (
-      <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
-        <div className="px-4 pt-4">
-          <button
-            onClick={() => {
-              setShowReset(false);
-              setResetSent(false);
-              setGlobalError(null);
-            }}
-            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-          >
-            <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
-          </button>
-        </div>
-
-        <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
-          <div className="text-center mb-8">
-            <div className="h-14 w-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
-              <Lock className="h-7 w-7 text-amber-500" />
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {t("auth.reset.title")}
-            </h1>
-            <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {t("auth.reset.subtitle")}
-            </p>
+      <div className="min-h-screen bg-white dark:bg-black flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8 animate-fade-in">
+        <div className="text-center mb-8">
+          <div className="h-14 w-14 rounded-2xl bg-amber-500/10 flex items-center justify-center mx-auto mb-4">
+            <Lock className="h-7 w-7 text-amber-500" />
           </div>
-
-          {resetSent ? (
-            <div className="text-center space-y-4">
-              <div className="h-16 w-16 rounded-full bg-emerald-500/10 flex items-center justify-center mx-auto">
-                <CheckCircle2 className="h-8 w-8 text-emerald-500" />
-              </div>
-              <div>
-                <p className="text-sm font-bold text-gray-900 dark:text-white mb-1">
-                  {t("auth.reset.emailSent")}
-                </p>
-                <p className="text-xs text-gray-500 dark:text-gray-400">
-                  {t("auth.reset.checkInbox")}{" "}
-                  <strong>{resetEmail}</strong>.
-                </p>
-              </div>
-              <button
-                onClick={() => {
-                  setShowReset(false);
-                  setResetSent(false);
-                }}
-                className="text-sm text-emerald-500 font-semibold hover:underline"
-              >
-                {t("auth.reset.backToLogin")}
-              </button>
-            </div>
-          ) : (
-            <div className="space-y-4">
-              {globalError && (
-                <div className="flex items-center gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20">
-                  <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0" />
-                  <p className="text-xs text-red-700 dark:text-red-400">
-                    {globalError}
-                  </p>
-                </div>
-              )}
-              <Input
-                label={t("auth.email")}
-                type="email"
-                placeholder={t("auth.emailPlaceholder")}
-                icon={<Mail className="h-4 w-4" />}
-                value={resetEmail}
-                onChange={(e) => setResetEmail(e.target.value)}
-              />
-              <Button
-                size="lg"
-                fullWidth
-                loading={resetLoading}
-                onClick={handlePasswordReset}
-                className="bg-emerald-500 hover:bg-emerald-600 text-white"
-              >
-                {t("auth.reset.send")}
-              </Button>
-            </div>
-          )}
+          <h1 className="text-2xl font-bold text-gray-900 dark:text-white">Recuperar Contraseña</h1>
+          <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">Te enviaremos un enlace de recuperación</p>
         </div>
+
+        {resetSent ? (
+          <div className="text-center space-y-4">
+            <CheckCircle2 className="h-12 w-12 text-emerald-500 mx-auto" />
+            <p className="text-sm font-bold text-gray-900 dark:text-white">Correo enviado a {resetEmail}</p>
+            <button onClick={() => { setShowReset(false); setResetSent(false); }} className="text-sm text-emerald-500 font-semibold hover:underline">
+              Volver al Login
+            </button>
+          </div>
+        ) : (
+          <div className="space-y-4">
+            {globalError && <div className="p-3 bg-red-50 text-red-700 text-xs rounded-xl">{globalError}</div>}
+            <Input label="Correo electrónico" type="email" placeholder="tu@email.com" icon={<Mail className="h-4 w-4" />} value={resetEmail} onChange={(e) => setResetEmail(e.target.value)} />
+            <Button size="lg" fullWidth loading={resetLoading} onClick={handlePasswordReset} className="bg-emerald-500 hover:bg-emerald-600 text-white">Enviar enlace</Button>
+            <button onClick={() => setShowReset(false)} className="w-full text-xs text-gray-400 font-semibold text-center">Cancelar</button>
+          </div>
+        )}
       </div>
     );
   }
 
   // =========================================================
-  // RENDER: Formulario Principal de Login / Registro
+  // RENDER: Formulario Principal
   // =========================================================
   return (
     <>
       <div className="min-h-screen bg-white dark:bg-black flex flex-col transition-colors duration-300">
-
-        {/* Botón atrás */}
         <div className="px-4 pt-4">
-          <button
-            onClick={() => navigate("landing")}
-            className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5 transition-colors"
-          >
+          <button onClick={() => navigate("landing")} className="p-2 -ml-2 rounded-lg hover:bg-gray-100 dark:hover:bg-white/5">
             <ArrowLeft className="h-5 w-5 text-gray-700 dark:text-gray-300" />
           </button>
         </div>
 
         <div className="flex-1 flex flex-col justify-center max-w-lg mx-auto w-full px-6 py-8">
-
-          {/* Logo y título */}
           <div className="text-center mb-8">
             <div className="inline-flex px-5 py-3 rounded-2xl bg-zinc-50 dark:bg-zinc-950 border border-gray-100 dark:border-white/[0.06] mx-auto mb-4 shadow-sm">
               <Logo size={36} className="text-black dark:text-white" />
             </div>
             <h1 className="text-2xl font-bold text-gray-900 dark:text-white">
-              {isLogin ? t("auth.welcomeBack") : t("auth.createAccountTitle")}
+              {isLogin ? "Bienvenido de nuevo" : "Crear Cuenta"}
             </h1>
             <p className="text-sm text-gray-500 dark:text-gray-400 mt-1">
-              {isLogin ? t("auth.loginSubtitle") : t("auth.registerSubtitle")}
+              {isLogin ? "Ingresa tus credenciales para acceder" : "Regístrate para operar con USDT seguro"}
             </p>
           </div>
 
-          {/* Error global */}
           {globalError && (
             <div className="flex items-start gap-2 p-3 rounded-xl bg-red-50 dark:bg-red-500/5 border border-red-200 dark:border-red-500/20 mb-4">
               <AlertTriangle className="h-4 w-4 text-red-500 flex-shrink-0 mt-0.5" />
-              <p className="text-xs text-red-700 dark:text-red-400">
-                {globalError}
-              </p>
+              <p className="text-xs text-red-700 dark:text-red-400">{globalError}</p>
             </div>
           )}
 
           <form onSubmit={handleSubmit} className="space-y-4">
+            {isLogin && <BiometricLoginButton onSuccess={(data) => finishLogin(data)} />}
 
-            {/* Biometría solo disponible en login */}
-            {isLogin && (
-              <BiometricLoginButton
-                onSuccess={(data) => finishLogin(data)}
-              />
-            )}
-
-            {/* Nombre solo en registro */}
+            {/* Nombre (Solo en Registro) */}
             {!isLogin && (
               <Input
-                label={t("auth.name")}
-                placeholder={t("auth.namePlaceholder")}
+                label="Nombre completo"
+                placeholder="Ej. Juan Pérez"
                 icon={<User className="h-4 w-4" />}
                 value={name}
                 onChange={(e) => setName(e.target.value)}
                 error={errors.name}
-                autoComplete="name"
               />
             )}
 
-            {/* Email */}
+            {/* Teléfono Obligatorio (Solo en Registro) */}
+            {!isLogin && (
+              <div>
+                <label className="block text-xs font-bold text-gray-700 dark:text-gray-300 mb-1.5">
+                  Número de Teléfono <span className="text-emerald-500">*</span>
+                </label>
+                <div className="flex gap-2">
+                  <select
+                    value={countryCode}
+                    onChange={(e) => {
+                      setCountryCode(e.target.value as "+53" | "+1");
+                      setPhoneNumber("");
+                      setErrors((p) => ({ ...p, phone: "" }));
+                    }}
+                    className="h-12 px-3 rounded-xl border border-gray-200 dark:border-white/10 bg-gray-50 dark:bg-white/5 text-gray-900 dark:text-white text-xs font-bold focus:outline-none focus:border-emerald-500 cursor-pointer"
+                  >
+                    <option value="+53">🇨🇺 +53 (Cuba)</option>
+                    <option value="+1">🇺🇸 +1 (USA)</option>
+                  </select>
+
+                  <div className="relative flex-1">
+                    <input
+                      type="tel"
+                      inputMode="numeric"
+                      placeholder={countryCode === "+53" ? "5XXXXXXX" : "305XXXXXXX"}
+                      maxLength={countryCode === "+53" ? 8 : 10}
+                      value={phoneNumber}
+                      onChange={(e) => {
+                        setPhoneNumber(e.target.value.replace(/\D/g, ""));
+                        if (errors.phone) setErrors((p) => ({ ...p, phone: "" }));
+                      }}
+                      className={`w-full h-12 pl-10 pr-4 text-xs font-medium rounded-xl border ${
+                        errors.phone 
+                          ? "border-red-500 bg-red-50/20" 
+                          : "border-gray-200 dark:border-white/10 bg-white dark:bg-white/5"
+                      } text-gray-900 dark:text-white focus:outline-none focus:border-emerald-500`}
+                    />
+                    <Phone className="absolute left-3.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+                  </div>
+                </div>
+                {errors.phone && <p className="text-[11px] text-red-500 mt-1 font-medium">{errors.phone}</p>}
+                <p className="text-[10px] text-gray-400 mt-1">
+                  {countryCode === "+53" ? "Ingresa los 8 dígitos de tu móvil cubano" : "Ingresa los 10 dígitos (código de área + número)"}
+                </p>
+              </div>
+            )}
+
+                        {/* Email */}
             <Input
-              label={t("auth.email")}
+              label="Correo electrónico"
               type="email"
-              placeholder={t("auth.emailPlaceholder")}
+              placeholder="tu@email.com"
               icon={<Mail className="h-4 w-4" />}
               value={email}
               onChange={(e) => {
@@ -632,12 +478,11 @@ export function AuthPage() {
               error={errors.email}
               autoComplete="email"
             />
-
-            {/* Password */}
+            {/* Contraseña */}
             <Input
-              label={t("auth.password")}
+              label="Contraseña"
               type={showPassword ? "text" : "password"}
-              placeholder={t("auth.passwordPlaceholder")}
+              placeholder="••••••••"
               icon={<Lock className="h-4 w-4" />}
               value={password}
               onChange={(e) => {
@@ -645,168 +490,38 @@ export function AuthPage() {
                 if (errors.password) setErrors((p) => ({ ...p, password: "" }));
               }}
               error={errors.password}
-              autoComplete={isLogin ? "current-password" : "new-password"}
               rightElement={
-                <button
-                  type="button"
-                  onClick={() => setShowPassword(!showPassword)}
-                  className="text-gray-400 hover:text-gray-600 dark:hover:text-gray-300"
-                >
+                <button type="button" onClick={() => setShowPassword(!showPassword)} className="text-gray-400 hover:text-gray-600">
                   {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </button>
               }
             />
 
-            {/* Indicador de fortaleza de password (registro) */}
-            {!isLogin && password.length > 0 && (
-              <div className="space-y-1.5">
-                <div className="flex gap-1">
-                  {[1, 2, 3, 4].map((level) => (
-                    <div
-                      key={level}
-                      className={`flex-1 h-1 rounded-full transition-colors ${
-                        password.length >= level * 2
-                          ? password.length >= 8
-                            ? "bg-emerald-500"
-                            : password.length >= 6
-                            ? "bg-amber-500"
-                            : "bg-red-500"
-                          : "bg-gray-200 dark:bg-white/10"
-                      }`}
-                    />
-                  ))}
-                </div>
-                <p className="text-[10px] text-gray-400">
-                  {password.length < 6
-                    ? t("auth.password.veryWeak")
-                    : password.length < 8
-                    ? t("auth.password.weak")
-                    : password.length < 12
-                    ? t("auth.password.good")
-                    : t("auth.password.strong")}
-                </p>
-              </div>
-            )}
-
-            {/* Olvidé mi contraseña */}
             {isLogin && (
               <div className="text-right">
-                <button
-                  type="button"
-                  onClick={() => {
-                    setResetEmail(email);
-                    setShowReset(true);
-                    setGlobalError(null);
-                  }}
-                  className="text-xs text-emerald-500 hover:text-emerald-400 font-semibold"
-                >
-                  {t("auth.forgotPassword")}
+                <button type="button" onClick={() => { setResetEmail(email); setShowReset(true); }} className="text-xs text-emerald-500 font-semibold hover:underline">
+                  ¿Olvidaste tu contraseña?
                 </button>
               </div>
             )}
 
-            {/* Términos y condiciones */}
-            {!isLogin && (
-              <p className="text-[11px] text-gray-400 dark:text-gray-500 text-center leading-relaxed">
-                {t("auth.terms.accept")}{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("terms")}
-                  className="text-emerald-500 font-semibold hover:underline"
-                >
-                  {t("auth.terms.tos")}
-                </button>{" "}
-                {t("auth.terms.and")}{" "}
-                <button
-                  type="button"
-                  onClick={() => navigate("terms")}
-                  className="text-emerald-500 font-semibold hover:underline"
-                >
-                  {t("auth.terms.privacy")}
-                </button>.
-              </p>
-            )}
-
-            {/* Botón Principal (Submit) */}
-            <Button
-              type="submit"
-              size="lg"
-              fullWidth
-              loading={loading}
-              className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20"
-            >
-              {isLogin ? t("auth.login") : t("auth.createAccount")}
+            <Button type="submit" size="lg" fullWidth loading={loading} className="bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20">
+              {isLogin ? "Iniciar Sesión" : "Crear Cuenta"}
             </Button>
-
-            {/* Separador */}
-            <div className="flex items-center gap-3">
-              <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-              <span className="text-xs text-gray-400 font-medium">
-                {t("auth.orContinueWith")}
-              </span>
-              <div className="flex-1 h-px bg-gray-200 dark:bg-white/10" />
-            </div>
-
-            {/* Botón Google OAuth */}
-            <button
-              type="button"
-              onClick={handleGoogleLogin}
-              disabled={googleLoading}
-              className="w-full flex items-center justify-center gap-3 py-3 px-4 rounded-xl border border-gray-200 dark:border-white/10 bg-white dark:bg-white/5 hover:bg-gray-50 dark:hover:bg-white/10 transition-colors disabled:opacity-50"
-            >
-              {googleLoading ? (
-                <div className="h-5 w-5 border-2 border-gray-300 border-t-emerald-500 rounded-full animate-spin" />
-              ) : (
-                <svg className="h-5 w-5" viewBox="0 0 24 24">
-                  <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
-                  <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"/>
-                  <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"/>
-                  <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"/>
-                </svg>
-              )}
-              <span className="text-sm font-semibold text-gray-700 dark:text-gray-300">
-                {googleLoading ? t("auth.connecting") : t("auth.continueGoogle")}
-              </span>
-            </button>
           </form>
 
-          {/* Badges de confianza */}
-          <div className="flex items-center justify-center gap-4 mt-5">
-            {[
-              t("auth.trust.noVpn"),
-              t("auth.trust.ssl"),
-              t("auth.trust.noFees"),
-            ].map((badge) => (
-              <div
-                key={badge}
-                className="flex items-center gap-1 text-[10px] font-semibold text-gray-400"
-              >
-                <Shield className="h-3 w-3 text-emerald-500" />
-                {badge}
-              </div>
-            ))}
-          </div>
-
-          {/* Switch de modo Login <-> Registro */}
-          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-5">
-            {isLogin ? t("auth.noAccount") : t("auth.haveAccount")}{" "}
-            <button
-              onClick={handleSwitchView}
-              className="text-emerald-500 hover:text-emerald-400 font-bold"
-            >
-              {isLogin ? t("auth.registerFree") : t("auth.signIn")}
+          <p className="text-center text-sm text-gray-500 dark:text-gray-400 mt-6">
+            {isLogin ? "¿No tienes una cuenta?" : "¿Ya tienes cuenta?"}{" "}
+            <button onClick={handleSwitchView} className="text-emerald-500 font-bold hover:underline">
+              {isLogin ? "Regístrate gratis" : "Inicia Sesión"}
             </button>
           </p>
         </div>
       </div>
 
-      {/* Modal de Biometría (WebAuthn / Passkeys) */}
       {showBiometricModal && (
-        <BiometricActivationModal
-          onClose={handleBiometricSkip}
-          onActivated={handleBiometricActivated}
-        />
+        <BiometricActivationModal onClose={handleBiometricSkip} onActivated={handleBiometricActivated} />
       )}
     </>
   );
-             }
+}
